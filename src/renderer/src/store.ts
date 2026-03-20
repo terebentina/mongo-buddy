@@ -20,6 +20,7 @@ interface StoreState {
   disconnect: () => Promise<void>
   selectDb: (db: string) => Promise<void>
   selectCollection: (db: string, collection: string) => Promise<void>
+  fetchPage: (skip: number) => Promise<void>
 }
 
 export const useStore = create<StoreState>()((set, get) => ({
@@ -83,6 +84,18 @@ export const useStore = create<StoreState>()((set, get) => ({
     const { limit, filter } = get()
     set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0 })
     const result = await window.api.find(db, collection, { filter, skip: 0, limit })
+    if (!result.ok) {
+      set({ loading: false, error: result.error })
+      return
+    }
+    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount })
+  },
+
+  fetchPage: async (skip: number) => {
+    const { selectedDb, selectedCollection, limit, filter } = get()
+    if (!selectedDb || !selectedCollection) return
+    set({ loading: true, skip })
+    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip, limit })
     if (!result.ok) {
       set({ loading: false, error: result.error })
       return
