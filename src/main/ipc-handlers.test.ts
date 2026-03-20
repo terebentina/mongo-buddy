@@ -21,6 +21,7 @@ describe('IPC Handlers', () => {
     listCollections: ReturnType<typeof vi.fn>
     find: ReturnType<typeof vi.fn>
     count: ReturnType<typeof vi.fn>
+    aggregate: ReturnType<typeof vi.fn>
   }
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>
@@ -38,7 +39,8 @@ describe('IPC Handlers', () => {
       listDatabases: vi.fn(),
       listCollections: vi.fn(),
       find: vi.fn(),
-      count: vi.fn()
+      count: vi.fn(),
+      aggregate: vi.fn()
     }
 
     mockConnStore = {
@@ -68,6 +70,7 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:list-collections']).toBeDefined()
     expect(handlers['mongo:find']).toBeDefined()
     expect(handlers['mongo:count']).toBeDefined()
+    expect(handlers['mongo:aggregate']).toBeDefined()
     expect(handlers['connections:list']).toBeDefined()
     expect(handlers['connections:save']).toBeDefined()
     expect(handlers['connections:delete']).toBeDefined()
@@ -136,6 +139,17 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:count']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', { active: true })
       expect(mockService.count).toHaveBeenCalledWith('testdb', 'users', { active: true })
       expect(result).toEqual({ ok: true, data: 42 })
+    })
+  })
+
+  describe('mongo:aggregate', () => {
+    it('calls MongoService.aggregate with db, collection, and pipeline', async () => {
+      const aggResult = [{ _id: null, total: 42 }]
+      mockService.aggregate.mockResolvedValue({ ok: true, data: aggResult })
+      const pipeline = [{ $group: { _id: null, total: { $sum: 1 } } }]
+      const result = await handlers['mongo:aggregate']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', pipeline)
+      expect(mockService.aggregate).toHaveBeenCalledWith('testdb', 'users', pipeline)
+      expect(result).toEqual({ ok: true, data: aggResult })
     })
   })
 

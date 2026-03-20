@@ -31,6 +31,12 @@ export function registerIpcHandlers(service: MongoService, connStore: Connection
     )
   )
   ipcMain.handle(
+    'mongo:aggregate',
+    wrap((db: unknown, coll: unknown, pipeline: unknown) =>
+      service.aggregate(db as string, coll as string, pipeline as Record<string, unknown>[])
+    )
+  )
+  ipcMain.handle(
     'mongo:count',
     wrap((db: unknown, coll: unknown, filter: unknown) =>
       service.count(db as string, coll as string, filter as Record<string, unknown>)

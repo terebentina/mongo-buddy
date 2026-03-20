@@ -8,6 +8,7 @@ const mockApi = {
   listCollections: vi.fn(),
   find: vi.fn(),
   count: vi.fn(),
+  aggregate: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
@@ -31,7 +32,8 @@ beforeEach(() => {
     filter: {},
     error: null,
     loading: false,
-    savedConnections: []
+    savedConnections: [],
+    queryMode: 'filter' as const
   })
   ;(window as any).api = mockApi
 })
@@ -183,5 +185,72 @@ describe('store', () => {
 
     expect(mockApi.connect).not.toHaveBeenCalled()
     expect(useStore.getState().connected).toBe(false)
+  })
+
+  it('runQuery() in filter mode calls find with parsed filter', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users'
+    })
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [{ _id: '1', name: 'Alice' }], totalCount: 1 }
+    })
+
+    await useStore.getState().runQuery('{"name":"Alice"}')
+
+    const state = useStore.getState()
+    expect(state.docs).toEqual([{ _id: '1', name: 'Alice' }])
+    expect(state.filter).toEqual({ name: 'Alice' })
+    expect(state.skip).toBe(0)
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+      filter: { name: 'Alice' },
+      skip: 0,
+      limit: 20
+    })
+  })
+
+  it('runQuery() in aggregate mode calls aggregate with parsed pipeline', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryMode: 'aggregate'
+    })
+    mockApi.aggregate.mockResolvedValue({
+      ok: true,
+      data: [{ _id: null, total: 42 }]
+    })
+
+    await useStore.getState().runQuery('[{"$group":{"_id":null,"total":{"$sum":1}}}]')
+
+    const state = useStore.getState()
+    expect(state.docs).toEqual([{ _id: null, total: 42 }])
+    expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', [
+      { $group: { _id: null, total: { $sum: 1 } } }
+    ])
+  })
+
+  it('runQuery() returns error string for invalid JSON', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users'
+    })
+
+    const error = await useStore.getState().runQuery('{bad json}')
+
+    expect(error).toBeTruthy()
+    expect(typeof error).toBe('string')
+    expect(mockApi.find).not.toHaveBeenCalled()
+  })
+
+  it('setQueryMode() toggles between filter and aggregate', () => {
+    expect(useStore.getState().queryMode).toBe('filter')
+    useStore.getState().setQueryMode('aggregate')
+    expect(useStore.getState().queryMode).toBe('aggregate')
+    useStore.getState().setQueryMode('filter')
+    expect(useStore.getState().queryMode).toBe('filter')
   })
 })

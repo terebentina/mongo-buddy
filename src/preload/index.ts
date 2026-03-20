@@ -12,6 +12,8 @@ const api = {
     ipcRenderer.invoke('mongo:find', db, collection, opts),
   count: (db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>> =>
     ipcRenderer.invoke('mongo:count', db, collection, filter ?? {}),
+  aggregate: (db: string, collection: string, pipeline: Record<string, unknown>[]): Promise<Result<Record<string, unknown>[]>> =>
+    ipcRenderer.invoke('mongo:aggregate', db, collection, pipeline),
   listConnections: (): Promise<SavedConnection[]> => ipcRenderer.invoke('connections:list'),
   saveConnection: (conn: SavedConnection): Promise<void> => ipcRenderer.invoke('connections:save', conn),
   deleteConnection: (name: string): Promise<void> => ipcRenderer.invoke('connections:delete', name),

@@ -88,6 +88,24 @@ export class MongoService {
     }
   }
 
+  async aggregate(
+    dbName: string,
+    collName: string,
+    pipeline: Record<string, unknown>[]
+  ): Promise<Result<Record<string, unknown>[]>> {
+    if (!this.client) return { ok: false, error: 'Not connected' }
+    try {
+      const collection = this.client.db(dbName).collection(collName)
+      const rawDocs = await collection.aggregate(pipeline).toArray()
+      const docs = rawDocs.map(
+        (doc) => EJSON.serialize(doc) as Record<string, unknown>
+      )
+      return { ok: true, data: docs }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  }
+
   async count(
     dbName: string,
     collName: string,

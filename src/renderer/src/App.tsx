@@ -3,6 +3,7 @@ import { useStore } from './store'
 import { ConnectionDialog } from './components/ConnectionDialog'
 import { Sidebar } from './components/Sidebar'
 import { DocumentTable } from './components/DocumentTable'
+import { QueryEditor } from './components/QueryEditor'
 import { Toaster } from './components/ui/sonner'
 
 function App(): JSX.Element {
@@ -29,7 +30,12 @@ function App(): JSX.Element {
             </button>
           </div>
         )}
-        {connected && selectedCollection && <DocumentTable />}
+        {connected && selectedCollection && (
+          <>
+            <QueryEditor />
+            <DocumentTable />
+          </>
+        )}
       </div>
       <ConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <Toaster />
