@@ -40,7 +40,7 @@
       "id": "S3",
       "title": "IPC + Preload Bridge",
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "description": "TDD the IPC handlers and preload bridge. RED: Write ipc-handlers.test.ts with mocked MongoService. GREEN: Implement ipc-handlers.ts, preload/index.ts, preload/index.d.ts. REFACTOR: DRY up handler registration.",
       "acceptanceCriteria": [
         "TEST: Each IPC channel calls correct MongoService method",
@@ -56,7 +56,7 @@
       "id": "S4",
       "title": "Zustand Store TDD",
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "description": "TDD the zustand store (src/renderer/src/store.ts). RED: Write store.test.ts with mocked window.api. GREEN: Implement store. REFACTOR: Clean up.",
       "acceptanceCriteria": [
         "TEST: connect(uri) sets connected=true, loads databases",
@@ -71,7 +71,7 @@
       "id": "S5",
       "title": "Connection Dialog + Sidebar",
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "description": "TDD the ConnectionDialog and Sidebar UI components. RED: Write ConnectionDialog.test.tsx and Sidebar.test.tsx. GREEN: Implement components + App.tsx layout. REFACTOR: Extract shared patterns.",
       "acceptanceCriteria": [
         "TEST: ConnectionDialog renders URI input and Connect button",

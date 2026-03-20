@@ -14,6 +14,15 @@ Started: Fri Mar 20 11:43:13 EET 2026
 - EJSON import: use `import { EJSON } from 'mongodb/lib/bson'` (not directly exported from mongodb v6)
 - EJSON Date serialization uses compact ISO format without trailing .000 (e.g. `2024-01-01T00:00:00Z`)
 - MongoService pattern: all methods return `Result<T>`, catch errors internally
+- IPC channel naming: `mongo:<action>` (e.g. `mongo:connect`, `mongo:list-databases`)
+- IPC handlers use a `wrap()` helper for uniform error handling + Result<T> return
+- Preload exports typed `MongoApi` interface; renderer accesses via `window.api`
+- Zustand store at src/renderer/src/store.ts; test with `useStore.getState()` and `useStore.setState()`
+- Store actions call `window.api.*` methods; mock `window.api` in renderer tests
+- jsdom needs `global.ResizeObserver` mock for Radix ScrollArea (added in test-setup.ts)
+- Radix Collapsible: use controlled `open` prop (not `defaultOpen`) when state is managed externally (e.g. zustand)
+- Component tests: use `@testing-library/user-event` for user interactions, `waitFor` for async state updates
+- Toast pattern: use `sonner` toast.error() after checking store error state post-action
 
 ---
 
@@ -40,4 +49,42 @@ Started: Fri Mar 20 11:43:13 EET 2026
   - When mocking mongodb, mock MongoClient constructor but use real ObjectId/EJSON from actual imports
   - BSON version mismatch: don't install standalone `bson` package alongside mongodb (version conflict)
   - EJSON.serialize Date format is compact ISO (no trailing .000 milliseconds when zero)
+---
+
+## 2026-03-20 - S3
+- TDD'd IPC handlers (9 tests): all 6 channels + error handling
+- Implemented ipc-handlers.ts with wrap() helper for uniform error catching
+- Updated preload/index.ts with typed MongoApi exposed via contextBridge
+- Updated preload/index.d.ts with full MongoApi type declarations
+- Wired MongoService + registerIpcHandlers into src/main/index.ts
+- Files: src/main/ipc-handlers.ts, src/main/ipc-handlers.test.ts, src/main/index.ts, src/preload/index.ts, src/preload/index.d.ts
+- **Learnings for future iterations:**
+  - Mock `ipcMain.handle` by capturing channel→handler map, then invoke handlers directly in tests
+  - Cast mock implementation `as typeof ipcMain.handle` to satisfy Electron's complex types
+  - IPC handlers receive `(event, ...args)` - the wrap() pattern strips the event and forwards args to MongoService
+---
+
+## 2026-03-20 - S4
+- TDD'd zustand store with 5 tests: connect success, connect failure, selectDb, selectCollection, disconnect
+- Store uses `window.api` (preload bridge) for all MongoDB operations
+- State: connected, uri, databases, collections, selectedDb, selectedCollection, docs, totalCount, skip, limit, filter, error, loading
+- Files: src/renderer/src/store.ts, src/renderer/src/store.test.ts
+- **Learnings for future iterations:**
+  - Zustand v5 `create` works with `create<Type>()((set, get) => ...)` pattern
+  - Mock `window.api` in beforeEach, use `useStore.setState()` to reset between tests
+  - Use `useStore.getState().action()` to call actions in tests without rendering React components
+---
+
+## 2026-03-20 - S5
+- TDD'd ConnectionDialog (4 tests) and Sidebar (4 tests) components
+- ConnectionDialog: URI input, connect button, error toast via sonner, dialog close on success
+- Sidebar: database list, click-to-expand with controlled Collapsible, collection selection with active state
+- Updated App.tsx with sidebar + main panel layout, Sonner Toaster
+- Created sonner.tsx UI component wrapper
+- Files: src/renderer/src/components/ConnectionDialog.tsx, ConnectionDialog.test.tsx, Sidebar.tsx, Sidebar.test.tsx, ui/sonner.tsx, App.tsx, test-setup.ts
+- **Learnings for future iterations:**
+  - jsdom lacks ResizeObserver - must mock globally in test-setup.ts
+  - Radix Collapsible `defaultOpen` doesn't work well with external state; use controlled `open` prop
+  - ConnectionDialog uses store.connect then checks store error state to decide toast vs close
+  - @testing-library/user-event needed separate install (not bundled with @testing-library/react)
 ---
