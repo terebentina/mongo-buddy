@@ -7,7 +7,12 @@ const mockApi = {
   listDatabases: vi.fn(),
   listCollections: vi.fn(),
   find: vi.fn(),
-  count: vi.fn()
+  count: vi.fn(),
+  listConnections: vi.fn(),
+  saveConnection: vi.fn(),
+  deleteConnection: vi.fn(),
+  getLastUsed: vi.fn(),
+  setLastUsed: vi.fn()
 }
 
 beforeEach(() => {
@@ -25,7 +30,8 @@ beforeEach(() => {
     limit: 20,
     filter: {},
     error: null,
-    loading: false
+    loading: false,
+    savedConnections: []
   })
   ;(window as any).api = mockApi
 })
@@ -115,5 +121,67 @@ describe('store', () => {
     expect(state.selectedCollection).toBeNull()
     expect(state.docs).toEqual([])
     expect(mockApi.disconnect).toHaveBeenCalled()
+  })
+
+  it('connect(uri) calls setLastUsed on success', async () => {
+    mockApi.connect.mockResolvedValue({ ok: true, data: undefined })
+    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] })
+    mockApi.setLastUsed.mockResolvedValue(undefined)
+
+    await useStore.getState().connect('mongodb://localhost')
+
+    expect(mockApi.setLastUsed).toHaveBeenCalledWith('mongodb://localhost')
+  })
+
+  it('loadSavedConnections() fetches and sets savedConnections', async () => {
+    const conns = [{ name: 'Local', uri: 'mongodb://localhost:27017' }]
+    mockApi.listConnections.mockResolvedValue(conns)
+
+    await useStore.getState().loadSavedConnections()
+
+    expect(useStore.getState().savedConnections).toEqual(conns)
+  })
+
+  it('saveConnection(name, uri) saves and reloads list', async () => {
+    mockApi.saveConnection.mockResolvedValue(undefined)
+    mockApi.listConnections.mockResolvedValue([{ name: 'Local', uri: 'mongodb://localhost:27017' }])
+
+    await useStore.getState().saveConnection('Local', 'mongodb://localhost:27017')
+
+    expect(mockApi.saveConnection).toHaveBeenCalledWith({ name: 'Local', uri: 'mongodb://localhost:27017' })
+    expect(useStore.getState().savedConnections).toHaveLength(1)
+  })
+
+  it('deleteConnection(name) removes and reloads list', async () => {
+    mockApi.deleteConnection.mockResolvedValue(undefined)
+    mockApi.listConnections.mockResolvedValue([])
+
+    useStore.setState({ savedConnections: [{ name: 'Local', uri: 'mongodb://localhost:27017' }] })
+    await useStore.getState().deleteConnection('Local')
+
+    expect(mockApi.deleteConnection).toHaveBeenCalledWith('Local')
+    expect(useStore.getState().savedConnections).toEqual([])
+  })
+
+  it('autoReconnect() connects with last used URI', async () => {
+    mockApi.getLastUsed.mockResolvedValue('mongodb://localhost:27017')
+    mockApi.connect.mockResolvedValue({ ok: true, data: undefined })
+    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] })
+    mockApi.setLastUsed.mockResolvedValue(undefined)
+
+    await useStore.getState().autoReconnect()
+
+    expect(mockApi.getLastUsed).toHaveBeenCalled()
+    expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost:27017')
+    expect(useStore.getState().connected).toBe(true)
+  })
+
+  it('autoReconnect() does nothing when no last used URI', async () => {
+    mockApi.getLastUsed.mockResolvedValue(null)
+
+    await useStore.getState().autoReconnect()
+
+    expect(mockApi.connect).not.toHaveBeenCalled()
+    expect(useStore.getState().connected).toBe(false)
   })
 })
