@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { DbInfo, CollectionInfo } from '../../shared/types'
+import type { DbInfo, CollectionInfo, SavedConnection } from '../../shared/types'
 
 interface StoreState {
   connected: boolean
@@ -15,12 +15,17 @@ interface StoreState {
   filter: Record<string, unknown>
   error: string | null
   loading: boolean
+  savedConnections: SavedConnection[]
 
   connect: (uri: string) => Promise<void>
   disconnect: () => Promise<void>
   selectDb: (db: string) => Promise<void>
   selectCollection: (db: string, collection: string) => Promise<void>
   fetchPage: (skip: number) => Promise<void>
+  loadSavedConnections: () => Promise<void>
+  saveConnection: (name: string, uri: string) => Promise<void>
+  deleteConnection: (name: string) => Promise<void>
+  autoReconnect: () => Promise<void>
 }
 
 export const useStore = create<StoreState>()((set, get) => ({
@@ -37,6 +42,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   filter: {},
   error: null,
   loading: false,
+  savedConnections: [],
 
   connect: async (uri: string) => {
     set({ loading: true, error: null })
@@ -50,6 +56,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       set({ loading: false, error: dbResult.error, connected: true, uri })
       return
     }
+    await window.api.setLastUsed(uri)
     set({ loading: false, connected: true, uri, databases: dbResult.data })
   },
 
@@ -101,5 +108,29 @@ export const useStore = create<StoreState>()((set, get) => ({
       return
     }
     set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount })
+  },
+
+  loadSavedConnections: async () => {
+    const connections = await window.api.listConnections()
+    set({ savedConnections: connections })
+  },
+
+  saveConnection: async (name: string, uri: string) => {
+    await window.api.saveConnection({ name, uri })
+    const connections = await window.api.listConnections()
+    set({ savedConnections: connections })
+  },
+
+  deleteConnection: async (name: string) => {
+    await window.api.deleteConnection(name)
+    const connections = await window.api.listConnections()
+    set({ savedConnections: connections })
+  },
+
+  autoReconnect: async () => {
+    const lastUsed = await window.api.getLastUsed()
+    if (lastUsed) {
+      await get().connect(lastUsed)
+    }
   }
 }))

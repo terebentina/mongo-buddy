@@ -2,10 +2,12 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { MongoService } from './mongo-service'
+import { ConnectionStore } from './connection-store'
 import { registerIpcHandlers } from './ipc-handlers'
 
 const mongoService = new MongoService()
-registerIpcHandlers(mongoService)
+const connectionStore = new ConnectionStore()
+registerIpcHandlers(mongoService, connectionStore)
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

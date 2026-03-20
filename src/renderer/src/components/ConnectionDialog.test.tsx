@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConnectionDialog } from './ConnectionDialog'
 import { useStore } from '../store'
@@ -17,7 +17,12 @@ const mockApi = {
   listDatabases: vi.fn(),
   listCollections: vi.fn(),
   find: vi.fn(),
-  count: vi.fn()
+  count: vi.fn(),
+  listConnections: vi.fn(),
+  saveConnection: vi.fn(),
+  deleteConnection: vi.fn(),
+  getLastUsed: vi.fn(),
+  setLastUsed: vi.fn()
 }
 
 beforeEach(() => {
@@ -35,8 +40,10 @@ beforeEach(() => {
     limit: 20,
     filter: {},
     error: null,
-    loading: false
+    loading: false,
+    savedConnections: []
   })
+  mockApi.listConnections.mockResolvedValue([])
   ;(window as any).api = mockApi
 })
 
@@ -51,11 +58,12 @@ describe('ConnectionDialog', () => {
   it('submit calls store.connect', async () => {
     mockApi.connect.mockResolvedValue({ ok: true, data: undefined })
     mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] })
+    mockApi.setLastUsed.mockResolvedValue(undefined)
 
     const onOpenChange = vi.fn()
     render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />)
 
-    const input = screen.getByPlaceholderText(/mongodb/i)
+    const input = screen.getByPlaceholderText('mongodb://localhost:27017')
     await userEvent.type(input, 'mongodb://localhost:27017')
     await userEvent.click(screen.getByRole('button', { name: /connect/i }))
 
@@ -69,7 +77,7 @@ describe('ConnectionDialog', () => {
 
     render(<ConnectionDialog open={true} onOpenChange={() => {}} />)
 
-    const input = screen.getByPlaceholderText(/mongodb/i)
+    const input = screen.getByPlaceholderText('mongodb://localhost:27017')
     await userEvent.type(input, 'mongodb://badhost')
     await userEvent.click(screen.getByRole('button', { name: /connect/i }))
 
@@ -81,16 +89,73 @@ describe('ConnectionDialog', () => {
   it('hides dialog on successful connection', async () => {
     mockApi.connect.mockResolvedValue({ ok: true, data: undefined })
     mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] })
+    mockApi.setLastUsed.mockResolvedValue(undefined)
 
     const onOpenChange = vi.fn()
     render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />)
 
-    const input = screen.getByPlaceholderText(/mongodb/i)
+    const input = screen.getByPlaceholderText('mongodb://localhost:27017')
     await userEvent.type(input, 'mongodb://localhost:27017')
     await userEvent.click(screen.getByRole('button', { name: /connect/i }))
 
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+  })
+
+  it('renders saved connections list', async () => {
+    mockApi.listConnections.mockResolvedValue([
+      { name: 'Local', uri: 'mongodb://localhost:27017' },
+      { name: 'Remote', uri: 'mongodb://remote:27017' }
+    ])
+
+    render(<ConnectionDialog open={true} onOpenChange={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Local')).toBeInTheDocument()
+      expect(screen.getByText('Remote')).toBeInTheDocument()
+    })
+  })
+
+  it('click saved connection fills URI and connects', async () => {
+    mockApi.listConnections.mockResolvedValue([
+      { name: 'Local', uri: 'mongodb://localhost:27017' }
+    ])
+    mockApi.connect.mockResolvedValue({ ok: true, data: undefined })
+    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] })
+    mockApi.setLastUsed.mockResolvedValue(undefined)
+
+    const onOpenChange = vi.fn()
+    render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Local')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByText('Local'))
+
+    await waitFor(() => {
+      expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost:27017')
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+  })
+
+  it('delete removes connection from store', async () => {
+    mockApi.listConnections
+      .mockResolvedValueOnce([{ name: 'Local', uri: 'mongodb://localhost:27017' }])
+      .mockResolvedValueOnce([])
+    mockApi.deleteConnection.mockResolvedValue(undefined)
+
+    render(<ConnectionDialog open={true} onOpenChange={() => {}} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Local')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /delete local/i }))
+
+    await waitFor(() => {
+      expect(mockApi.deleteConnection).toHaveBeenCalledWith('Local')
     })
   })
 })

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ipcMain } from 'electron'
 import { registerIpcHandlers } from './ipc-handlers'
 import { MongoService } from './mongo-service'
+import { ConnectionStore } from './connection-store'
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -10,6 +11,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('./mongo-service')
+vi.mock('./connection-store')
 
 describe('IPC Handlers', () => {
   let mockService: {
@@ -20,7 +22,14 @@ describe('IPC Handlers', () => {
     find: ReturnType<typeof vi.fn>
     count: ReturnType<typeof vi.fn>
   }
-  let handlers: Record<string, (...args: unknown[]) => Promise<unknown>>
+  let mockConnStore: {
+    getAll: ReturnType<typeof vi.fn>
+    save: ReturnType<typeof vi.fn>
+    remove: ReturnType<typeof vi.fn>
+    getLastUsed: ReturnType<typeof vi.fn>
+    setLastUsed: ReturnType<typeof vi.fn>
+  }
+  let handlers: Record<string, (...args: unknown[]) => unknown>
 
   beforeEach(() => {
     mockService = {
@@ -32,12 +41,20 @@ describe('IPC Handlers', () => {
       count: vi.fn()
     }
 
+    mockConnStore = {
+      getAll: vi.fn(),
+      save: vi.fn(),
+      remove: vi.fn(),
+      getLastUsed: vi.fn(),
+      setLastUsed: vi.fn()
+    }
+
     handlers = {}
-    vi.mocked(ipcMain.handle).mockImplementation(((channel: string, handler: (...args: unknown[]) => Promise<unknown>) => {
+    vi.mocked(ipcMain.handle).mockImplementation(((channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers[channel] = handler
     }) as typeof ipcMain.handle)
 
-    registerIpcHandlers(mockService as unknown as MongoService)
+    registerIpcHandlers(mockService as unknown as MongoService, mockConnStore as unknown as ConnectionStore)
   })
 
   afterEach(() => {
@@ -51,6 +68,11 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:list-collections']).toBeDefined()
     expect(handlers['mongo:find']).toBeDefined()
     expect(handlers['mongo:count']).toBeDefined()
+    expect(handlers['connections:list']).toBeDefined()
+    expect(handlers['connections:save']).toBeDefined()
+    expect(handlers['connections:delete']).toBeDefined()
+    expect(handlers['connections:get-last-used']).toBeDefined()
+    expect(handlers['connections:set-last-used']).toBeDefined()
   })
 
   describe('mongo:connect', () => {
@@ -122,6 +144,45 @@ describe('IPC Handlers', () => {
       mockService.listDatabases.mockRejectedValue(new Error('Unexpected crash'))
       const result = await handlers['mongo:list-databases']({} as Electron.IpcMainInvokeEvent)
       expect(result).toEqual({ ok: false, error: 'Unexpected crash' })
+    })
+  })
+
+  describe('connections:list', () => {
+    it('returns saved connections from ConnectionStore', () => {
+      const conns = [{ name: 'Local', uri: 'mongodb://localhost:27017' }]
+      mockConnStore.getAll.mockReturnValue(conns)
+      const result = handlers['connections:list']({} as Electron.IpcMainInvokeEvent)
+      expect(result).toEqual(conns)
+    })
+  })
+
+  describe('connections:save', () => {
+    it('saves a connection to ConnectionStore', () => {
+      const conn = { name: 'Local', uri: 'mongodb://localhost:27017' }
+      handlers['connections:save']({} as Electron.IpcMainInvokeEvent, conn)
+      expect(mockConnStore.save).toHaveBeenCalledWith(conn)
+    })
+  })
+
+  describe('connections:delete', () => {
+    it('removes a connection by name', () => {
+      handlers['connections:delete']({} as Electron.IpcMainInvokeEvent, 'Local')
+      expect(mockConnStore.remove).toHaveBeenCalledWith('Local')
+    })
+  })
+
+  describe('connections:get-last-used', () => {
+    it('returns last used URI', () => {
+      mockConnStore.getLastUsed.mockReturnValue('mongodb://localhost:27017')
+      const result = handlers['connections:get-last-used']({} as Electron.IpcMainInvokeEvent)
+      expect(result).toBe('mongodb://localhost:27017')
+    })
+  })
+
+  describe('connections:set-last-used', () => {
+    it('stores last used URI', () => {
+      handlers['connections:set-last-used']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017')
+      expect(mockConnStore.setLastUsed).toHaveBeenCalledWith('mongodb://localhost:27017')
     })
   })
 })

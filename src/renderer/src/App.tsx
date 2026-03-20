@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useStore } from './store'
 import { ConnectionDialog } from './components/ConnectionDialog'
 import { Sidebar } from './components/Sidebar'
@@ -8,7 +8,12 @@ import { Toaster } from './components/ui/sonner'
 function App(): JSX.Element {
   const connected = useStore((s) => s.connected)
   const selectedCollection = useStore((s) => s.selectedCollection)
+  const autoReconnect = useStore((s) => s.autoReconnect)
   const [dialogOpen, setDialogOpen] = useState(!connected)
+
+  useEffect(() => {
+    autoReconnect()
+  }, [autoReconnect])
 
   return (
     <div className="flex h-screen bg-background text-foreground">
