@@ -27,13 +27,21 @@ describe('MongoService', () => {
     find: ReturnType<typeof vi.fn>
     countDocuments: ReturnType<typeof vi.fn>
     aggregate: ReturnType<typeof vi.fn>
+    insertOne: ReturnType<typeof vi.fn>
+    findOne: ReturnType<typeof vi.fn>
+    replaceOne: ReturnType<typeof vi.fn>
+    deleteOne: ReturnType<typeof vi.fn>
   }
 
   beforeEach(() => {
     mockCollection = {
       find: vi.fn(),
       countDocuments: vi.fn(),
-      aggregate: vi.fn()
+      aggregate: vi.fn(),
+      insertOne: vi.fn(),
+      findOne: vi.fn(),
+      replaceOne: vi.fn(),
+      deleteOne: vi.fn()
     }
     mockDb = {
       listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
@@ -199,6 +207,69 @@ describe('MongoService', () => {
 
     it('returns error when not connected', async () => {
       const result = await service.aggregate('testdb', 'users', [])
+      expect(result).toEqual({ ok: false, error: 'Not connected' })
+    })
+  })
+
+  describe('insertOne', () => {
+    it('inserts a document and returns EJSON serialized result', async () => {
+      const insertedId = new ObjectId('507f1f77bcf86cd799439011')
+      mockCollection.insertOne.mockResolvedValue({ insertedId })
+      mockCollection.findOne.mockResolvedValue({ _id: insertedId, name: 'Alice' })
+
+      await service.connect('mongodb://localhost:27017')
+      const result = await service.insertOne('testdb', 'users', { name: 'Alice' })
+
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data._id).toEqual({ $oid: '507f1f77bcf86cd799439011' })
+        expect(result.data.name).toBe('Alice')
+      }
+      expect(mockCollection.insertOne).toHaveBeenCalled()
+    })
+
+    it('returns error when not connected', async () => {
+      const result = await service.insertOne('testdb', 'users', { name: 'Alice' })
+      expect(result).toEqual({ ok: false, error: 'Not connected' })
+    })
+  })
+
+  describe('updateOne', () => {
+    it('replaces document and returns EJSON serialized result', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011')
+      mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 })
+      mockCollection.findOne.mockResolvedValue({ _id: oid, name: 'Bob' })
+
+      await service.connect('mongodb://localhost:27017')
+      const result = await service.updateOne('testdb', 'users', '507f1f77bcf86cd799439011', { name: 'Bob' })
+
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data._id).toEqual({ $oid: '507f1f77bcf86cd799439011' })
+        expect(result.data.name).toBe('Bob')
+      }
+      expect(mockCollection.replaceOne).toHaveBeenCalled()
+    })
+
+    it('returns error when not connected', async () => {
+      const result = await service.updateOne('testdb', 'users', '507f1f77bcf86cd799439011', { name: 'Bob' })
+      expect(result).toEqual({ ok: false, error: 'Not connected' })
+    })
+  })
+
+  describe('deleteOne', () => {
+    it('deletes document by id', async () => {
+      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 })
+
+      await service.connect('mongodb://localhost:27017')
+      const result = await service.deleteOne('testdb', 'users', '507f1f77bcf86cd799439011')
+
+      expect(result).toEqual({ ok: true, data: undefined })
+      expect(mockCollection.deleteOne).toHaveBeenCalled()
+    })
+
+    it('returns error when not connected', async () => {
+      const result = await service.deleteOne('testdb', 'users', '507f1f77bcf86cd799439011')
       expect(result).toEqual({ ok: false, error: 'Not connected' })
     })
   })

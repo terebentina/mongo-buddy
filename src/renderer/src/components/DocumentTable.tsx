@@ -8,7 +8,11 @@ function formatCell(value: unknown): string {
   return str.length > 100 ? str.slice(0, 100) + '...' : str
 }
 
-export function DocumentTable(): JSX.Element {
+interface DocumentTableProps {
+  onRowClick?: (doc: Record<string, unknown>) => void
+}
+
+export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   const docs = useStore((s) => s.docs)
   const totalCount = useStore((s) => s.totalCount)
   const skip = useStore((s) => s.skip)
@@ -32,7 +36,11 @@ export function DocumentTable(): JSX.Element {
           </TableHeader>
           <TableBody>
             {docs.map((doc, i) => (
-              <TableRow key={String(doc._id ?? i)}>
+              <TableRow
+                key={String(doc._id ?? i)}
+                className={onRowClick ? 'cursor-pointer hover:bg-muted/50' : undefined}
+                onClick={() => onRowClick?.(doc)}
+              >
                 {columns.map((col) => (
                   <TableCell key={col}>{formatCell(doc[col])}</TableCell>
                 ))}

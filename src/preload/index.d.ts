@@ -9,6 +9,9 @@ interface MongoApi {
   find(db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>>
   count(db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>>
   aggregate(db: string, collection: string, pipeline: Record<string, unknown>[]): Promise<Result<Record<string, unknown>[]>>
+  insertOne(db: string, collection: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>>
+  updateOne(db: string, collection: string, id: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>>
+  deleteOne(db: string, collection: string, id: string): Promise<Result<undefined>>
   listConnections(): Promise<SavedConnection[]>
   saveConnection(conn: SavedConnection): Promise<void>
   deleteConnection(name: string): Promise<void>
