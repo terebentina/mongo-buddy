@@ -1,0 +1,171 @@
+{
+  "projectName": "MongoBuddy",
+  "branchName": "main",
+  "description": "Lightweight MongoDB GUI client built with Electron. Browse, query, CRUD.",
+  "stories": [
+    {
+      "id": "S1",
+      "title": "Project Scaffold + Config",
+      "priority": 1,
+      "passes": false,
+      "description": "Scaffold electron-vite project with react-ts template. Install all deps (mongodb, electron-store, zustand, vitest, @testing-library/react, @testing-library/jest-dom, jsdom). Setup Tailwind + shadcn/ui components (button, dialog, table, input, scroll-area, collapsible, sonner). Configure dual vitest: main (node env) and renderer (jsdom env). Create shared types file at src/shared/types.ts (Result<T>, DbInfo, CollectionInfo, FindOpts, etc.).",
+      "acceptanceCriteria": [
+        "pnpm dev opens Electron window",
+        "pnpm test runs successfully (no tests yet, zero failures)",
+        "Tailwind classes render in dev mode",
+        "src/shared/types.ts exports Result<T>, DbInfo, CollectionInfo, FindOpts types",
+        "vitest.config.ts configured for node (main) and jsdom (renderer) environments"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "MongoService TDD",
+      "priority": 2,
+      "passes": false,
+      "description": "TDD the MongoService class (src/main/mongo-service.ts). RED: Write mongo-service.test.ts with mocked mongodb driver. GREEN: Implement MongoService. REFACTOR: Clean up.",
+      "acceptanceCriteria": [
+        "TEST: connect() calls MongoClient.connect with URI",
+        "TEST: connect() with bad URI returns error result",
+        "TEST: disconnect() closes client",
+        "TEST: listDatabases() returns DbInfo[]",
+        "TEST: listDatabases() when not connected throws",
+        "TEST: listCollections(db) returns CollectionInfo[]",
+        "TEST: find(db, coll, opts) returns serialized docs + totalCount",
+        "TEST: count(db, coll, filter) returns number",
+        "TEST: EJSON serialization - ObjectId/Date round-trip correctly",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "IPC + Preload Bridge",
+      "priority": 3,
+      "passes": false,
+      "description": "TDD the IPC handlers and preload bridge. RED: Write ipc-handlers.test.ts with mocked MongoService. GREEN: Implement ipc-handlers.ts, preload/index.ts, preload/index.d.ts. REFACTOR: DRY up handler registration.",
+      "acceptanceCriteria": [
+        "TEST: Each IPC channel calls correct MongoService method",
+        "TEST: Success returns { ok: true, data }",
+        "TEST: MongoService error returns { ok: false, error: message }",
+        "TEST: EJSON serialization applied to outgoing data",
+        "preload/index.ts exposes typed API via contextBridge",
+        "preload/index.d.ts declares window.api types",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Zustand Store TDD",
+      "priority": 4,
+      "passes": false,
+      "description": "TDD the zustand store (src/renderer/src/store.ts). RED: Write store.test.ts with mocked window.api. GREEN: Implement store. REFACTOR: Clean up.",
+      "acceptanceCriteria": [
+        "TEST: connect(uri) sets connected=true, loads databases",
+        "TEST: connect failure sets error, connected=false",
+        "TEST: selectDb(db) loads collections",
+        "TEST: selectCollection(db, coll) loads docs",
+        "TEST: disconnect() resets state",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Connection Dialog + Sidebar",
+      "priority": 5,
+      "passes": false,
+      "description": "TDD the ConnectionDialog and Sidebar UI components. RED: Write ConnectionDialog.test.tsx and Sidebar.test.tsx. GREEN: Implement components + App.tsx layout. REFACTOR: Extract shared patterns.",
+      "acceptanceCriteria": [
+        "TEST: ConnectionDialog renders URI input and Connect button",
+        "TEST: Submit calls store.connect",
+        "TEST: Shows error toast on connection failure",
+        "TEST: Hides dialog on successful connection",
+        "TEST: Sidebar renders database list",
+        "TEST: Click DB expands to show collections",
+        "TEST: Click collection calls store.selectCollection",
+        "TEST: Shows selected collection as active",
+        "App.tsx renders sidebar + main panel layout",
+        "Error toasts work via shadcn sonner",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "Document Table",
+      "priority": 6,
+      "passes": false,
+      "description": "TDD the DocumentTable component. RED: Write DocumentTable.test.tsx. GREEN: Implement DocumentTable.tsx. REFACTOR: Extract column detection utility if complex.",
+      "acceptanceCriteria": [
+        "TEST: Renders column headers from doc keys (union of first 20 docs)",
+        "TEST: Renders _id column first",
+        "TEST: Truncates long cell values (>100 chars)",
+        "TEST: JSON.stringifies nested objects in cells",
+        "TEST: Shows pagination controls (Next/Prev/page info)",
+        "TEST: Next button disabled on last page",
+        "TEST: Prev button disabled on first page",
+        "TEST: Calls store with updated skip on page change",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "Saved Connections",
+      "priority": 7,
+      "passes": false,
+      "description": "TDD saved connection persistence using electron-store with encryption. RED: Write tests. GREEN: Implement. REFACTOR: Clean up.",
+      "acceptanceCriteria": [
+        "TEST: electron-store saves { name, uri }[] with encryption",
+        "TEST: ConnectionDialog renders saved connections list",
+        "TEST: Click saved connection fills URI and connects",
+        "TEST: Delete removes connection from store",
+        "TEST: Last-used connection auto-reconnects on app start",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S8",
+      "title": "Query Editor",
+      "priority": 8,
+      "passes": false,
+      "description": "TDD the QueryEditor component with CodeMirror 6. RED: Write QueryEditor.test.tsx. GREEN: Implement QueryEditor.tsx + aggregate IPC. REFACTOR: Extract JSON validation utility.",
+      "acceptanceCriteria": [
+        "TEST: Renders CodeMirror editor",
+        "TEST: Run button parses JSON filter and calls store.find with filter",
+        "TEST: Invalid JSON shows error toast",
+        "TEST: Aggregate mode parses JSON array, calls store.aggregate",
+        "TEST: Cmd+Enter triggers run",
+        "TEST: Toggle between filter/aggregate mode",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S9",
+      "title": "Document CRUD",
+      "priority": 9,
+      "passes": false,
+      "description": "TDD document create/edit/delete. RED: Write DocumentEditor.test.tsx. GREEN: Implement DocumentEditor.tsx + CRUD IPC handlers. REFACTOR: Clean up.",
+      "acceptanceCriteria": [
+        "TEST: Add Document button opens editor dialog with empty template",
+        "TEST: Submit calls insert-one, refreshes table",
+        "TEST: Click row opens editor with doc JSON",
+        "TEST: Save calls update-one, refreshes table",
+        "TEST: Delete button shows confirm, calls delete-one, refreshes table",
+        "TEST: Invalid JSON in editor shows error",
+        "All tests pass with pnpm test"
+      ]
+    },
+    {
+      "id": "S10",
+      "title": "Polish",
+      "priority": 10,
+      "passes": false,
+      "description": "UI polish pass: loading states, empty states, keyboard shortcuts, dark mode.",
+      "acceptanceCriteria": [
+        "Loading spinners on all async operations",
+        "Empty states for no DBs, no collections, no docs",
+        "Keyboard shortcuts: Cmd+K connect, Cmd+Enter run query",
+        "Collection doc count badge in sidebar",
+        "Dark mode with system preference detection",
+        "Resizable sidebar with drag handle"
+      ]
+    }
+  ]
+}
