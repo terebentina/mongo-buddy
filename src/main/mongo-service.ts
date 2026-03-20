@@ -1,4 +1,4 @@
-import { MongoClient } from 'mongodb'
+import { MongoClient, ObjectId } from 'mongodb'
 // EJSON is not directly exported from mongodb v6; use internal bson re-export
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -116,6 +116,57 @@ export class MongoService {
       const collection = this.client.db(dbName).collection(collName)
       const count = await collection.countDocuments(filter)
       return { ok: true, data: count }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  }
+
+  async insertOne(
+    dbName: string,
+    collName: string,
+    doc: Record<string, unknown>
+  ): Promise<Result<Record<string, unknown>>> {
+    if (!this.client) return { ok: false, error: 'Not connected' }
+    try {
+      const collection = this.client.db(dbName).collection(collName)
+      const deserialized = EJSON.deserialize(doc) as Record<string, unknown>
+      const result = await collection.insertOne(deserialized)
+      const inserted = await collection.findOne({ _id: result.insertedId })
+      return { ok: true, data: EJSON.serialize(inserted) as Record<string, unknown> }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  }
+
+  async updateOne(
+    dbName: string,
+    collName: string,
+    id: string,
+    doc: Record<string, unknown>
+  ): Promise<Result<Record<string, unknown>>> {
+    if (!this.client) return { ok: false, error: 'Not connected' }
+    try {
+      const collection = this.client.db(dbName).collection(collName)
+      const deserialized = EJSON.deserialize(doc) as Record<string, unknown>
+      const { _id, ...updateFields } = deserialized
+      await collection.replaceOne({ _id: new ObjectId(id) }, updateFields)
+      const updated = await collection.findOne({ _id: new ObjectId(id) })
+      return { ok: true, data: EJSON.serialize(updated) as Record<string, unknown> }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  }
+
+  async deleteOne(
+    dbName: string,
+    collName: string,
+    id: string
+  ): Promise<Result<undefined>> {
+    if (!this.client) return { ok: false, error: 'Not connected' }
+    try {
+      const collection = this.client.db(dbName).collection(collName)
+      await collection.deleteOne({ _id: new ObjectId(id) })
+      return { ok: true, data: undefined }
     } catch (err) {
       return { ok: false, error: (err as Error).message }
     }

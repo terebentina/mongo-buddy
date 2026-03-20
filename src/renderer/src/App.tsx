@@ -4,6 +4,7 @@ import { ConnectionDialog } from './components/ConnectionDialog'
 import { Sidebar } from './components/Sidebar'
 import { DocumentTable } from './components/DocumentTable'
 import { QueryEditor } from './components/QueryEditor'
+import { DocumentEditor } from './components/DocumentEditor'
 import { Toaster } from './components/ui/sonner'
 
 function App(): JSX.Element {
@@ -11,6 +12,7 @@ function App(): JSX.Element {
   const selectedCollection = useStore((s) => s.selectedCollection)
   const autoReconnect = useStore((s) => s.autoReconnect)
   const [dialogOpen, setDialogOpen] = useState(!connected)
+  const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     autoReconnect()
@@ -32,8 +34,14 @@ function App(): JSX.Element {
         )}
         {connected && selectedCollection && (
           <>
+            <div className="flex items-center gap-2 px-4 py-2 border-b">
+              <DocumentEditor />
+            </div>
             <QueryEditor />
-            <DocumentTable />
+            <DocumentTable onRowClick={(doc) => setEditDoc(doc)} />
+            {editDoc && (
+              <DocumentEditor editDoc={editDoc} onClose={() => setEditDoc(null)} />
+            )}
           </>
         )}
       </div>

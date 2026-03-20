@@ -25,6 +25,10 @@ interface StoreState {
   fetchPage: (skip: number) => Promise<void>
   runQuery: (queryText: string) => Promise<string | null>
   setQueryMode: (mode: 'filter' | 'aggregate') => void
+  insertDoc: (doc: Record<string, unknown>) => Promise<string | null>
+  updateDoc: (id: string, doc: Record<string, unknown>) => Promise<string | null>
+  deleteDoc: (id: string) => Promise<string | null>
+  refreshDocs: () => Promise<void>
   loadSavedConnections: () => Promise<void>
   saveConnection: (name: string, uri: string) => Promise<void>
   deleteConnection: (name: string) => Promise<void>
@@ -155,6 +159,42 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setQueryMode: (mode: 'filter' | 'aggregate') => {
     set({ queryMode: mode })
+  },
+
+  insertDoc: async (doc: Record<string, unknown>) => {
+    const { selectedDb, selectedCollection } = get()
+    if (!selectedDb || !selectedCollection) return 'No collection selected'
+    const result = await window.api.insertOne(selectedDb, selectedCollection, doc)
+    if (!result.ok) return result.error
+    await get().refreshDocs()
+    return null
+  },
+
+  updateDoc: async (id: string, doc: Record<string, unknown>) => {
+    const { selectedDb, selectedCollection } = get()
+    if (!selectedDb || !selectedCollection) return 'No collection selected'
+    const result = await window.api.updateOne(selectedDb, selectedCollection, id, doc)
+    if (!result.ok) return result.error
+    await get().refreshDocs()
+    return null
+  },
+
+  deleteDoc: async (id: string) => {
+    const { selectedDb, selectedCollection } = get()
+    if (!selectedDb || !selectedCollection) return 'No collection selected'
+    const result = await window.api.deleteOne(selectedDb, selectedCollection, id)
+    if (!result.ok) return result.error
+    await get().refreshDocs()
+    return null
+  },
+
+  refreshDocs: async () => {
+    const { selectedDb, selectedCollection, skip, limit, filter } = get()
+    if (!selectedDb || !selectedCollection) return
+    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip, limit })
+    if (result.ok) {
+      set({ docs: result.data.docs, totalCount: result.data.totalCount })
+    }
   },
 
   loadSavedConnections: async () => {

@@ -22,6 +22,9 @@ describe('IPC Handlers', () => {
     find: ReturnType<typeof vi.fn>
     count: ReturnType<typeof vi.fn>
     aggregate: ReturnType<typeof vi.fn>
+    insertOne: ReturnType<typeof vi.fn>
+    updateOne: ReturnType<typeof vi.fn>
+    deleteOne: ReturnType<typeof vi.fn>
   }
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>
@@ -40,7 +43,10 @@ describe('IPC Handlers', () => {
       listCollections: vi.fn(),
       find: vi.fn(),
       count: vi.fn(),
-      aggregate: vi.fn()
+      aggregate: vi.fn(),
+      insertOne: vi.fn(),
+      updateOne: vi.fn(),
+      deleteOne: vi.fn()
     }
 
     mockConnStore = {
@@ -71,6 +77,9 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:find']).toBeDefined()
     expect(handlers['mongo:count']).toBeDefined()
     expect(handlers['mongo:aggregate']).toBeDefined()
+    expect(handlers['mongo:insert-one']).toBeDefined()
+    expect(handlers['mongo:update-one']).toBeDefined()
+    expect(handlers['mongo:delete-one']).toBeDefined()
     expect(handlers['connections:list']).toBeDefined()
     expect(handlers['connections:save']).toBeDefined()
     expect(handlers['connections:delete']).toBeDefined()
@@ -150,6 +159,37 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:aggregate']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', pipeline)
       expect(mockService.aggregate).toHaveBeenCalledWith('testdb', 'users', pipeline)
       expect(result).toEqual({ ok: true, data: aggResult })
+    })
+  })
+
+  describe('mongo:insert-one', () => {
+    it('calls MongoService.insertOne with db, collection, and doc', async () => {
+      const doc = { name: 'Alice' }
+      const inserted = { _id: { $oid: '123' }, name: 'Alice' }
+      mockService.insertOne.mockResolvedValue({ ok: true, data: inserted })
+      const result = await handlers['mongo:insert-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', doc)
+      expect(mockService.insertOne).toHaveBeenCalledWith('testdb', 'users', doc)
+      expect(result).toEqual({ ok: true, data: inserted })
+    })
+  })
+
+  describe('mongo:update-one', () => {
+    it('calls MongoService.updateOne with db, collection, id, and doc', async () => {
+      const doc = { name: 'Bob' }
+      const updated = { _id: { $oid: '123' }, name: 'Bob' }
+      mockService.updateOne.mockResolvedValue({ ok: true, data: updated })
+      const result = await handlers['mongo:update-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', '123', doc)
+      expect(mockService.updateOne).toHaveBeenCalledWith('testdb', 'users', '123', doc)
+      expect(result).toEqual({ ok: true, data: updated })
+    })
+  })
+
+  describe('mongo:delete-one', () => {
+    it('calls MongoService.deleteOne with db, collection, and id', async () => {
+      mockService.deleteOne.mockResolvedValue({ ok: true, data: undefined })
+      const result = await handlers['mongo:delete-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', '123')
+      expect(mockService.deleteOne).toHaveBeenCalledWith('testdb', 'users', '123')
+      expect(result).toEqual({ ok: true, data: undefined })
     })
   })
 

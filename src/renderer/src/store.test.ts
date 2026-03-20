@@ -9,6 +9,9 @@ const mockApi = {
   find: vi.fn(),
   count: vi.fn(),
   aggregate: vi.fn(),
+  insertOne: vi.fn(),
+  updateOne: vi.fn(),
+  deleteOne: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
@@ -252,5 +255,79 @@ describe('store', () => {
     expect(useStore.getState().queryMode).toBe('aggregate')
     useStore.getState().setQueryMode('filter')
     expect(useStore.getState().queryMode).toBe('filter')
+  })
+
+  it('insertDoc() calls insertOne and refreshes docs', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users'
+    })
+    mockApi.insertOne.mockResolvedValue({ ok: true, data: { _id: '1', name: 'Alice' } })
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [{ _id: '1', name: 'Alice' }], totalCount: 1 }
+    })
+
+    const error = await useStore.getState().insertDoc({ name: 'Alice' })
+
+    expect(error).toBeNull()
+    expect(mockApi.insertOne).toHaveBeenCalledWith('testdb', 'users', { name: 'Alice' })
+    expect(mockApi.find).toHaveBeenCalled()
+    expect(useStore.getState().docs).toEqual([{ _id: '1', name: 'Alice' }])
+  })
+
+  it('insertDoc() returns error on failure', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users'
+    })
+    mockApi.insertOne.mockResolvedValue({ ok: false, error: 'Duplicate key' })
+
+    const error = await useStore.getState().insertDoc({ name: 'Alice' })
+
+    expect(error).toBe('Duplicate key')
+  })
+
+  it('updateDoc() calls updateOne and refreshes docs', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users'
+    })
+    mockApi.updateOne.mockResolvedValue({ ok: true, data: { _id: '1', name: 'Bob' } })
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [{ _id: '1', name: 'Bob' }], totalCount: 1 }
+    })
+
+    const error = await useStore.getState().updateDoc('1', { name: 'Bob' })
+
+    expect(error).toBeNull()
+    expect(mockApi.updateOne).toHaveBeenCalledWith('testdb', 'users', '1', { name: 'Bob' })
+    expect(useStore.getState().docs).toEqual([{ _id: '1', name: 'Bob' }])
+  })
+
+  it('deleteDoc() calls deleteOne and refreshes docs', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      docs: [{ _id: '1', name: 'Alice' }],
+      totalCount: 1
+    })
+    mockApi.deleteOne.mockResolvedValue({ ok: true, data: undefined })
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [], totalCount: 0 }
+    })
+
+    const error = await useStore.getState().deleteDoc('1')
+
+    expect(error).toBeNull()
+    expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', '1')
+    expect(useStore.getState().docs).toEqual([])
+    expect(useStore.getState().totalCount).toBe(0)
   })
 })
