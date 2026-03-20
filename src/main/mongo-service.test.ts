@@ -26,12 +26,14 @@ describe('MongoService', () => {
   let mockCollection: {
     find: ReturnType<typeof vi.fn>
     countDocuments: ReturnType<typeof vi.fn>
+    aggregate: ReturnType<typeof vi.fn>
   }
 
   beforeEach(() => {
     mockCollection = {
       find: vi.fn(),
-      countDocuments: vi.fn()
+      countDocuments: vi.fn(),
+      aggregate: vi.fn()
     }
     mockDb = {
       listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
@@ -171,6 +173,33 @@ describe('MongoService', () => {
       const result = await service.count('testdb', 'users', { active: true })
       expect(result).toEqual({ ok: true, data: 42 })
       expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true })
+    })
+  })
+
+  describe('aggregate', () => {
+    it('returns EJSON serialized docs from pipeline', async () => {
+      const objectId = new ObjectId('507f1f77bcf86cd799439011')
+      const docs = [{ _id: objectId, total: 100 }]
+      const mockCursor = {
+        toArray: vi.fn().mockResolvedValue(docs)
+      }
+      mockCollection.aggregate.mockReturnValue(mockCursor)
+
+      await service.connect('mongodb://localhost:27017')
+      const result = await service.aggregate('testdb', 'users', [{ $group: { _id: null, total: { $sum: 1 } } }])
+
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.data).toHaveLength(1)
+        expect(result.data[0]._id).toEqual({ $oid: '507f1f77bcf86cd799439011' })
+        expect(result.data[0].total).toBe(100)
+      }
+      expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $group: { _id: null, total: { $sum: 1 } } }])
+    })
+
+    it('returns error when not connected', async () => {
+      const result = await service.aggregate('testdb', 'users', [])
+      expect(result).toEqual({ ok: false, error: 'Not connected' })
     })
   })
 

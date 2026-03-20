@@ -23,6 +23,12 @@ Started: Fri Mar 20 11:43:13 EET 2026
 - Radix Collapsible: use controlled `open` prop (not `defaultOpen`) when state is managed externally (e.g. zustand)
 - Component tests: use `@testing-library/user-event` for user interactions, `waitFor` for async state updates
 - Toast pattern: use `sonner` toast.error() after checking store error state post-action
+- Store pagination: `fetchPage(skip)` action reads selectedDb/selectedCollection from get(), calls window.api.find
+- electron-store: use `encryptionKey` option for encrypted storage, mock with closure-based data object
+- IPC handler naming for non-mongo operations: `connections:<action>` (vs `mongo:<action>`)
+- Sync IPC handlers use `wrapSync` helper (no try/catch needed for simple getters/setters)
+- CodeMirror 6 in jsdom: mock EditorView with destroy() method, mock state.doc.toString() for content
+- Store `runQuery(text)` returns `string | null` (error message or null on success) for toast display
 
 ---
 
@@ -87,4 +93,48 @@ Started: Fri Mar 20 11:43:13 EET 2026
   - Radix Collapsible `defaultOpen` doesn't work well with external state; use controlled `open` prop
   - ConnectionDialog uses store.connect then checks store error state to decide toast vs close
   - @testing-library/user-event needed separate install (not bundled with @testing-library/react)
+---
+
+## 2026-03-20 - S6
+- TDD'd DocumentTable component with 8 tests: column headers, _id first, truncation, JSON.stringify nested, pagination controls, disabled states, page change calls store
+- Added `fetchPage(skip)` action to zustand store for pagination
+- Wired DocumentTable into App.tsx (shown when connected + collection selected)
+- Files: src/renderer/src/components/DocumentTable.tsx, DocumentTable.test.tsx, src/renderer/src/store.ts, src/renderer/src/App.tsx
+- **Learnings for future iterations:**
+  - `getColumns()` uses Set to union keys from first 20 docs, then ensures _id is first via splice+unshift
+  - `formatCell()` handles nested objects via JSON.stringify, truncates at 100 chars
+  - Pagination: currentPage = floor(skip/limit)+1, totalPages = ceil(totalCount/limit)
+  - Store `fetchPage` action reads selectedDb/selectedCollection from get() to avoid passing them as params
+---
+
+## 2026-03-20 - S7
+- TDD'd ConnectionStore service (8 tests): electron-store with encryption, save/getAll/remove/getLastUsed/setLastUsed
+- Added 5 IPC handlers for saved connections (connections:list/save/delete/get-last-used/set-last-used)
+- Updated preload bridge with saved connection API methods
+- Added store actions: loadSavedConnections, saveConnection, deleteConnection, autoReconnect
+- Updated ConnectionDialog to show saved connections list, click-to-connect, delete button, optional name field for saving
+- Added autoReconnect on App startup via useEffect
+- Files: src/main/connection-store.ts, connection-store.test.ts, ipc-handlers.ts, ipc-handlers.test.ts, index.ts, preload/index.ts, preload/index.d.ts, store.ts, store.test.ts, ConnectionDialog.tsx, ConnectionDialog.test.tsx, App.tsx
+- **Learnings for future iterations:**
+  - electron-store v8 is ESM-only but works fine with electron-vite's externalizeDepsPlugin
+  - IPC handlers for synchronous operations use a `wrapSync` helper (vs async `wrap` for MongoService)
+  - ConnectionStore mock: use a closure-based data object in vi.fn().mockImplementation to simulate get/set/delete
+  - ConnectionDialog loads saved connections via useEffect on open state change
+  - Store connect() action calls setLastUsed() after successful connection for auto-reconnect feature
+---
+
+## 2026-03-20 - S8
+- TDD'd QueryEditor component with CodeMirror 6 (6 tests)
+- Added aggregate method to MongoService + test (2 tests)
+- Added mongo:aggregate IPC handler + test (1 test)
+- Added aggregate to preload bridge + type declarations
+- Added store actions: runQuery, setQueryMode, queryMode state + tests (4 tests)
+- Wired QueryEditor into App.tsx above DocumentTable
+- Files: src/main/mongo-service.ts, mongo-service.test.ts, ipc-handlers.ts, ipc-handlers.test.ts, preload/index.ts, preload/index.d.ts, store.ts, store.test.ts, components/QueryEditor.tsx, QueryEditor.test.tsx, App.tsx, package.json
+- **Learnings for future iterations:**
+  - CodeMirror 6 in jsdom requires mocking EditorView (with destroy method), EditorState, keymap, placeholder
+  - Use `mockEditorContent` variable to control what the mocked editor returns from state.doc.toString()
+  - Store runQuery() returns error string or null - component uses this for toast.error() display
+  - queryMode state ('filter' | 'aggregate') toggles between find() and aggregate() API calls
+  - CodeMirror deps: codemirror, @codemirror/lang-json, @codemirror/view, @codemirror/state, @codemirror/theme-one-dark
 ---

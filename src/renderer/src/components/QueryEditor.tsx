@@ -1,0 +1,92 @@
+import { useRef, useEffect, useCallback } from 'react'
+import { EditorView, keymap, placeholder } from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
+import { json } from '@codemirror/lang-json'
+import { oneDark } from '@codemirror/theme-one-dark'
+import { useStore } from '../store'
+import { toast } from 'sonner'
+import { Button } from './ui/button'
+
+export function QueryEditor(): JSX.Element {
+  const editorRef = useRef<HTMLDivElement>(null)
+  const viewRef = useRef<EditorView | null>(null)
+  const queryMode = useStore((s) => s.queryMode)
+  const setQueryMode = useStore((s) => s.setQueryMode)
+  const runQuery = useStore((s) => s.runQuery)
+  const loading = useStore((s) => s.loading)
+
+  const getEditorText = useCallback((): string => {
+    if (viewRef.current) {
+      return viewRef.current.state.doc.toString()
+    }
+    return queryMode === 'filter' ? '{}' : '[]'
+  }, [queryMode])
+
+  const handleRun = useCallback(async () => {
+    const text = getEditorText() || (queryMode === 'filter' ? '{}' : '[]')
+    const error = await runQuery(text)
+    if (error) {
+      toast.error(error)
+    }
+  }, [getEditorText, queryMode, runQuery])
+
+  useEffect(() => {
+    if (!editorRef.current) return
+
+    const runKeymap = keymap.of([
+      {
+        key: 'Mod-Enter',
+        run: () => {
+          handleRun()
+          return true
+        }
+      }
+    ])
+
+    const state = EditorState.create({
+      doc: queryMode === 'filter' ? '{}' : '[]',
+      extensions: [json(), oneDark, runKeymap, placeholder('Enter query...')]
+    })
+
+    const view = new EditorView({
+      state,
+      parent: editorRef.current
+    })
+    viewRef.current = view
+
+    return () => {
+      view.destroy()
+      viewRef.current = null
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="border-b border-border p-2 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant={queryMode === 'filter' ? 'default' : 'outline'}
+          onClick={() => setQueryMode('filter')}
+        >
+          Filter
+        </Button>
+        <Button
+          size="sm"
+          variant={queryMode === 'aggregate' ? 'default' : 'outline'}
+          onClick={() => setQueryMode('aggregate')}
+        >
+          Aggregate
+        </Button>
+        <div className="flex-1" />
+        <Button size="sm" onClick={handleRun} disabled={loading}>
+          Run
+        </Button>
+      </div>
+      <div
+        data-testid="query-editor"
+        ref={editorRef}
+        className="min-h-[80px] border border-border rounded overflow-hidden"
+      />
+    </div>
+  )
+}

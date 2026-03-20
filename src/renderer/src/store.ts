@@ -16,12 +16,15 @@ interface StoreState {
   error: string | null
   loading: boolean
   savedConnections: SavedConnection[]
+  queryMode: 'filter' | 'aggregate'
 
   connect: (uri: string) => Promise<void>
   disconnect: () => Promise<void>
   selectDb: (db: string) => Promise<void>
   selectCollection: (db: string, collection: string) => Promise<void>
   fetchPage: (skip: number) => Promise<void>
+  runQuery: (queryText: string) => Promise<string | null>
+  setQueryMode: (mode: 'filter' | 'aggregate') => void
   loadSavedConnections: () => Promise<void>
   saveConnection: (name: string, uri: string) => Promise<void>
   deleteConnection: (name: string) => Promise<void>
@@ -43,6 +46,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   error: null,
   loading: false,
   savedConnections: [],
+  queryMode: 'filter',
 
   connect: async (uri: string) => {
     set({ loading: true, error: null })
@@ -108,6 +112,49 @@ export const useStore = create<StoreState>()((set, get) => ({
       return
     }
     set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount })
+  },
+
+  runQuery: async (queryText: string) => {
+    const { selectedDb, selectedCollection, limit, queryMode } = get()
+    if (!selectedDb || !selectedCollection) return null
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(queryText)
+    } catch {
+      return 'Invalid JSON'
+    }
+
+    set({ loading: true, skip: 0, error: null })
+
+    if (queryMode === 'aggregate') {
+      if (!Array.isArray(parsed)) {
+        set({ loading: false })
+        return 'Aggregate pipeline must be a JSON array'
+      }
+      const result = await window.api.aggregate(selectedDb, selectedCollection, parsed as Record<string, unknown>[])
+      if (!result.ok) {
+        set({ loading: false, error: result.error })
+        return result.error
+      }
+      set({ loading: false, docs: result.data, totalCount: result.data.length })
+      return null
+    }
+
+    // filter mode
+    const filter = parsed as Record<string, unknown>
+    set({ filter })
+    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip: 0, limit })
+    if (!result.ok) {
+      set({ loading: false, error: result.error })
+      return result.error
+    }
+    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount })
+    return null
+  },
+
+  setQueryMode: (mode: 'filter' | 'aggregate') => {
+    set({ queryMode: mode })
   },
 
   loadSavedConnections: async () => {

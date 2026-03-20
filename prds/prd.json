@@ -91,7 +91,7 @@
       "id": "S6",
       "title": "Document Table",
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "description": "TDD the DocumentTable component. RED: Write DocumentTable.test.tsx. GREEN: Implement DocumentTable.tsx. REFACTOR: Extract column detection utility if complex.",
       "acceptanceCriteria": [
         "TEST: Renders column headers from doc keys (union of first 20 docs)",
@@ -109,7 +109,7 @@
       "id": "S7",
       "title": "Saved Connections",
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "description": "TDD saved connection persistence using electron-store with encryption. RED: Write tests. GREEN: Implement. REFACTOR: Clean up.",
       "acceptanceCriteria": [
         "TEST: electron-store saves { name, uri }[] with encryption",
@@ -124,7 +124,7 @@
       "id": "S8",
       "title": "Query Editor",
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "description": "TDD the QueryEditor component with CodeMirror 6. RED: Write QueryEditor.test.tsx. GREEN: Implement QueryEditor.tsx + aggregate IPC. REFACTOR: Extract JSON validation utility.",
       "acceptanceCriteria": [
         "TEST: Renders CodeMirror editor",

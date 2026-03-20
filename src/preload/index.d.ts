@@ -8,6 +8,7 @@ interface MongoApi {
   listCollections(db: string): Promise<Result<CollectionInfo[]>>
   find(db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>>
   count(db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>>
+  aggregate(db: string, collection: string, pipeline: Record<string, unknown>[]): Promise<Result<Record<string, unknown>[]>>
   listConnections(): Promise<SavedConnection[]>
   saveConnection(conn: SavedConnection): Promise<void>
   deleteConnection(name: string): Promise<void>
