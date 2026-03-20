@@ -1,3 +1,43 @@
 # Ralph Progress Log
 Started: Fri Mar 20 11:43:13 EET 2026
+
+## Codebase Patterns
+- electron-vite structure: src/main (node), src/preload (node), src/renderer (react)
+- Dual vitest configs: vitest.config.main.ts (node env), vitest.config.renderer.ts (jsdom env)
+- shadcn/ui components in src/renderer/src/components/ui/ - manually created, not CLI
+- Tailwind CSS v3 with CSS variable-based theming (hsl values)
+- Shared types in src/shared/types.ts - importable from both main and renderer
+- Use `--passWithNoTests` flag with vitest run to allow zero test files
+- Path alias: @renderer -> src/renderer/src (configured in electron.vite.config.ts and tsconfig.web.json)
+- electron binary needs manual install.js run if pnpm ignored build scripts: `node node_modules/.pnpm/electron@28.3.3/node_modules/electron/install.js`
+- React 18 + TypeScript, JSX transform via @vitejs/plugin-react
+- EJSON import: use `import { EJSON } from 'mongodb/lib/bson'` (not directly exported from mongodb v6)
+- EJSON Date serialization uses compact ISO format without trailing .000 (e.g. `2024-01-01T00:00:00Z`)
+- MongoService pattern: all methods return `Result<T>`, catch errors internally
+
+---
+
+## 2026-03-20 - S1
+- Scaffolded electron-vite project manually (react-ts template via degit was Vue-based)
+- Installed all deps: mongodb, electron-store, zustand, vitest, testing-library, jsdom
+- Setup Tailwind v3 + shadcn/ui components (button, dialog, table, input, scroll-area, collapsible, sonner)
+- Created dual vitest configs for main (node) and renderer (jsdom)
+- Created shared types file with Result<T>, DbInfo, CollectionInfo, FindOpts, etc.
+- Files: package.json, electron.vite.config.ts, tsconfig*.json, vitest.config.*.ts, tailwind.config.js, postcss.config.js, all src/ files
+- **Learnings for future iterations:**
+  - create-electron-vite is interactive only - scaffold manually or use degit
+  - The default electron-vite boilerplate is Vue, not React
+  - pnpm may ignore electron/esbuild build scripts - run install.js manually
+  - WSL has no display - pnpm dev builds succeed but electron can't open window
+---
+
+## 2026-03-20 - S2
+- TDD'd MongoService class with full test coverage (9 tests)
+- Tests: connect, connect error, disconnect, listDatabases, listDatabases not connected, listCollections, find with EJSON, count, EJSON ObjectId/Date round-trip
+- Files: src/main/mongo-service.ts, src/main/mongo-service.test.ts
+- **Learnings for future iterations:**
+  - mongodb v6 does not export EJSON directly; use `mongodb/lib/bson` (needs @ts-ignore)
+  - When mocking mongodb, mock MongoClient constructor but use real ObjectId/EJSON from actual imports
+  - BSON version mismatch: don't install standalone `bson` package alongside mongodb (version conflict)
+  - EJSON.serialize Date format is compact ISO (no trailing .000 milliseconds when zero)
 ---
