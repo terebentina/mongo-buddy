@@ -47,11 +47,19 @@ export class MongoService {
   async listCollections(dbName: string): Promise<Result<CollectionInfo[]>> {
     if (!this.client) return { ok: false, error: 'Not connected' }
     try {
-      const collections = await this.client.db(dbName).listCollections().toArray()
-      const data: CollectionInfo[] = collections.map((c) => ({
-        name: c.name,
-        type: c.type ?? 'collection'
-      }))
+      const db = this.client.db(dbName)
+      const collections = await db.listCollections().toArray()
+      const data: CollectionInfo[] = await Promise.all(
+        collections.map(async (c) => {
+          let count: number | undefined
+          try {
+            count = await db.collection(c.name).estimatedDocumentCount()
+          } catch {
+            // ignore count errors
+          }
+          return { name: c.name, type: c.type ?? 'collection', count }
+        })
+      )
       return { ok: true, data }
     } catch (err) {
       return { ok: false, error: (err as Error).message }

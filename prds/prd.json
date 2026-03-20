@@ -140,7 +140,7 @@
       "id": "S9",
       "title": "Document CRUD",
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "description": "TDD document create/edit/delete. RED: Write DocumentEditor.test.tsx. GREEN: Implement DocumentEditor.tsx + CRUD IPC handlers. REFACTOR: Clean up.",
       "acceptanceCriteria": [
         "TEST: Add Document button opens editor dialog with empty template",
@@ -156,7 +156,7 @@
       "id": "S10",
       "title": "Polish",
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "description": "UI polish pass: loading states, empty states, keyboard shortcuts, dark mode.",
       "acceptanceCriteria": [
         "Loading spinners on all async operations",

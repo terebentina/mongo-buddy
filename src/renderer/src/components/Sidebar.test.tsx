@@ -43,7 +43,7 @@ describe('Sidebar', () => {
       ]
     })
 
-    render(<Sidebar />)
+    render(<Sidebar width={240} onResize={() => {}} />)
 
     expect(screen.getByText('testdb')).toBeInTheDocument()
     expect(screen.getByText('admin')).toBeInTheDocument()
@@ -63,7 +63,7 @@ describe('Sidebar', () => {
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }]
     })
 
-    render(<Sidebar />)
+    render(<Sidebar width={240} onResize={() => {}} />)
 
     await userEvent.click(screen.getByText('testdb'))
 
@@ -90,7 +90,7 @@ describe('Sidebar', () => {
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }]
     })
 
-    render(<Sidebar />)
+    render(<Sidebar width={240} onResize={() => {}} />)
 
     // Click to expand db (triggers selectDb which loads collections)
     await userEvent.click(screen.getByText('testdb'))
@@ -120,7 +120,7 @@ describe('Sidebar', () => {
       ]
     })
 
-    render(<Sidebar />)
+    render(<Sidebar width={240} onResize={() => {}} />)
 
     // Collapsible is controlled by selectedDb === db.name, so it should be open
     const usersItem = screen.getByText('users').closest('button')

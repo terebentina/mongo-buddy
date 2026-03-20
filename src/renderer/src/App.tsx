@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useLayoutEffect } from 'react'
 import { useStore } from './store'
 import { ConnectionDialog } from './components/ConnectionDialog'
 import { Sidebar } from './components/Sidebar'
@@ -13,14 +13,40 @@ function App(): JSX.Element {
   const autoReconnect = useStore((s) => s.autoReconnect)
   const [dialogOpen, setDialogOpen] = useState(!connected)
   const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null)
+  const [sidebarWidth, setSidebarWidth] = useState(240)
 
   useEffect(() => {
     autoReconnect()
   }, [autoReconnect])
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setDialogOpen(true)
+      }
+    },
+    []
+  )
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleKeyDown])
+
+  useLayoutEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const apply = (e: MediaQueryList | MediaQueryListEvent): void => {
+      document.documentElement.classList.toggle('dark', e.matches)
+    }
+    apply(mq)
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [])
+
   return (
     <div className="flex h-screen bg-background text-foreground">
-      {connected && <Sidebar />}
+      {connected && <Sidebar width={sidebarWidth} onResize={setSidebarWidth} />}
       <div className="flex-1 flex flex-col overflow-hidden">
         {!connected && (
           <div className="flex-1 flex items-center justify-center">
