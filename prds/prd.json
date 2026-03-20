@@ -7,7 +7,7 @@
       "id": "S1",
       "title": "Project Scaffold + Config",
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "description": "Scaffold electron-vite project with react-ts template. Install all deps (mongodb, electron-store, zustand, vitest, @testing-library/react, @testing-library/jest-dom, jsdom). Setup Tailwind + shadcn/ui components (button, dialog, table, input, scroll-area, collapsible, sonner). Configure dual vitest: main (node env) and renderer (jsdom env). Create shared types file at src/shared/types.ts (Result<T>, DbInfo, CollectionInfo, FindOpts, etc.).",
       "acceptanceCriteria": [
         "pnpm dev opens Electron window",
@@ -21,7 +21,7 @@
       "id": "S2",
       "title": "MongoService TDD",
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "description": "TDD the MongoService class (src/main/mongo-service.ts). RED: Write mongo-service.test.ts with mocked mongodb driver. GREEN: Implement MongoService. REFACTOR: Clean up.",
       "acceptanceCriteria": [
         "TEST: connect() calls MongoClient.connect with URI",
