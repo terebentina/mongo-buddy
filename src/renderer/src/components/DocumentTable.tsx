@@ -1,6 +1,7 @@
 import { useStore } from '../store'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table'
 import { Button } from './ui/button'
+import { Loader } from './Loader'
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -17,11 +18,24 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   const totalCount = useStore((s) => s.totalCount)
   const skip = useStore((s) => s.skip)
   const limit = useStore((s) => s.limit)
+  const loading = useStore((s) => s.loading)
   const fetchPage = useStore((s) => s.fetchPage)
 
   const columns = getColumns(docs)
   const currentPage = Math.floor(skip / limit) + 1
   const totalPages = Math.max(1, Math.ceil(totalCount / limit))
+
+  if (loading) {
+    return <Loader className="flex-1" />
+  }
+
+  if (docs.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+        No documents found
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">

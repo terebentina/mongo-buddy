@@ -11,6 +11,7 @@ export interface DbInfo {
 export interface CollectionInfo {
   name: string
   type: string
+  count?: number
 }
 
 export interface FindOpts {

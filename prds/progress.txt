@@ -29,6 +29,9 @@ Started: Fri Mar 20 11:43:13 EET 2026
 - Sync IPC handlers use `wrapSync` helper (no try/catch needed for simple getters/setters)
 - CodeMirror 6 in jsdom: mock EditorView with destroy() method, mock state.doc.toString() for content
 - Store `runQuery(text)` returns `string | null` (error message or null on success) for toast display
+- Dark mode: toggle `.dark` class on `document.documentElement` via `matchMedia('(prefers-color-scheme: dark)')`
+- Sidebar takes `width`/`onResize` props for resizable layout
+- Loader component at src/renderer/src/components/Loader.tsx: CSS spinner for loading states
 
 ---
 
@@ -137,4 +140,42 @@ Started: Fri Mar 20 11:43:13 EET 2026
   - Store runQuery() returns error string or null - component uses this for toast.error() display
   - queryMode state ('filter' | 'aggregate') toggles between find() and aggregate() API calls
   - CodeMirror deps: codemirror, @codemirror/lang-json, @codemirror/view, @codemirror/state, @codemirror/theme-one-dark
+- CRUD pattern: MongoService methods use EJSON.deserialize on input, EJSON.serialize on output
+- Store CRUD actions (insertDoc/updateDoc/deleteDoc) return `string | null` (error or null on success)
+- DocumentEditor extracts _id.$oid from EJSON-serialized docs for update/delete operations
+- userEvent.type treats `{` and `}` as special key descriptors; use fireEvent.change for JSON strings
+---
+
+## 2026-03-20 - S9
+- TDD'd Document CRUD across all layers (MongoService, IPC, preload, store, component)
+- MongoService: insertOne (EJSON deserialize input, serialize output), updateOne (replaceOne by ObjectId), deleteOne
+- IPC handlers: mongo:insert-one, mongo:update-one, mongo:delete-one with wrap() helper
+- Preload bridge: typed API methods for insertOne, updateOne, deleteOne
+- Store: insertDoc, updateDoc, deleteDoc actions (return error string or null), refreshDocs helper
+- DocumentEditor component: Add Document button opens dialog with empty JSON template, edit mode shows doc JSON (without _id), save/delete buttons, confirm step for delete, invalid JSON toast
+- DocumentTable: added onRowClick prop for row click → edit flow
+- App.tsx: wired DocumentEditor (add button + edit dialog) with DocumentTable row click handler
+- Files: src/main/mongo-service.ts, mongo-service.test.ts, ipc-handlers.ts, ipc-handlers.test.ts, preload/index.ts, preload/index.d.ts, store.ts, store.test.ts, components/DocumentEditor.tsx, DocumentEditor.test.tsx, DocumentTable.tsx, App.tsx
+- **Learnings for future iterations:**
+  - EJSON.deserialize converts `{ $oid: "..." }` back to ObjectId for MongoDB operations
+  - userEvent.type from @testing-library treats curly braces as keyboard descriptors - use fireEvent.change for JSON text
+  - Store CRUD actions follow same pattern as runQuery: return error string or null
+  - DocumentEditor extracts _id.$oid from EJSON-serialized docs to get the string id for update/delete
+---
+
+## 2026-03-20 - S10
+- Added loading spinners via Loader component (CSS spinner, used in DocumentTable + Sidebar)
+- Added empty states: "No documents found" in DocumentTable, "No databases" / "No collections" in Sidebar
+- Added Cmd+K keyboard shortcut to open connection dialog (App.tsx global keydown listener)
+- Cmd+Enter for query already handled by CodeMirror keymap in QueryEditor
+- Added collection doc count badges in sidebar (estimatedDocumentCount in MongoService.listCollections, count field on CollectionInfo type)
+- Added dark mode with system preference detection (matchMedia prefers-color-scheme, toggles .dark class on html element)
+- Added resizable sidebar with drag handle (mouse-based resize, min 150px / max 500px, drag handle on right edge)
+- Updated Sidebar.test.tsx to pass new width/onResize props
+- Files: src/renderer/src/components/Loader.tsx (new), Sidebar.tsx, Sidebar.test.tsx, DocumentTable.tsx, App.tsx, src/main/mongo-service.ts, src/shared/types.ts
+- **Learnings for future iterations:**
+  - Tailwind darkMode: ['class'] + CSS variable-based theming already supports dark mode; just toggle .dark class on html
+  - Use useLayoutEffect for dark mode to avoid flash of unstyled content
+  - estimatedDocumentCount is faster than countDocuments for sidebar badge display
+  - Sidebar component now requires width/onResize props for resizability
 ---
