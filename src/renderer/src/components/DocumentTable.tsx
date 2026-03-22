@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useStore } from '../store'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table'
 import { Button } from './ui/button'
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover'
 import { Loader } from './Loader'
+import { Maximize2, Copy } from 'lucide-react'
+import { toast } from 'sonner'
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return ''
@@ -102,11 +105,39 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
                 className={`even:bg-muted/30 ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                 onClick={() => onRowClick?.(doc)}
               >
-                {columns.map((col) => (
-                  <TableCell key={col} className="overflow-visible relative">
-                    <span className="block truncate">{formatCell(doc[col])}</span>
-                  </TableCell>
-                ))}
+                {columns.map((col) => {
+                  const raw = formatCell(doc[col])
+                  return (
+                    <TableCell key={col} className="overflow-visible relative group">
+                      <span className="block truncate">{raw}</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 max-h-64 overflow-auto">
+                          <pre className="text-xs whitespace-pre-wrap break-words">{raw}</pre>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 w-full"
+                            onClick={() => {
+                              navigator.clipboard.writeText(raw)
+                              toast.success('Copied to clipboard')
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Copy
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </TableCell>
+                  )
+                })}
               </TableRow>
             ))}
           </TableBody>
