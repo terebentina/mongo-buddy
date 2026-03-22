@@ -19,6 +19,7 @@ interface StoreState {
   queryMode: 'filter' | 'aggregate'
   fieldNames: string[]
   sort: Record<string, 1 | -1> | null
+  pendingFilterText: string | null
 
   connect: (uri: string) => Promise<void>
   disconnect: () => Promise<void>
@@ -36,6 +37,8 @@ interface StoreState {
   loadSavedConnections: () => Promise<void>
   saveConnection: (name: string, uri: string) => Promise<void>
   deleteConnection: (name: string) => Promise<void>
+  addFilterValue: (column: string, value: unknown) => void
+  clearPendingFilterText: () => void
   autoReconnect: () => Promise<void>
 }
 
@@ -57,6 +60,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   queryMode: 'filter',
   fieldNames: [],
   sort: null,
+  pendingFilterText: null,
 
   connect: async (uri: string) => {
     set({ loading: true, error: null })
@@ -246,6 +250,52 @@ export const useStore = create<StoreState>()((set, get) => ({
     await window.api.deleteConnection(name)
     const connections = await window.api.listConnections()
     set({ savedConnections: connections })
+  },
+
+  addFilterValue: (column: string, value: unknown) => {
+    const { filter } = get()
+    const newFilter = { ...filter }
+    const existing = newFilter[column]
+
+    if (existing === undefined) {
+      // No filter for this column yet — exact match
+      newFilter[column] = value
+    } else if (
+      typeof existing === 'object' &&
+      existing !== null &&
+      !Array.isArray(existing)
+    ) {
+      const keys = Object.keys(existing as Record<string, unknown>)
+      if (keys.length === 1 && keys[0] === '$in') {
+        // Existing $in — append and deduplicate
+        const arr = (existing as Record<string, unknown>)['$in'] as unknown[]
+        if (!arr.includes(value)) {
+          newFilter[column] = { $in: [...arr, value] }
+        }
+      } else if (keys.every((k) => k.startsWith('$'))) {
+        // Other $-operators like $gt — replace entirely
+        newFilter[column] = value
+      } else {
+        // Plain object value (not an operator) — replace
+        newFilter[column] = value
+      }
+    } else {
+      // Existing plain value — merge into $in
+      if (existing !== value) {
+        newFilter[column] = { $in: [existing, value] }
+      }
+    }
+
+    set({
+      filter: newFilter,
+      skip: 0,
+      pendingFilterText: JSON.stringify(newFilter, null, 2)
+    })
+    get().fetchPage(0)
+  },
+
+  clearPendingFilterText: () => {
+    set({ pendingFilterText: null })
   },
 
   autoReconnect: async () => {
