@@ -9,6 +9,7 @@ import {
 import { Button } from './ui/button'
 import { useStore } from '../store'
 import { toast } from 'sonner'
+import { Copy } from 'lucide-react'
 
 interface DocumentEditorProps {
   editDoc?: Record<string, unknown> | null
@@ -110,6 +111,20 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
               {isEditing ? 'Modify the document JSON below' : 'Enter document JSON'}
             </DialogDescription>
           </DialogHeader>
+          {isEditing && editDoc && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+              <span>_id: {extractId(editDoc)}</span>
+              <button
+                className="hover:text-foreground"
+                onClick={() => {
+                  navigator.clipboard.writeText(extractId(editDoc) ?? '')
+                  toast.success('Copied to clipboard')
+                }}
+              >
+                <Copy className="h-3 w-3" />
+              </button>
+            </div>
+          )}
           <textarea
             role="textbox"
             className="w-full h-64 p-2 font-mono text-sm border rounded bg-background text-foreground"

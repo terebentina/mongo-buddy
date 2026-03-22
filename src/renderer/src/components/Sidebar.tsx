@@ -55,7 +55,7 @@ export function Sidebar({ width, onResize }: SidebarProps): JSX.Element {
             <p className="text-xs text-muted-foreground px-2 py-4 text-center">No databases</p>
           )}
           {databases.length === 0 && loading && <Loader className="py-4" />}
-          {databases.map((db) => (
+          {[...databases].sort((a, b) => a.name.localeCompare(b.name)).map((db) => (
             <Collapsible key={db.name} open={selectedDb === db.name}>
               <CollapsibleTrigger asChild>
                 <Button
@@ -72,7 +72,7 @@ export function Sidebar({ width, onResize }: SidebarProps): JSX.Element {
                   {collections.length === 0 && !loading && (
                     <p className="text-xs text-muted-foreground px-2 py-2">No collections</p>
                   )}
-                  {collections.map((coll) => (
+                  {[...collections].sort((a, b) => a.name.localeCompare(b.name)).map((coll) => (
                     <Button
                       key={coll.name}
                       variant="ghost"
