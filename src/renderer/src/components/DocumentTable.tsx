@@ -26,14 +26,20 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   const sort = useStore((s) => s.sort)
   const setSort = useStore((s) => s.setSort)
   const queryMode = useStore((s) => s.queryMode)
+  const setLimit = useStore((s) => s.setLimit)
 
   const columns = getColumns(docs)
   const currentPage = Math.floor(skip / limit) + 1
   const totalPages = Math.max(1, Math.ceil(totalCount / limit))
 
+  const [pageInput, setPageInput] = useState(String(currentPage))
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const columnsKey = columns.join(',')
   const prevColumnsKey = useRef(columnsKey)
+
+  useEffect(() => {
+    setPageInput(String(currentPage))
+  }, [currentPage])
 
   useEffect(() => {
     if (prevColumnsKey.current !== columnsKey) {
@@ -155,7 +161,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-between px-4 py-2 border-t">
+      <div className="flex items-center gap-4 px-4 py-2 border-t">
         <Button
           variant="outline"
           size="sm"
@@ -164,9 +170,36 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
         >
           Previous
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Page {currentPage} of {totalPages}
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          Page
+          <input
+            type="number"
+            className="w-14 h-7 px-1.5 text-center text-sm border rounded bg-background"
+            value={pageInput}
+            min={1}
+            max={totalPages}
+            onChange={(e) => setPageInput(e.target.value)}
+            onBlur={() => {
+              const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1))
+              setPageInput(String(page))
+              fetchPage((page - 1) * limit)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+            }}
+          />
+          of {totalPages}
         </span>
+        <select
+          className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+        >
+          {[10, 20, 50, 100].map((n) => (
+            <option key={n} value={n}>{n} / page</option>
+          ))}
+        </select>
+        <div className="flex-1" />
         <Button
           variant="outline"
           size="sm"
