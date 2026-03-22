@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.4.0](https://github.com/terebentina/mongo-buddy/compare/v1.3.0...v1.4.0) (2026-03-22)
+
+
+### Features
+
+* hide menu bar, improve table header styling ([e575793](https://github.com/terebentina/mongo-buddy/commit/e575793373bd1bc19e0b94fe002c14a01b240c96))
+
 ## [1.3.0](https://github.com/terebentina/mongo-buddy/compare/v1.2.0...v1.3.0) (2026-03-22)
 
 
