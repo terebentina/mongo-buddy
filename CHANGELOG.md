@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.1.1](https://github.com/terebentina/mongo-buddy/compare/v1.1.0...v1.1.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* prevent table from pushing pagination out of view ([d7fb216](https://github.com/terebentina/mongo-buddy/commit/d7fb2163bf3305b6ea0c9405f63dab6d21a8fb0a))
+
 ## [1.1.0](https://github.com/terebentina/mongo-buddy/compare/v1.0.0...v1.1.0) (2026-03-22)
 
 
