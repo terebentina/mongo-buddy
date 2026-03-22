@@ -45,6 +45,8 @@ export function QueryEditor(): JSX.Element {
   const runQuery = useStore((s) => s.runQuery)
   const loading = useStore((s) => s.loading)
   const fieldNames = useStore((s) => s.fieldNames)
+  const pendingFilterText = useStore((s) => s.pendingFilterText)
+  const clearPendingFilterText = useStore((s) => s.clearPendingFilterText)
 
   const getEditorText = useCallback((): string => {
     if (viewRef.current) {
@@ -96,6 +98,18 @@ export function QueryEditor(): JSX.Element {
       viewRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Apply pending filter text from store (e.g. filter-by-cell)
+  useEffect(() => {
+    if (pendingFilterText === null || !viewRef.current) return
+    if (queryMode === 'aggregate') {
+      setQueryMode('filter')
+    }
+    viewRef.current.dispatch({
+      changes: { from: 0, to: viewRef.current.state.doc.length, insert: pendingFilterText }
+    })
+    clearPendingFilterText()
+  }, [pendingFilterText, clearPendingFilterText, queryMode, setQueryMode])
 
   // Update autocomplete when fieldNames change
   useEffect(() => {
