@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.2.0](https://github.com/terebentina/mongo-buddy/compare/v1.1.1...v1.2.0) (2026-03-22)
+
+
+### Features
+
+* US-001 - Compact table styling ([d011a59](https://github.com/terebentina/mongo-buddy/commit/d011a599a248842d2df79ddae2c0fa5b20138060))
+* US-002 - Store: addFilterValue action and pendingFilterText ([275d37d](https://github.com/terebentina/mongo-buddy/commit/275d37d12bc541bbf8f4303f224411a86fb78fa0))
+* US-003 - QueryEditor: consume pendingFilterText ([c57d9e9](https://github.com/terebentina/mongo-buddy/commit/c57d9e927985efaa752e76bff5195b5052091298))
+* US-004 - DocumentTable: filter-by-cell icon ([211e8f2](https://github.com/terebentina/mongo-buddy/commit/211e8f271b5efe07f433d15bd6b6c1613b023c73))
+
 ## [1.1.1](https://github.com/terebentina/mongo-buddy/compare/v1.1.0...v1.1.1) (2026-03-22)
 
 
