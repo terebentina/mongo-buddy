@@ -18,6 +18,7 @@ interface StoreState {
   savedConnections: SavedConnection[]
   queryMode: 'filter' | 'aggregate'
   fieldNames: string[]
+  sort: Record<string, 1 | -1> | null
 
   connect: (uri: string) => Promise<void>
   disconnect: () => Promise<void>
@@ -26,6 +27,7 @@ interface StoreState {
   fetchPage: (skip: number) => Promise<void>
   runQuery: (queryText: string) => Promise<string | null>
   setQueryMode: (mode: 'filter' | 'aggregate') => void
+  setSort: (field: string) => void
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>
   updateDoc: (id: string, doc: Record<string, unknown>) => Promise<string | null>
   deleteDoc: (id: string) => Promise<string | null>
@@ -53,6 +55,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   savedConnections: [],
   queryMode: 'filter',
   fieldNames: [],
+  sort: null,
 
   connect: async (uri: string) => {
     set({ loading: true, error: null })
@@ -100,7 +103,7 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   selectCollection: async (db: string, collection: string) => {
     const { limit, filter } = get()
-    set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0, fieldNames: [] })
+    set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0, fieldNames: [], sort: null })
     const [result, fieldsResult] = await Promise.all([
       window.api.find(db, collection, { filter, skip: 0, limit }),
       window.api.sampleFields(db, collection)
@@ -118,10 +121,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   fetchPage: async (skip: number) => {
-    const { selectedDb, selectedCollection, limit, filter } = get()
+    const { selectedDb, selectedCollection, limit, filter, sort } = get()
     if (!selectedDb || !selectedCollection) return
     set({ loading: true, skip })
-    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip, limit })
+    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip, limit, sort: sort ?? undefined })
     if (!result.ok) {
       set({ loading: false, error: result.error })
       return
@@ -140,7 +143,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       return 'Invalid JSON'
     }
 
-    set({ loading: true, skip: 0, error: null })
+    set({ loading: true, skip: 0, error: null, sort: null })
 
     if (queryMode === 'aggregate') {
       if (!Array.isArray(parsed)) {
@@ -172,6 +175,20 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({ queryMode: mode })
   },
 
+  setSort: (field: string) => {
+    const { sort } = get()
+    let newSort: Record<string, 1 | -1> | null
+    if (!sort || !(field in sort)) {
+      newSort = { [field]: 1 }
+    } else if (sort[field] === 1) {
+      newSort = { [field]: -1 }
+    } else {
+      newSort = null
+    }
+    set({ sort: newSort, skip: 0 })
+    get().fetchPage(0)
+  },
+
   insertDoc: async (doc: Record<string, unknown>) => {
     const { selectedDb, selectedCollection } = get()
     if (!selectedDb || !selectedCollection) return 'No collection selected'
@@ -200,9 +217,9 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   refreshDocs: async () => {
-    const { selectedDb, selectedCollection, skip, limit, filter } = get()
+    const { selectedDb, selectedCollection, skip, limit, filter, sort } = get()
     if (!selectedDb || !selectedCollection) return
-    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip, limit })
+    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip, limit, sort: sort ?? undefined })
     if (result.ok) {
       set({ docs: result.data.docs, totalCount: result.data.totalCount })
     }

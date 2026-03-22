@@ -4,7 +4,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Button } from './ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover'
 import { Loader } from './Loader'
-import { Maximize2, Copy } from 'lucide-react'
+import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { toast } from 'sonner'
 
 function formatCell(value: unknown): string {
@@ -23,6 +23,9 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   const limit = useStore((s) => s.limit)
   const loading = useStore((s) => s.loading)
   const fetchPage = useStore((s) => s.fetchPage)
+  const sort = useStore((s) => s.sort)
+  const setSort = useStore((s) => s.setSort)
+  const queryMode = useStore((s) => s.queryMode)
 
   const columns = getColumns(docs)
   const currentPage = Math.floor(skip / limit) + 1
@@ -78,24 +81,33 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
         <Table style={{ tableLayout: 'fixed' }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
-              {columns.map((col) => (
-                <TableHead
-                  key={col}
-                  className="whitespace-nowrap pr-6 relative"
-                  style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
-                >
-                  {col}
-                  <div
-                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
-                    onMouseDown={(e) => {
-                      e.stopPropagation()
-                      const th = e.currentTarget.parentElement!
-                      handleResizeStart(col, e.clientX, th.offsetWidth)
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </TableHead>
-              ))}
+              {columns.map((col) => {
+                const isAggregate = queryMode === 'aggregate'
+                const sortDir = sort && col in sort ? sort[col] : null
+                const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown
+                return (
+                  <TableHead
+                    key={col}
+                    className={`whitespace-nowrap pr-6 relative select-none ${isAggregate ? '' : 'cursor-pointer'}`}
+                    style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
+                    onClick={isAggregate ? undefined : () => setSort(col)}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col}
+                      {!isAggregate && <SortIcon className={`h-3.5 w-3.5 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`} />}
+                    </span>
+                    <div
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
+                      onMouseDown={(e) => {
+                        e.stopPropagation()
+                        const th = e.currentTarget.parentElement!
+                        handleResizeStart(col, e.clientX, th.offsetWidth)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </TableHead>
+                )
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
