@@ -86,7 +86,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
   return (
     <div className={`flex flex-col ${className ?? ''}`}>
       <div className="flex-1 overflow-auto">
-        <Table style={{ tableLayout: 'fixed' }}>
+        <Table>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {columns.map((col) => {
@@ -97,7 +97,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                   <TableHead
                     key={col}
                     className={`whitespace-nowrap px-4 pr-6 relative select-none border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
-                    style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
+                    style={columnWidths[col] ? { width: columnWidths[col], minWidth: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
                     <span className="inline-flex items-center gap-1">
