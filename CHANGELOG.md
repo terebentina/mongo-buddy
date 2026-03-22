@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.4.1](https://github.com/terebentina/mongo-buddy/compare/v1.4.0...v1.4.1) (2026-03-22)
+
+
+### Bug Fixes
+
+* prevent table columns from being narrower than headers ([9d55f1b](https://github.com/terebentina/mongo-buddy/commit/9d55f1bd9468f5f262cdc11ed5f2050eca47549a))
+
 ## [1.4.0](https://github.com/terebentina/mongo-buddy/compare/v1.3.0...v1.4.0) (2026-03-22)
 
 
