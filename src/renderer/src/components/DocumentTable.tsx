@@ -1,12 +1,15 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useStore } from '../store'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table'
 import { Button } from './ui/button'
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover'
 import { Loader } from './Loader'
+import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { toast } from 'sonner'
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
-  return str.length > 100 ? str.slice(0, 100) + '...' : str
+  return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
 interface DocumentTableProps {
@@ -20,10 +23,51 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   const limit = useStore((s) => s.limit)
   const loading = useStore((s) => s.loading)
   const fetchPage = useStore((s) => s.fetchPage)
+  const sort = useStore((s) => s.sort)
+  const setSort = useStore((s) => s.setSort)
+  const queryMode = useStore((s) => s.queryMode)
+  const setLimit = useStore((s) => s.setLimit)
 
   const columns = getColumns(docs)
   const currentPage = Math.floor(skip / limit) + 1
   const totalPages = Math.max(1, Math.ceil(totalCount / limit))
+
+  const [pageInput, setPageInput] = useState(String(currentPage))
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const columnsKey = columns.join(',')
+  const prevColumnsKey = useRef(columnsKey)
+
+  useEffect(() => {
+    setPageInput(String(currentPage))
+  }, [currentPage])
+
+  useEffect(() => {
+    if (prevColumnsKey.current !== columnsKey) {
+      setColumnWidths({})
+      prevColumnsKey.current = columnsKey
+    }
+  }, [columnsKey])
+
+  const handleResizeStart = useCallback(
+    (col: string, startX: number, startWidth: number) => {
+      document.body.style.userSelect = 'none'
+
+      const onMouseMove = (e: MouseEvent): void => {
+        const newWidth = Math.max(40, startWidth + e.clientX - startX)
+        setColumnWidths((prev) => ({ ...prev, [col]: newWidth }))
+      }
+
+      const onMouseUp = (): void => {
+        document.body.style.userSelect = ''
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    []
+  )
 
   if (loading) {
     return <Loader className="flex-1" />
@@ -40,30 +84,84 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
-        <Table>
-          <TableHeader>
+        <Table style={{ tableLayout: 'fixed' }}>
+          <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
-              {columns.map((col) => (
-                <TableHead key={col}>{col}</TableHead>
-              ))}
+              {columns.map((col) => {
+                const isAggregate = queryMode === 'aggregate'
+                const sortDir = sort && col in sort ? sort[col] : null
+                const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown
+                return (
+                  <TableHead
+                    key={col}
+                    className={`whitespace-nowrap pr-6 relative select-none ${isAggregate ? '' : 'cursor-pointer'}`}
+                    style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
+                    onClick={isAggregate ? undefined : () => setSort(col)}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {col}
+                      {!isAggregate && <SortIcon className={`h-3.5 w-3.5 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`} />}
+                    </span>
+                    <div
+                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
+                      onMouseDown={(e) => {
+                        e.stopPropagation()
+                        const th = e.currentTarget.parentElement!
+                        handleResizeStart(col, e.clientX, th.offsetWidth)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </TableHead>
+                )
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
             {docs.map((doc, i) => (
               <TableRow
                 key={String(doc._id ?? i)}
-                className={onRowClick ? 'cursor-pointer hover:bg-muted/50' : undefined}
+                className={`even:bg-muted/30 ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                 onClick={() => onRowClick?.(doc)}
               >
-                {columns.map((col) => (
-                  <TableCell key={col}>{formatCell(doc[col])}</TableCell>
-                ))}
+                {columns.map((col) => {
+                  const raw = formatCell(doc[col])
+                  return (
+                    <TableCell key={col} className="overflow-visible relative group">
+                      <span className="block truncate">{raw}</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 max-h-64 overflow-auto">
+                          <pre className="text-xs whitespace-pre-wrap break-words">{raw}</pre>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 w-full"
+                            onClick={() => {
+                              navigator.clipboard.writeText(raw)
+                              toast.success('Copied to clipboard')
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            Copy
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </TableCell>
+                  )
+                })}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-between px-4 py-2 border-t">
+      <div className="flex items-center gap-4 px-4 py-2 border-t">
         <Button
           variant="outline"
           size="sm"
@@ -72,9 +170,36 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
         >
           Previous
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Page {currentPage} of {totalPages}
+        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          Page
+          <input
+            type="number"
+            className="w-14 h-7 px-1.5 text-center text-sm border rounded bg-background"
+            value={pageInput}
+            min={1}
+            max={totalPages}
+            onChange={(e) => setPageInput(e.target.value)}
+            onBlur={() => {
+              const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1))
+              setPageInput(String(page))
+              fetchPage((page - 1) * limit)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+            }}
+          />
+          of {totalPages}
         </span>
+        <select
+          className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
+          value={limit}
+          onChange={(e) => setLimit(Number(e.target.value))}
+        >
+          {[10, 20, 50, 100].map((n) => (
+            <option key={n} value={n}>{n} / page</option>
+          ))}
+        </select>
+        <div className="flex-1" />
         <Button
           variant="outline"
           size="sm"
@@ -96,7 +221,6 @@ function getColumns(docs: Record<string, unknown>[]): string[] {
     }
   }
   const keys = Array.from(keySet)
-  // Ensure _id is first
   const idIndex = keys.indexOf('_id')
   if (idIndex > 0) {
     keys.splice(idIndex, 1)
