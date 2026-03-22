@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.1.0](https://github.com/terebentina/mongo-buddy/compare/v1.0.0...v1.1.0) (2026-03-22)
+
+
+### Features
+
+* US-001 - Sticky headers and zebra striping ([976b1ba](https://github.com/terebentina/mongo-buddy/commit/976b1baf5d95d1ef4e71bf5dbca432903146a13d))
+* US-002 - Table-layout fixed, ellipsis, and resizable columns ([0e31e1c](https://github.com/terebentina/mongo-buddy/commit/0e31e1c34970d7777c31177726acd59c7b6c285d))
+* US-003 - Cell popover with copy ([0331323](https://github.com/terebentina/mongo-buddy/commit/0331323b3d36c11c7d2da44da5e99a153a93762f))
+* US-004 - Server-side column sorting ([c8dd55c](https://github.com/terebentina/mongo-buddy/commit/c8dd55c783be37a3eaaaf282594bab74c2c6c335))
+* US-005 - Pagination jump-to-page and page size selector ([1513eaf](https://github.com/terebentina/mongo-buddy/commit/1513eaff1d570d6ad4f516f6452b7ae78efeebbf))
+
 ## 1.0.0 (2026-03-22)
 
 
