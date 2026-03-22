@@ -13,10 +13,11 @@ function formatCell(value: unknown): string {
 }
 
 interface DocumentTableProps {
+  className?: string
   onRowClick?: (doc: Record<string, unknown>) => void
 }
 
-export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
+export function DocumentTable({ className, onRowClick }: DocumentTableProps): JSX.Element {
   const docs = useStore((s) => s.docs)
   const totalCount = useStore((s) => s.totalCount)
   const skip = useStore((s) => s.skip)
@@ -82,7 +83,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className={`flex flex-col ${className ?? ''}`}>
       <div className="flex-1 overflow-auto">
         <Table style={{ tableLayout: 'fixed' }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
