@@ -12,7 +12,9 @@
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "test": "vitest run --config vitest.config.main.ts --passWithNoTests && vitest run --config vitest.config.renderer.ts --passWithNoTests",
     "test:watch": "vitest --config vitest.config.renderer.ts",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "predist": "pnpm run build",
+    "dist": "electron-builder --win"
   },
   "dependencies": {
     "@codemirror/lang-json": "^6.0.2",
