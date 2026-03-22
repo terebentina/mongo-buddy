@@ -1,181 +1,65 @@
 # Ralph Progress Log
-Started: Fri Mar 20 11:43:13 EET 2026
+Started: Sun Mar 22 16:50:13 EET 2026
 
 ## Codebase Patterns
-- electron-vite structure: src/main (node), src/preload (node), src/renderer (react)
-- Dual vitest configs: vitest.config.main.ts (node env), vitest.config.renderer.ts (jsdom env)
-- shadcn/ui components in src/renderer/src/components/ui/ - manually created, not CLI
-- Tailwind CSS v3 with CSS variable-based theming (hsl values)
-- Shared types in src/shared/types.ts - importable from both main and renderer
-- Use `--passWithNoTests` flag with vitest run to allow zero test files
-- Path alias: @renderer -> src/renderer/src (configured in electron.vite.config.ts and tsconfig.web.json)
-- electron binary needs manual install.js run if pnpm ignored build scripts: `node node_modules/.pnpm/electron@28.3.3/node_modules/electron/install.js`
-- React 18 + TypeScript, JSX transform via @vitejs/plugin-react
-- EJSON import: use `import { EJSON } from 'mongodb/lib/bson'` (not directly exported from mongodb v6)
-- EJSON Date serialization uses compact ISO format without trailing .000 (e.g. `2024-01-01T00:00:00Z`)
-- MongoService pattern: all methods return `Result<T>`, catch errors internally
-- IPC channel naming: `mongo:<action>` (e.g. `mongo:connect`, `mongo:list-databases`)
-- IPC handlers use a `wrap()` helper for uniform error handling + Result<T> return
-- Preload exports typed `MongoApi` interface; renderer accesses via `window.api`
-- Zustand store at src/renderer/src/store.ts; test with `useStore.getState()` and `useStore.setState()`
-- Store actions call `window.api.*` methods; mock `window.api` in renderer tests
-- jsdom needs `global.ResizeObserver` mock for Radix ScrollArea (added in test-setup.ts)
-- Radix Collapsible: use controlled `open` prop (not `defaultOpen`) when state is managed externally (e.g. zustand)
-- Component tests: use `@testing-library/user-event` for user interactions, `waitFor` for async state updates
-- Toast pattern: use `sonner` toast.error() after checking store error state post-action
-- Store pagination: `fetchPage(skip)` action reads selectedDb/selectedCollection from get(), calls window.api.find
-- electron-store: use `encryptionKey` option for encrypted storage, mock with closure-based data object
-- IPC handler naming for non-mongo operations: `connections:<action>` (vs `mongo:<action>`)
-- Sync IPC handlers use `wrapSync` helper (no try/catch needed for simple getters/setters)
-- CodeMirror 6 in jsdom: mock EditorView with destroy() method, mock state.doc.toString() for content
-- Store `runQuery(text)` returns `string | null` (error message or null on success) for toast display
-- Dark mode: toggle `.dark` class on `document.documentElement` via `matchMedia('(prefers-color-scheme: dark)')`
-- Sidebar takes `width`/`onResize` props for resizable layout
-- Loader component at src/renderer/src/components/Loader.tsx: CSS spinner for loading states
+- No eslint config in project; typecheck (`npx tsc --noEmit`) is the main quality gate
+- Shadcn-style UI components in `src/renderer/src/components/ui/`
+- Store pattern: Zustand store at `src/renderer/src/store.ts`
+- Table wrapper div in `table.tsx` no longer has `overflow-auto` — scroll handled by DocumentTable outer div
+- Uses pnpm (not npm) for package management
 
 ---
 
-## 2026-03-20 - S1
-- Scaffolded electron-vite project manually (react-ts template via degit was Vue-based)
-- Installed all deps: mongodb, electron-store, zustand, vitest, testing-library, jsdom
-- Setup Tailwind v3 + shadcn/ui components (button, dialog, table, input, scroll-area, collapsible, sonner)
-- Created dual vitest configs for main (node) and renderer (jsdom)
-- Created shared types file with Result<T>, DbInfo, CollectionInfo, FindOpts, etc.
-- Files: package.json, electron.vite.config.ts, tsconfig*.json, vitest.config.*.ts, tailwind.config.js, postcss.config.js, all src/ files
+## 2026-03-22 - US-001
+- Implemented sticky headers and zebra striping
+- Files changed: `src/renderer/src/components/ui/table.tsx`, `src/renderer/src/components/DocumentTable.tsx`
 - **Learnings for future iterations:**
-  - create-electron-vite is interactive only - scaffold manually or use degit
-  - The default electron-vite boilerplate is Vue, not React
-  - pnpm may ignore electron/esbuild build scripts - run install.js manually
-  - WSL has no display - pnpm dev builds succeed but electron can't open window
+  - table.tsx wrapper div had `overflow-auto` removed so sticky positioning resolves against DocumentTable's outer scroll container
+  - Zebra striping uses Tailwind `even:bg-muted/30` on TableRow
+  - TableHeader gets `sticky top-0 z-10 bg-background` class
 ---
 
-## 2026-03-20 - S2
-- TDD'd MongoService class with full test coverage (9 tests)
-- Tests: connect, connect error, disconnect, listDatabases, listDatabases not connected, listCollections, find with EJSON, count, EJSON ObjectId/Date round-trip
-- Files: src/main/mongo-service.ts, src/main/mongo-service.test.ts
+## 2026-03-22 - US-002
+- Implemented table-layout fixed, ellipsis truncation, and resizable columns
+- Files changed: `src/renderer/src/components/DocumentTable.tsx`
 - **Learnings for future iterations:**
-  - mongodb v6 does not export EJSON directly; use `mongodb/lib/bson` (needs @ts-ignore)
-  - When mocking mongodb, mock MongoClient constructor but use real ObjectId/EJSON from actual imports
-  - BSON version mismatch: don't install standalone `bson` package alongside mongodb (version conflict)
-  - EJSON.serialize Date format is compact ISO (no trailing .000 milliseconds when zero)
+  - `formatCell` no longer truncates at 100 chars — CSS `truncate` class handles ellipsis
+  - Column widths tracked in `columnWidths` state, reset via useEffect when `columnsKey` changes
+  - Resize handle is a 4px div at right edge of th, uses document-level mousemove/mouseup
+  - `user-select: none` set on body during drag, cleared on mouseup
+  - Resize handle `onClick` has `e.stopPropagation()` to avoid triggering sort (future US-004)
 ---
 
-## 2026-03-20 - S3
-- TDD'd IPC handlers (9 tests): all 6 channels + error handling
-- Implemented ipc-handlers.ts with wrap() helper for uniform error catching
-- Updated preload/index.ts with typed MongoApi exposed via contextBridge
-- Updated preload/index.d.ts with full MongoApi type declarations
-- Wired MongoService + registerIpcHandlers into src/main/index.ts
-- Files: src/main/ipc-handlers.ts, src/main/ipc-handlers.test.ts, src/main/index.ts, src/preload/index.ts, src/preload/index.d.ts
+## 2026-03-22 - US-003
+- Installed `@radix-ui/react-popover`, created shadcn-style `popover.tsx` wrapper
+- Added expand icon (Maximize2) on cell hover, opens Radix Popover with full value + Copy button
+- Files changed: `src/renderer/src/components/ui/popover.tsx` (new), `src/renderer/src/components/DocumentTable.tsx`, `package.json`, `pnpm-lock.yaml`
 - **Learnings for future iterations:**
-  - Mock `ipcMain.handle` by capturing channel→handler map, then invoke handlers directly in tests
-  - Cast mock implementation `as typeof ipcMain.handle` to satisfy Electron's complex types
-  - IPC handlers receive `(event, ...args)` - the wrap() pattern strips the event and forwards args to MongoService
+  - Uses pnpm, not npm
+  - Popover follows same shadcn pattern as dialog.tsx
+  - `toast.success()` for positive feedback, `toast.error()` for errors
+  - Cell `group` class + `opacity-0 group-hover:opacity-100` for hover reveal of expand icon
 ---
 
-## 2026-03-20 - S4
-- TDD'd zustand store with 5 tests: connect success, connect failure, selectDb, selectCollection, disconnect
-- Store uses `window.api` (preload bridge) for all MongoDB operations
-- State: connected, uri, databases, collections, selectedDb, selectedCollection, docs, totalCount, skip, limit, filter, error, loading
-- Files: src/renderer/src/store.ts, src/renderer/src/store.test.ts
+## 2026-03-22 - US-004
+- Added `sort` state and `setSort` action to store; cycles asc->desc->null
+- Sort passed in all find() calls (fetchPage, selectCollection, runQuery, refreshDocs)
+- Sort cleared on selectCollection and runQuery
+- Sort headers with ArrowUp/ArrowDown/ArrowUpDown icons; disabled in aggregate mode
+- Files changed: `src/renderer/src/store.ts`, `src/renderer/src/components/DocumentTable.tsx`
 - **Learnings for future iterations:**
-  - Zustand v5 `create` works with `create<Type>()((set, get) => ...)` pattern
-  - Mock `window.api` in beforeEach, use `useStore.setState()` to reset between tests
-  - Use `useStore.getState().action()` to call actions in tests without rendering React components
+  - Backend already supported sort in FindOpts — just needed wiring through store
+  - `setSort` calls `fetchPage(0)` after updating state to trigger refetch
+  - Sort icons use conditional rendering based on queryMode === 'aggregate'
 ---
 
-## 2026-03-20 - S5
-- TDD'd ConnectionDialog (4 tests) and Sidebar (4 tests) components
-- ConnectionDialog: URI input, connect button, error toast via sonner, dialog close on success
-- Sidebar: database list, click-to-expand with controlled Collapsible, collection selection with active state
-- Updated App.tsx with sidebar + main panel layout, Sonner Toaster
-- Created sonner.tsx UI component wrapper
-- Files: src/renderer/src/components/ConnectionDialog.tsx, ConnectionDialog.test.tsx, Sidebar.tsx, Sidebar.test.tsx, ui/sonner.tsx, App.tsx, test-setup.ts
+## 2026-03-22 - US-005
+- Added `setLimit` action to store (resets skip to 0, refetches)
+- Reworked pagination bar: [Prev] [Page <input> of Y] [rows/page <select>] [Next]
+- Page input applies on Enter/blur, clamps to valid range
+- Page size select: 10, 20, 50, 100
+- Files changed: `src/renderer/src/store.ts`, `src/renderer/src/components/DocumentTable.tsx`
 - **Learnings for future iterations:**
-  - jsdom lacks ResizeObserver - must mock globally in test-setup.ts
-  - Radix Collapsible `defaultOpen` doesn't work well with external state; use controlled `open` prop
-  - ConnectionDialog uses store.connect then checks store error state to decide toast vs close
-  - @testing-library/user-event needed separate install (not bundled with @testing-library/react)
----
-
-## 2026-03-20 - S6
-- TDD'd DocumentTable component with 8 tests: column headers, _id first, truncation, JSON.stringify nested, pagination controls, disabled states, page change calls store
-- Added `fetchPage(skip)` action to zustand store for pagination
-- Wired DocumentTable into App.tsx (shown when connected + collection selected)
-- Files: src/renderer/src/components/DocumentTable.tsx, DocumentTable.test.tsx, src/renderer/src/store.ts, src/renderer/src/App.tsx
-- **Learnings for future iterations:**
-  - `getColumns()` uses Set to union keys from first 20 docs, then ensures _id is first via splice+unshift
-  - `formatCell()` handles nested objects via JSON.stringify, truncates at 100 chars
-  - Pagination: currentPage = floor(skip/limit)+1, totalPages = ceil(totalCount/limit)
-  - Store `fetchPage` action reads selectedDb/selectedCollection from get() to avoid passing them as params
----
-
-## 2026-03-20 - S7
-- TDD'd ConnectionStore service (8 tests): electron-store with encryption, save/getAll/remove/getLastUsed/setLastUsed
-- Added 5 IPC handlers for saved connections (connections:list/save/delete/get-last-used/set-last-used)
-- Updated preload bridge with saved connection API methods
-- Added store actions: loadSavedConnections, saveConnection, deleteConnection, autoReconnect
-- Updated ConnectionDialog to show saved connections list, click-to-connect, delete button, optional name field for saving
-- Added autoReconnect on App startup via useEffect
-- Files: src/main/connection-store.ts, connection-store.test.ts, ipc-handlers.ts, ipc-handlers.test.ts, index.ts, preload/index.ts, preload/index.d.ts, store.ts, store.test.ts, ConnectionDialog.tsx, ConnectionDialog.test.tsx, App.tsx
-- **Learnings for future iterations:**
-  - electron-store v8 is ESM-only but works fine with electron-vite's externalizeDepsPlugin
-  - IPC handlers for synchronous operations use a `wrapSync` helper (vs async `wrap` for MongoService)
-  - ConnectionStore mock: use a closure-based data object in vi.fn().mockImplementation to simulate get/set/delete
-  - ConnectionDialog loads saved connections via useEffect on open state change
-  - Store connect() action calls setLastUsed() after successful connection for auto-reconnect feature
----
-
-## 2026-03-20 - S8
-- TDD'd QueryEditor component with CodeMirror 6 (6 tests)
-- Added aggregate method to MongoService + test (2 tests)
-- Added mongo:aggregate IPC handler + test (1 test)
-- Added aggregate to preload bridge + type declarations
-- Added store actions: runQuery, setQueryMode, queryMode state + tests (4 tests)
-- Wired QueryEditor into App.tsx above DocumentTable
-- Files: src/main/mongo-service.ts, mongo-service.test.ts, ipc-handlers.ts, ipc-handlers.test.ts, preload/index.ts, preload/index.d.ts, store.ts, store.test.ts, components/QueryEditor.tsx, QueryEditor.test.tsx, App.tsx, package.json
-- **Learnings for future iterations:**
-  - CodeMirror 6 in jsdom requires mocking EditorView (with destroy method), EditorState, keymap, placeholder
-  - Use `mockEditorContent` variable to control what the mocked editor returns from state.doc.toString()
-  - Store runQuery() returns error string or null - component uses this for toast.error() display
-  - queryMode state ('filter' | 'aggregate') toggles between find() and aggregate() API calls
-  - CodeMirror deps: codemirror, @codemirror/lang-json, @codemirror/view, @codemirror/state, @codemirror/theme-one-dark
-- CRUD pattern: MongoService methods use EJSON.deserialize on input, EJSON.serialize on output
-- Store CRUD actions (insertDoc/updateDoc/deleteDoc) return `string | null` (error or null on success)
-- DocumentEditor extracts _id.$oid from EJSON-serialized docs for update/delete operations
-- userEvent.type treats `{` and `}` as special key descriptors; use fireEvent.change for JSON strings
----
-
-## 2026-03-20 - S9
-- TDD'd Document CRUD across all layers (MongoService, IPC, preload, store, component)
-- MongoService: insertOne (EJSON deserialize input, serialize output), updateOne (replaceOne by ObjectId), deleteOne
-- IPC handlers: mongo:insert-one, mongo:update-one, mongo:delete-one with wrap() helper
-- Preload bridge: typed API methods for insertOne, updateOne, deleteOne
-- Store: insertDoc, updateDoc, deleteDoc actions (return error string or null), refreshDocs helper
-- DocumentEditor component: Add Document button opens dialog with empty JSON template, edit mode shows doc JSON (without _id), save/delete buttons, confirm step for delete, invalid JSON toast
-- DocumentTable: added onRowClick prop for row click → edit flow
-- App.tsx: wired DocumentEditor (add button + edit dialog) with DocumentTable row click handler
-- Files: src/main/mongo-service.ts, mongo-service.test.ts, ipc-handlers.ts, ipc-handlers.test.ts, preload/index.ts, preload/index.d.ts, store.ts, store.test.ts, components/DocumentEditor.tsx, DocumentEditor.test.tsx, DocumentTable.tsx, App.tsx
-- **Learnings for future iterations:**
-  - EJSON.deserialize converts `{ $oid: "..." }` back to ObjectId for MongoDB operations
-  - userEvent.type from @testing-library treats curly braces as keyboard descriptors - use fireEvent.change for JSON text
-  - Store CRUD actions follow same pattern as runQuery: return error string or null
-  - DocumentEditor extracts _id.$oid from EJSON-serialized docs to get the string id for update/delete
----
-
-## 2026-03-20 - S10
-- Added loading spinners via Loader component (CSS spinner, used in DocumentTable + Sidebar)
-- Added empty states: "No documents found" in DocumentTable, "No databases" / "No collections" in Sidebar
-- Added Cmd+K keyboard shortcut to open connection dialog (App.tsx global keydown listener)
-- Cmd+Enter for query already handled by CodeMirror keymap in QueryEditor
-- Added collection doc count badges in sidebar (estimatedDocumentCount in MongoService.listCollections, count field on CollectionInfo type)
-- Added dark mode with system preference detection (matchMedia prefers-color-scheme, toggles .dark class on html element)
-- Added resizable sidebar with drag handle (mouse-based resize, min 150px / max 500px, drag handle on right edge)
-- Updated Sidebar.test.tsx to pass new width/onResize props
-- Files: src/renderer/src/components/Loader.tsx (new), Sidebar.tsx, Sidebar.test.tsx, DocumentTable.tsx, App.tsx, src/main/mongo-service.ts, src/shared/types.ts
-- **Learnings for future iterations:**
-  - Tailwind darkMode: ['class'] + CSS variable-based theming already supports dark mode; just toggle .dark class on html
-  - Use useLayoutEffect for dark mode to avoid flash of unstyled content
-  - estimatedDocumentCount is faster than countDocuments for sidebar badge display
-  - Sidebar component now requires width/onResize props for resizability
+  - `pageInput` state synced via useEffect on `currentPage` to stay in sync with store
+  - Select uses native HTML element for simplicity (no shadcn select component needed)
 ---
