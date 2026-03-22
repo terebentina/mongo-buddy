@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useStore } from '../store'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table'
 import { Button } from './ui/button'
@@ -5,8 +6,7 @@ import { Loader } from './Loader'
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return ''
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value)
-  return str.length > 100 ? str.slice(0, 100) + '...' : str
+  return typeof value === 'object' ? JSON.stringify(value) : String(value)
 }
 
 interface DocumentTableProps {
@@ -25,6 +25,38 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   const currentPage = Math.floor(skip / limit) + 1
   const totalPages = Math.max(1, Math.ceil(totalCount / limit))
 
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+  const columnsKey = columns.join(',')
+  const prevColumnsKey = useRef(columnsKey)
+
+  useEffect(() => {
+    if (prevColumnsKey.current !== columnsKey) {
+      setColumnWidths({})
+      prevColumnsKey.current = columnsKey
+    }
+  }, [columnsKey])
+
+  const handleResizeStart = useCallback(
+    (col: string, startX: number, startWidth: number) => {
+      document.body.style.userSelect = 'none'
+
+      const onMouseMove = (e: MouseEvent): void => {
+        const newWidth = Math.max(40, startWidth + e.clientX - startX)
+        setColumnWidths((prev) => ({ ...prev, [col]: newWidth }))
+      }
+
+      const onMouseUp = (): void => {
+        document.body.style.userSelect = ''
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+      }
+
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    []
+  )
+
   if (loading) {
     return <Loader className="flex-1" />
   }
@@ -40,11 +72,26 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
-        <Table>
+        <Table style={{ tableLayout: 'fixed' }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {columns.map((col) => (
-                <TableHead key={col}>{col}</TableHead>
+                <TableHead
+                  key={col}
+                  className="whitespace-nowrap pr-6 relative"
+                  style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
+                >
+                  {col}
+                  <div
+                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
+                    onMouseDown={(e) => {
+                      e.stopPropagation()
+                      const th = e.currentTarget.parentElement!
+                      handleResizeStart(col, e.clientX, th.offsetWidth)
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </TableHead>
               ))}
             </TableRow>
           </TableHeader>
@@ -56,7 +103,9 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
                 onClick={() => onRowClick?.(doc)}
               >
                 {columns.map((col) => (
-                  <TableCell key={col}>{formatCell(doc[col])}</TableCell>
+                  <TableCell key={col} className="overflow-visible relative">
+                    <span className="block truncate">{formatCell(doc[col])}</span>
+                  </TableCell>
                 ))}
               </TableRow>
             ))}
@@ -96,7 +145,6 @@ function getColumns(docs: Record<string, unknown>[]): string[] {
     }
   }
   const keys = Array.from(keySet)
-  // Ensure _id is first
   const idIndex = keys.indexOf('_id')
   if (idIndex > 0) {
     keys.splice(idIndex, 1)
