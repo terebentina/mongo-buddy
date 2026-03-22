@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.3.0](https://github.com/terebentina/mongo-buddy/compare/v1.2.0...v1.3.0) (2026-03-22)
+
+
+### Features
+
+* QOL ([ef3492f](https://github.com/terebentina/mongo-buddy/commit/ef3492f2ab098c642bcdf0ac2d77fb7b1dad752b))
+
+
+### Bug Fixes
+
+* add author ([0e1ff39](https://github.com/terebentina/mongo-buddy/commit/0e1ff391339027858b02d837c7cdc2a681bb7e25))
+
 ## [1.2.0](https://github.com/terebentina/mongo-buddy/compare/v1.1.1...v1.2.0) (2026-03-22)
 
 
