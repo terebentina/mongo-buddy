@@ -1,171 +1,109 @@
 {
-  "projectName": "MongoBuddy",
-  "branchName": "main",
-  "description": "Lightweight MongoDB GUI client built with Electron. Browse, query, CRUD.",
-  "stories": [
+  "projectName": "Results Table QoL",
+  "branchName": "ralph/results-table-qol",
+  "description": "Improve DocumentTable with sticky headers, resizable columns, ellipsis, zebra striping, cell popover, server-side sorting, and enhanced pagination.",
+  "dependsOn": [],
+  "status": "pending",
+  "completedAt": null,
+  "userStories": [
     {
-      "id": "S1",
-      "title": "Project Scaffold + Config",
+      "id": "US-001",
+      "title": "Sticky headers and zebra striping",
+      "description": "As a user, I want table headers to stay visible when scrolling and alternating row colors for easier scanning.",
+      "acceptanceCriteria": [
+        "Table wrapper in table.tsx has overflow removed (just 'relative w-full') so sticky resolves against DocumentTable's outer scroll container",
+        "TableHeader has 'sticky top-0 z-10 bg-background' class in DocumentTable",
+        "Body TableRows have 'even:bg-muted/30' for zebra striping",
+        "Scrolling vertically keeps headers pinned at top",
+        "Horizontal scrolling still works via outer div",
+        "Typecheck passes",
+        "Lint passes"
+      ],
       "priority": 1,
       "passes": true,
-      "description": "Scaffold electron-vite project with react-ts template. Install all deps (mongodb, electron-store, zustand, vitest, @testing-library/react, @testing-library/jest-dom, jsdom). Setup Tailwind + shadcn/ui components (button, dialog, table, input, scroll-area, collapsible, sonner). Configure dual vitest: main (node env) and renderer (jsdom env). Create shared types file at src/shared/types.ts (Result<T>, DbInfo, CollectionInfo, FindOpts, etc.).",
-      "acceptanceCriteria": [
-        "pnpm dev opens Electron window",
-        "pnpm test runs successfully (no tests yet, zero failures)",
-        "Tailwind classes render in dev mode",
-        "src/shared/types.ts exports Result<T>, DbInfo, CollectionInfo, FindOpts types",
-        "vitest.config.ts configured for node (main) and jsdom (renderer) environments"
-      ]
+      "notes": "Pure CSS changes. Modify table.tsx (remove overflow-auto from wrapper div) and DocumentTable.tsx (add sticky + zebra classes)."
     },
     {
-      "id": "S2",
-      "title": "MongoService TDD",
+      "id": "US-002",
+      "title": "Table-layout fixed, ellipsis, and resizable columns",
+      "description": "As a user, I want cell content on a single line with ellipsis and the ability to drag column edges to resize.",
+      "acceptanceCriteria": [
+        "table element has table-layout: fixed",
+        "Each td contains a span with 'block truncate' (overflow-hidden text-ellipsis whitespace-nowrap)",
+        "td itself is 'overflow-visible relative' so popover icon is not clipped",
+        "th has whitespace-nowrap and padding-right for resize handle",
+        "Thin drag handle div (4px wide, full height, cursor-col-resize) at right edge of each th",
+        "Dragging handle resizes column via mousemove/mouseup on document",
+        "user-select: none set on body during drag",
+        "Resize handle onClick has e.stopPropagation() to not trigger sort",
+        "No initial pixel widths - table-layout fixed distributes equally by default",
+        "columnWidths state only tracks columns user has resized",
+        "columnWidths reset when columns array changes (different collection/query)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
       "priority": 2,
       "passes": true,
-      "description": "TDD the MongoService class (src/main/mongo-service.ts). RED: Write mongo-service.test.ts with mocked mongodb driver. GREEN: Implement MongoService. REFACTOR: Clean up.",
-      "acceptanceCriteria": [
-        "TEST: connect() calls MongoClient.connect with URI",
-        "TEST: connect() with bad URI returns error result",
-        "TEST: disconnect() closes client",
-        "TEST: listDatabases() returns DbInfo[]",
-        "TEST: listDatabases() when not connected throws",
-        "TEST: listCollections(db) returns CollectionInfo[]",
-        "TEST: find(db, coll, opts) returns serialized docs + totalCount",
-        "TEST: count(db, coll, filter) returns number",
-        "TEST: EJSON serialization - ObjectId/Date round-trip correctly",
-        "All tests pass with pnpm test"
-      ]
+      "notes": "Coupled with ellipsis since both require table-layout: fixed. Track columnWidths in local useState. useEffect to reset on column change."
     },
     {
-      "id": "S3",
-      "title": "IPC + Preload Bridge",
+      "id": "US-003",
+      "title": "Cell popover with copy",
+      "description": "As a user, I want to click an expand icon on a cell to see the full untruncated value in a popover with a copy button.",
+      "acceptanceCriteria": [
+        "@radix-ui/react-popover installed",
+        "Shadcn-style popover.tsx wrapper created at src/renderer/src/components/ui/popover.tsx",
+        "Each td has 'relative group' class",
+        "Expand icon (lucide Maximize2, 14px) appears on cell hover via opacity-0 group-hover:opacity-100",
+        "Icon onClick calls e.stopPropagation() to prevent row click",
+        "Clicking icon opens Radix Popover anchored to cell",
+        "Popover shows full untruncated value with word-wrap and a Copy button",
+        "Copy button writes to clipboard and shows sonner toast",
+        "Popover dismisses on click outside or Escape",
+        "Raw cell value passed through for both truncated display and full copy",
+        "Typecheck passes",
+        "Lint passes"
+      ],
       "priority": 3,
       "passes": true,
-      "description": "TDD the IPC handlers and preload bridge. RED: Write ipc-handlers.test.ts with mocked MongoService. GREEN: Implement ipc-handlers.ts, preload/index.ts, preload/index.d.ts. REFACTOR: DRY up handler registration.",
-      "acceptanceCriteria": [
-        "TEST: Each IPC channel calls correct MongoService method",
-        "TEST: Success returns { ok: true, data }",
-        "TEST: MongoService error returns { ok: false, error: message }",
-        "TEST: EJSON serialization applied to outgoing data",
-        "preload/index.ts exposes typed API via contextBridge",
-        "preload/index.d.ts declares window.api types",
-        "All tests pass with pnpm test"
-      ]
+      "notes": "npm install @radix-ui/react-popover. Create ui/popover.tsx following existing shadcn pattern (like table.tsx)."
     },
     {
-      "id": "S4",
-      "title": "Zustand Store TDD",
+      "id": "US-004",
+      "title": "Server-side column sorting",
+      "description": "As a user, I want to click column headers to sort results via MongoDB so sorting is accurate across all pages.",
+      "acceptanceCriteria": [
+        "Store has 'sort: Record<string, 1 | -1> | null' state (default null)",
+        "Store has setSort(field) action: new field sets {field: 1}, same field cycles asc->desc->null",
+        "setSort resets skip to 0 and calls fetchPage",
+        "sort passed in all find() calls: fetchPage, selectCollection, runQuery, refreshDocs",
+        "sort cleared on selectCollection and runQuery",
+        "th click calls setSort(col) with sort indicator icons (ArrowUp/ArrowDown/ArrowUpDown)",
+        "Sort headers disabled (no click, no cursor) when queryMode is aggregate",
+        "Typecheck passes",
+        "Lint passes"
+      ],
       "priority": 4,
       "passes": true,
-      "description": "TDD the zustand store (src/renderer/src/store.ts). RED: Write store.test.ts with mocked window.api. GREEN: Implement store. REFACTOR: Clean up.",
-      "acceptanceCriteria": [
-        "TEST: connect(uri) sets connected=true, loads databases",
-        "TEST: connect failure sets error, connected=false",
-        "TEST: selectDb(db) loads collections",
-        "TEST: selectCollection(db, coll) loads docs",
-        "TEST: disconnect() resets state",
-        "All tests pass with pnpm test"
-      ]
+      "notes": "Backend already supports sort in FindOpts and mongo-service.ts applies cursor.sort(). Just need to wire through store and UI."
     },
     {
-      "id": "S5",
-      "title": "Connection Dialog + Sidebar",
+      "id": "US-005",
+      "title": "Pagination: jump-to-page and page size selector",
+      "description": "As a user, I want to jump to a specific page and change the number of rows per page.",
+      "acceptanceCriteria": [
+        "Store has setLimit(newLimit) action that updates limit, resets skip to 0, and refetches",
+        "Pagination bar layout: [Prev] [Page <input> of Y] [rows/page <select>] [Next]",
+        "Page input is type=number, applies on Enter or blur, clamps to valid range (1 to totalPages)",
+        "Page size select has options: 10, 20, 50, 100",
+        "Changing page size refetches with new limit",
+        "Invalid page numbers (0, negative, > totalPages) are clamped",
+        "Typecheck passes",
+        "Lint passes"
+      ],
       "priority": 5,
       "passes": true,
-      "description": "TDD the ConnectionDialog and Sidebar UI components. RED: Write ConnectionDialog.test.tsx and Sidebar.test.tsx. GREEN: Implement components + App.tsx layout. REFACTOR: Extract shared patterns.",
-      "acceptanceCriteria": [
-        "TEST: ConnectionDialog renders URI input and Connect button",
-        "TEST: Submit calls store.connect",
-        "TEST: Shows error toast on connection failure",
-        "TEST: Hides dialog on successful connection",
-        "TEST: Sidebar renders database list",
-        "TEST: Click DB expands to show collections",
-        "TEST: Click collection calls store.selectCollection",
-        "TEST: Shows selected collection as active",
-        "App.tsx renders sidebar + main panel layout",
-        "Error toasts work via shadcn sonner",
-        "All tests pass with pnpm test"
-      ]
-    },
-    {
-      "id": "S6",
-      "title": "Document Table",
-      "priority": 6,
-      "passes": true,
-      "description": "TDD the DocumentTable component. RED: Write DocumentTable.test.tsx. GREEN: Implement DocumentTable.tsx. REFACTOR: Extract column detection utility if complex.",
-      "acceptanceCriteria": [
-        "TEST: Renders column headers from doc keys (union of first 20 docs)",
-        "TEST: Renders _id column first",
-        "TEST: Truncates long cell values (>100 chars)",
-        "TEST: JSON.stringifies nested objects in cells",
-        "TEST: Shows pagination controls (Next/Prev/page info)",
-        "TEST: Next button disabled on last page",
-        "TEST: Prev button disabled on first page",
-        "TEST: Calls store with updated skip on page change",
-        "All tests pass with pnpm test"
-      ]
-    },
-    {
-      "id": "S7",
-      "title": "Saved Connections",
-      "priority": 7,
-      "passes": true,
-      "description": "TDD saved connection persistence using electron-store with encryption. RED: Write tests. GREEN: Implement. REFACTOR: Clean up.",
-      "acceptanceCriteria": [
-        "TEST: electron-store saves { name, uri }[] with encryption",
-        "TEST: ConnectionDialog renders saved connections list",
-        "TEST: Click saved connection fills URI and connects",
-        "TEST: Delete removes connection from store",
-        "TEST: Last-used connection auto-reconnects on app start",
-        "All tests pass with pnpm test"
-      ]
-    },
-    {
-      "id": "S8",
-      "title": "Query Editor",
-      "priority": 8,
-      "passes": true,
-      "description": "TDD the QueryEditor component with CodeMirror 6. RED: Write QueryEditor.test.tsx. GREEN: Implement QueryEditor.tsx + aggregate IPC. REFACTOR: Extract JSON validation utility.",
-      "acceptanceCriteria": [
-        "TEST: Renders CodeMirror editor",
-        "TEST: Run button parses JSON filter and calls store.find with filter",
-        "TEST: Invalid JSON shows error toast",
-        "TEST: Aggregate mode parses JSON array, calls store.aggregate",
-        "TEST: Cmd+Enter triggers run",
-        "TEST: Toggle between filter/aggregate mode",
-        "All tests pass with pnpm test"
-      ]
-    },
-    {
-      "id": "S9",
-      "title": "Document CRUD",
-      "priority": 9,
-      "passes": true,
-      "description": "TDD document create/edit/delete. RED: Write DocumentEditor.test.tsx. GREEN: Implement DocumentEditor.tsx + CRUD IPC handlers. REFACTOR: Clean up.",
-      "acceptanceCriteria": [
-        "TEST: Add Document button opens editor dialog with empty template",
-        "TEST: Submit calls insert-one, refreshes table",
-        "TEST: Click row opens editor with doc JSON",
-        "TEST: Save calls update-one, refreshes table",
-        "TEST: Delete button shows confirm, calls delete-one, refreshes table",
-        "TEST: Invalid JSON in editor shows error",
-        "All tests pass with pnpm test"
-      ]
-    },
-    {
-      "id": "S10",
-      "title": "Polish",
-      "priority": 10,
-      "passes": true,
-      "description": "UI polish pass: loading states, empty states, keyboard shortcuts, dark mode.",
-      "acceptanceCriteria": [
-        "Loading spinners on all async operations",
-        "Empty states for no DBs, no collections, no docs",
-        "Keyboard shortcuts: Cmd+K connect, Cmd+Enter run query",
-        "Collection doc count badge in sidebar",
-        "Dark mode with system preference detection",
-        "Resizable sidebar with drag handle"
-      ]
+      "notes": "Add setLimit to store. Rework pagination bar in DocumentTable."
     }
   ]
 }
