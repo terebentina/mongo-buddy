@@ -155,7 +155,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-80 max-h-64 overflow-auto">
-                            <pre className="text-xs whitespace-pre-wrap break-words">{raw}</pre>
+                            <pre className="text-xs whitespace-pre-wrap break-words">{typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue, null, 2) : raw}</pre>
                             <Button
                               variant="outline"
                               size="sm"
