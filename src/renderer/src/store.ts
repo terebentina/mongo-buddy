@@ -28,6 +28,7 @@ interface StoreState {
   runQuery: (queryText: string) => Promise<string | null>
   setQueryMode: (mode: 'filter' | 'aggregate') => void
   setSort: (field: string) => void
+  setLimit: (newLimit: number) => void
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>
   updateDoc: (id: string, doc: Record<string, unknown>) => Promise<string | null>
   deleteDoc: (id: string) => Promise<string | null>
@@ -186,6 +187,11 @@ export const useStore = create<StoreState>()((set, get) => ({
       newSort = null
     }
     set({ sort: newSort, skip: 0 })
+    get().fetchPage(0)
+  },
+
+  setLimit: (newLimit: number) => {
+    set({ limit: newLimit, skip: 0 })
     get().fetchPage(0)
   },
 
