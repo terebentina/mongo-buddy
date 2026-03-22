@@ -41,7 +41,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto">
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {columns.map((col) => (
                 <TableHead key={col}>{col}</TableHead>
@@ -52,7 +52,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps): JSX.Element {
             {docs.map((doc, i) => (
               <TableRow
                 key={String(doc._id ?? i)}
-                className={onRowClick ? 'cursor-pointer hover:bg-muted/50' : undefined}
+                className={`even:bg-muted/30 ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                 onClick={() => onRowClick?.(doc)}
               >
                 {columns.map((col) => (
