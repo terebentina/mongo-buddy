@@ -96,7 +96,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                 return (
                   <TableHead
                     key={col}
-                    className={`whitespace-nowrap pr-6 relative select-none ${isAggregate ? '' : 'cursor-pointer'}`}
+                    className={`whitespace-nowrap px-4 pr-6 relative select-none border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
                     style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
