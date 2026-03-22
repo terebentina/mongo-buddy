@@ -4,7 +4,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { Button } from './ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover'
 import { Loader } from './Loader'
-import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter } from 'lucide-react'
 import { toast } from 'sonner'
 
 function formatCell(value: unknown): string {
@@ -28,6 +28,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
   const setSort = useStore((s) => s.setSort)
   const queryMode = useStore((s) => s.queryMode)
   const setLimit = useStore((s) => s.setLimit)
+  const addFilterValue = useStore((s) => s.addFilterValue)
 
   const columns = getColumns(docs)
   const currentPage = Math.floor(skip / limit) + 1
@@ -125,35 +126,51 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                 onClick={() => onRowClick?.(doc)}
               >
                 {columns.map((col) => {
-                  const raw = formatCell(doc[col])
+                  const cellValue = doc[col]
+                  const raw = formatCell(cellValue)
+                  const isPrimitive = typeof cellValue !== 'object' || cellValue === null
+                  const showFilter = isPrimitive && queryMode === 'filter'
                   return (
                     <TableCell key={col} className="overflow-visible relative group">
                       <span className="block truncate">{raw}</span>
-                      <Popover>
-                        <PopoverTrigger asChild>
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                        {showFilter && (
                           <button
-                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80 max-h-64 overflow-auto">
-                          <pre className="text-xs whitespace-pre-wrap break-words">{raw}</pre>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-2 w-full"
-                            onClick={() => {
-                              navigator.clipboard.writeText(raw)
-                              toast.success('Copied to clipboard')
+                            className="p-0.5 rounded hover:bg-muted"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              addFilterValue(col, cellValue as string | number | boolean | null)
                             }}
                           >
-                            <Copy className="h-3.5 w-3.5 mr-1.5" />
-                            Copy
-                          </Button>
-                        </PopoverContent>
-                      </Popover>
+                            <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        )}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="p-0.5 rounded hover:bg-muted"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 max-h-64 overflow-auto">
+                            <pre className="text-xs whitespace-pre-wrap break-words">{raw}</pre>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2 w-full"
+                              onClick={() => {
+                                navigator.clipboard.writeText(raw)
+                                toast.success('Copied to clipboard')
+                              }}
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-1.5" />
+                              Copy
+                            </Button>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </TableCell>
                   )
                 })}
