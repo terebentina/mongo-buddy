@@ -9,6 +9,7 @@ interface MongoApi {
   find(db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>>
   count(db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>>
   aggregate(db: string, collection: string, pipeline: Record<string, unknown>[]): Promise<Result<Record<string, unknown>[]>>
+  sampleFields(db: string, collection: string): Promise<Result<string[]>>
   insertOne(db: string, collection: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>>
   updateOne(db: string, collection: string, id: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>>
   deleteOne(db: string, collection: string, id: string): Promise<Result<undefined>>

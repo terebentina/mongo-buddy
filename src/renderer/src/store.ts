@@ -17,6 +17,7 @@ interface StoreState {
   loading: boolean
   savedConnections: SavedConnection[]
   queryMode: 'filter' | 'aggregate'
+  fieldNames: string[]
 
   connect: (uri: string) => Promise<void>
   disconnect: () => Promise<void>
@@ -51,6 +52,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   loading: false,
   savedConnections: [],
   queryMode: 'filter',
+  fieldNames: [],
 
   connect: async (uri: string) => {
     set({ loading: true, error: null })
@@ -81,12 +83,13 @@ export const useStore = create<StoreState>()((set, get) => ({
       totalCount: 0,
       skip: 0,
       filter: {},
-      error: null
+      error: null,
+      fieldNames: []
     })
   },
 
   selectDb: async (db: string) => {
-    set({ loading: true, selectedDb: db, selectedCollection: null, docs: [], totalCount: 0 })
+    set({ loading: true, selectedDb: db, selectedCollection: null, docs: [], totalCount: 0, fieldNames: [] })
     const result = await window.api.listCollections(db)
     if (!result.ok) {
       set({ loading: false, error: result.error })
@@ -97,13 +100,21 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   selectCollection: async (db: string, collection: string) => {
     const { limit, filter } = get()
-    set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0 })
-    const result = await window.api.find(db, collection, { filter, skip: 0, limit })
+    set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0, fieldNames: [] })
+    const [result, fieldsResult] = await Promise.all([
+      window.api.find(db, collection, { filter, skip: 0, limit }),
+      window.api.sampleFields(db, collection)
+    ])
     if (!result.ok) {
       set({ loading: false, error: result.error })
       return
     }
-    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount })
+    set({
+      loading: false,
+      docs: result.data.docs,
+      totalCount: result.data.totalCount,
+      fieldNames: fieldsResult.ok ? fieldsResult.data : []
+    })
   },
 
   fetchPage: async (skip: number) => {

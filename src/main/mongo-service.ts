@@ -165,6 +165,27 @@ export class MongoService {
     }
   }
 
+  async sampleFields(
+    dbName: string,
+    collName: string
+  ): Promise<Result<string[]>> {
+    if (!this.client) return { ok: false, error: 'Not connected' }
+    try {
+      const collection = this.client.db(dbName).collection(collName)
+      const docs = await collection.find({}).limit(50).toArray()
+      const keySet = new Set<string>()
+      for (const doc of docs) {
+        for (const key of Object.keys(doc)) {
+          keySet.add(key)
+        }
+      }
+      const fields = Array.from(keySet).sort()
+      return { ok: true, data: fields }
+    } catch (err) {
+      return { ok: false, error: (err as Error).message }
+    }
+  }
+
   async deleteOne(
     dbName: string,
     collName: string,

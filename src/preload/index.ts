@@ -14,6 +14,8 @@ const api = {
     ipcRenderer.invoke('mongo:count', db, collection, filter ?? {}),
   aggregate: (db: string, collection: string, pipeline: Record<string, unknown>[]): Promise<Result<Record<string, unknown>[]>> =>
     ipcRenderer.invoke('mongo:aggregate', db, collection, pipeline),
+  sampleFields: (db: string, collection: string): Promise<Result<string[]>> =>
+    ipcRenderer.invoke('mongo:sample-fields', db, collection),
   insertOne: (db: string, collection: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>> =>
     ipcRenderer.invoke('mongo:insert-one', db, collection, doc),
   updateOne: (db: string, collection: string, id: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>> =>

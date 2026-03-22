@@ -44,6 +44,13 @@ export function registerIpcHandlers(service: MongoService, connStore: Connection
   )
 
   ipcMain.handle(
+    'mongo:sample-fields',
+    wrap((db: unknown, coll: unknown) =>
+      service.sampleFields(db as string, coll as string)
+    )
+  )
+
+  ipcMain.handle(
     'mongo:insert-one',
     wrap((db: unknown, coll: unknown, doc: unknown) =>
       service.insertOne(db as string, coll as string, doc as Record<string, unknown>)

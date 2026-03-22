@@ -1,11 +1,41 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { EditorView, keymap, placeholder } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { EditorState, Compartment } from '@codemirror/state'
 import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
+import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
 import { useStore } from '../store'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
+
+const autocompleteConf = new Compartment()
+
+function fieldCompletion(fieldNames: string[]) {
+  return autocompletion({
+    override: [
+      (context: CompletionContext) => {
+        // Match inside a JSON key: after " that follows { or , (with optional whitespace)
+        const match = context.matchBefore(/"[^"]*/)
+        if (!match) return null
+
+        // Check that we're in a key position (not a value)
+        const before = context.state.doc.sliceString(0, match.from)
+        const trimmed = before.trimEnd()
+        const lastChar = trimmed[trimmed.length - 1]
+        if (lastChar !== '{' && lastChar !== ',') return null
+
+        return {
+          from: match.from + 1, // after the opening "
+          options: fieldNames.map((name) => ({
+            label: name,
+            type: 'property'
+          })),
+          filter: true
+        }
+      }
+    ]
+  })
+}
 
 export function QueryEditor(): JSX.Element {
   const editorRef = useRef<HTMLDivElement>(null)
@@ -14,6 +44,7 @@ export function QueryEditor(): JSX.Element {
   const setQueryMode = useStore((s) => s.setQueryMode)
   const runQuery = useStore((s) => s.runQuery)
   const loading = useStore((s) => s.loading)
+  const fieldNames = useStore((s) => s.fieldNames)
 
   const getEditorText = useCallback((): string => {
     if (viewRef.current) {
@@ -45,7 +76,13 @@ export function QueryEditor(): JSX.Element {
 
     const state = EditorState.create({
       doc: queryMode === 'filter' ? '{}' : '[]',
-      extensions: [json(), oneDark, runKeymap, placeholder('Enter query...')]
+      extensions: [
+        json(),
+        oneDark,
+        runKeymap,
+        placeholder('Enter query...'),
+        autocompleteConf.of(fieldCompletion(fieldNames))
+      ]
     })
 
     const view = new EditorView({
@@ -59,6 +96,15 @@ export function QueryEditor(): JSX.Element {
       viewRef.current = null
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Update autocomplete when fieldNames change
+  useEffect(() => {
+    if (viewRef.current) {
+      viewRef.current.dispatch({
+        effects: autocompleteConf.reconfigure(fieldCompletion(fieldNames))
+      })
+    }
+  }, [fieldNames])
 
   return (
     <div className="border-b border-border p-2 flex flex-col gap-2">
