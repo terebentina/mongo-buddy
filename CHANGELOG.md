@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.6.5](https://github.com/terebentina/mongo-buddy/compare/v1.6.4...v1.6.5) (2026-03-23)
+
+
+### Bug Fixes
+
+* resolve ESM migration breakages preventing MongoDB connection ([5c78116](https://github.com/terebentina/mongo-buddy/commit/5c78116d7d17d15a7a485c08561ea2f6b96d0f95))
+
 ## [1.6.4](https://github.com/terebentina/mongo-buddy/compare/v1.6.3...v1.6.4) (2026-03-23)
 
 ## [1.6.3](https://github.com/terebentina/mongo-buddy/compare/v1.6.2...v1.6.3) (2026-03-23)
