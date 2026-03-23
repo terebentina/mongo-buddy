@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.4.2](https://github.com/terebentina/mongo-buddy/compare/v1.4.1...v1.4.2) (2026-03-23)
+
+
+### Bug Fixes
+
+* keep sort icons inside column bounds on narrow columns ([fb84969](https://github.com/terebentina/mongo-buddy/commit/fb84969aefa6055a166d37f630b6484ce34ea6d7))
+
 ## [1.4.1](https://github.com/terebentina/mongo-buddy/compare/v1.4.0...v1.4.1) (2026-03-22)
 
 
