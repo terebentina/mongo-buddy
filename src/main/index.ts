@@ -1,6 +1,9 @@
 import { app, shell, BrowserWindow, Menu } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
 import { MongoService } from './mongo-service'
 import { ConnectionStore } from './connection-store'
 import { registerIpcHandlers } from './ipc-handlers'
