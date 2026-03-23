@@ -24,7 +24,8 @@ module.exports = {
         },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))'
+          foreground: 'hsl(var(--muted-foreground))',
+          row: 'var(--muted-row)'
         },
         accent: {
           DEFAULT: 'hsl(var(--accent))',
