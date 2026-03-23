@@ -110,10 +110,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   selectCollection: async (db: string, collection: string) => {
-    const { limit, filter } = get()
-    set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0, fieldNames: [], sort: null })
+    const { limit } = get()
+    set({ loading: true, selectedDb: db, selectedCollection: collection, skip: 0, fieldNames: [], sort: null, filter: {}, pendingFilterText: '{}' })
     const [result, fieldsResult] = await Promise.all([
-      window.api.find(db, collection, { filter, skip: 0, limit }),
+      window.api.find(db, collection, { filter: {}, skip: 0, limit }),
       window.api.sampleFields(db, collection)
     ])
     if (!result.ok) {
