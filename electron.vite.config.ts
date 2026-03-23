@@ -4,7 +4,20 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })]
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-store', 'mongodb', 'bson'] })],
+    build: {
+      rollupOptions: {
+        external: [
+          'kerberos',
+          '@aws-sdk/credential-providers',
+          '@mongodb-js/zstd',
+          'gcp-metadata',
+          'mongodb-client-encryption',
+          'snappy',
+          'socks'
+        ]
+      }
+    }
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
