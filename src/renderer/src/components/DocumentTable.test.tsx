@@ -63,7 +63,7 @@ describe('DocumentTable', () => {
     expect(headers[0]).toHaveTextContent('_id')
   })
 
-  it('truncates long cell values (>100 chars)', () => {
+  it('renders long cell values with truncation class', () => {
     const longValue = 'a'.repeat(150)
     useStore.setState({
       docs: [{ _id: '1', description: longValue }],
@@ -72,7 +72,9 @@ describe('DocumentTable', () => {
 
     render(<DocumentTable />)
 
-    expect(screen.getByText('a'.repeat(100) + '...')).toBeInTheDocument()
+    const cell = screen.getByText(longValue)
+    expect(cell).toBeInTheDocument()
+    expect(cell).toHaveClass('truncate')
   })
 
   it('JSON.stringifies nested objects in cells', () => {
@@ -96,7 +98,9 @@ describe('DocumentTable', () => {
 
     render(<DocumentTable />)
 
-    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
+    const pageInput = screen.getByRole('spinbutton')
+    expect(pageInput).toHaveValue(1)
+    expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent?.includes('of 3') === true)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /previous/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument()
   })

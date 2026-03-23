@@ -10,7 +10,8 @@ const mockApi = {
   listDatabases: vi.fn(),
   listCollections: vi.fn(),
   find: vi.fn(),
-  count: vi.fn()
+  count: vi.fn(),
+  sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] })
 }
 
 beforeEach(() => {

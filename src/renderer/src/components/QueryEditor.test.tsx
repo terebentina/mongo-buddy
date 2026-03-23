@@ -20,7 +20,8 @@ let mockEditorContent = '{}'
 vi.mock('@codemirror/view', () => ({
   EditorView: vi.fn().mockImplementation(() => ({
     state: { doc: { toString: () => mockEditorContent } },
-    destroy: vi.fn()
+    destroy: vi.fn(),
+    dispatch: vi.fn()
   })),
   keymap: { of: vi.fn(() => []) },
   placeholder: vi.fn(() => [])
@@ -28,7 +29,15 @@ vi.mock('@codemirror/view', () => ({
 vi.mock('@codemirror/state', () => ({
   EditorState: {
     create: vi.fn(() => ({ doc: { toString: () => mockEditorContent } }))
-  }
+  },
+  Compartment: vi.fn().mockImplementation(() => ({
+    of: vi.fn(() => []),
+    reconfigure: vi.fn(() => ({}))
+  }))
+}))
+vi.mock('@codemirror/autocomplete', () => ({
+  autocompletion: vi.fn(() => []),
+  CompletionContext: vi.fn()
 }))
 
 const mockApi = {
