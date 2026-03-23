@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.5.0](https://github.com/terebentina/mongo-buddy/compare/v1.4.2...v1.5.0) (2026-03-23)
+
+
+### Features
+
+* set 150px minimum column width with horizontal scroll ([00c36cf](https://github.com/terebentina/mongo-buddy/commit/00c36cfe51af855df5cc0e79b4a9ba08e8354e80))
+
 ## [1.4.2](https://github.com/terebentina/mongo-buddy/compare/v1.4.1...v1.4.2) (2026-03-23)
 
 
