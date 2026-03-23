@@ -1,8 +1,5 @@
 import { MongoClient, ObjectId } from 'mongodb'
-// EJSON is not directly exported from mongodb v6; use internal bson re-export
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { EJSON } from 'mongodb/lib/bson'
+import { EJSON } from 'bson'
 import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult } from '../shared/types'
 
 export class MongoService {

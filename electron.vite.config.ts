@@ -4,10 +4,17 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['mongodb', 'electron-store'] })]
+    plugins: [externalizeDepsPlugin({ exclude: ['electron-store'] })]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      rollupOptions: {
+        output: {
+          format: 'cjs'
+        }
+      }
+    }
   },
   renderer: {
     resolve: {
