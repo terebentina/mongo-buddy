@@ -122,7 +122,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
             {docs.map((doc, i) => (
               <TableRow
                 key={String(doc._id ?? i)}
-                className={`even:bg-muted/30 ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                className={`group/row even:bg-muted/30 ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                 onClick={() => onRowClick?.(doc)}
               >
                 {columns.map((col) => {
@@ -133,7 +133,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                   return (
                     <TableCell key={col} className="overflow-visible relative group">
                       <span className="block truncate">{raw}</span>
-                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100">
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 rounded px-1 bg-background group-even/row:bg-muted/30">
                         {showFilter && (
                           <button
                             className="p-0.5 rounded hover:bg-muted"
