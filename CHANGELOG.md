@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.6.6](https://github.com/terebentina/mongo-buddy/compare/v1.6.5...v1.6.6) (2026-03-23)
+
+
+### Bug Fixes
+
+* bundle mongodb into main process to fix module resolution in packaged app ([2eba633](https://github.com/terebentina/mongo-buddy/commit/2eba6337522e1e1789af415f7354a64fe55f86e7))
+
 ## [1.6.5](https://github.com/terebentina/mongo-buddy/compare/v1.6.4...v1.6.5) (2026-03-23)
 
 
