@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.6.1](https://github.com/terebentina/mongo-buddy/compare/v1.6.0...v1.6.1) (2026-03-23)
+
+
+### Bug Fixes
+
+* add background to cell hover icons to prevent text overlap ([3bd98bf](https://github.com/terebentina/mongo-buddy/commit/3bd98bfb75d3fa03f7e0b50ee68fc8834fb3b702))
+
 ## [1.6.0](https://github.com/terebentina/mongo-buddy/compare/v1.5.0...v1.6.0) (2026-03-23)
 
 
