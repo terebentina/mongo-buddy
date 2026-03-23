@@ -86,7 +86,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
   return (
     <div className={`flex flex-col ${className ?? ''}`}>
       <div className="flex-1 overflow-auto">
-        <Table style={{ tableLayout: 'fixed' }}>
+        <Table style={{ tableLayout: 'fixed', minWidth: columns.length * 150 }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {columns.map((col) => {
