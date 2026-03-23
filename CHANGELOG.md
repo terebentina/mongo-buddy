@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.6.3](https://github.com/terebentina/mongo-buddy/compare/v1.6.2...v1.6.3) (2026-03-23)
+
+
+### Bug Fixes
+
+* reset filter to {} when switching collections ([a7fb01e](https://github.com/terebentina/mongo-buddy/commit/a7fb01e37e803da8143486213d04e8babb712edb))
+
 ## [1.6.2](https://github.com/terebentina/mongo-buddy/compare/v1.6.1...v1.6.2) (2026-03-23)
 
 
