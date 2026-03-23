@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.6.0](https://github.com/terebentina/mongo-buddy/compare/v1.5.0...v1.6.0) (2026-03-23)
+
+
+### Features
+
+* require explicit connection before accessing databases ([070ca3e](https://github.com/terebentina/mongo-buddy/commit/070ca3e774d093cbca14ba05c2d6a4321cf08b6c))
+
 ## [1.5.0](https://github.com/terebentina/mongo-buddy/compare/v1.4.2...v1.5.0) (2026-03-23)
 
 
