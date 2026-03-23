@@ -19,11 +19,17 @@ interface ConnectionDialogProps {
 export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps): JSX.Element {
   const [uri, setUri] = useState('')
   const [name, setName] = useState('')
+  const connected = useStore((s) => s.connected)
   const connect = useStore((s) => s.connect)
   const savedConnections = useStore((s) => s.savedConnections)
   const loadSavedConnections = useStore((s) => s.loadSavedConnections)
   const saveConnection = useStore((s) => s.saveConnection)
   const deleteConnection = useStore((s) => s.deleteConnection)
+
+  const handleOpenChange = (value: boolean): void => {
+    if (!value && !connected) return
+    onOpenChange(value)
+  }
 
   useEffect(() => {
     if (open) {
@@ -58,8 +64,12 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideClose={!connected}
+        onInteractOutside={(e) => { if (!connected) e.preventDefault() }}
+        onEscapeKeyDown={(e) => { if (!connected) e.preventDefault() }}
+      >
         <DialogHeader>
           <DialogTitle>Connect to MongoDB</DialogTitle>
           <DialogDescription>Enter your MongoDB connection URI</DialogDescription>

@@ -63,6 +63,9 @@ export const useStore = create<StoreState>()((set, get) => ({
   pendingFilterText: null,
 
   connect: async (uri: string) => {
+    if (get().connected) {
+      await get().disconnect()
+    }
     set({ loading: true, error: null })
     const result = await window.api.connect(uri)
     if (!result.ok) {

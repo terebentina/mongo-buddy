@@ -10,14 +10,9 @@ import { Toaster } from './components/ui/sonner'
 function App(): JSX.Element {
   const connected = useStore((s) => s.connected)
   const selectedCollection = useStore((s) => s.selectedCollection)
-  const autoReconnect = useStore((s) => s.autoReconnect)
   const [dialogOpen, setDialogOpen] = useState(!connected)
   const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(240)
-
-  useEffect(() => {
-    autoReconnect()
-  }, [autoReconnect])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -46,7 +41,7 @@ function App(): JSX.Element {
 
   return (
     <div className="flex h-screen bg-background text-foreground">
-      {connected && <Sidebar width={sidebarWidth} onResize={setSidebarWidth} />}
+      {connected && <Sidebar width={sidebarWidth} onResize={setSidebarWidth} onChangeConnection={() => setDialogOpen(true)} />}
       <div className="flex-1 flex flex-col overflow-hidden">
         {!connected && (
           <div className="flex-1 flex items-center justify-center">

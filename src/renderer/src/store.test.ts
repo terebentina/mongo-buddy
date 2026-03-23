@@ -16,7 +16,8 @@ const mockApi = {
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
-  setLastUsed: vi.fn()
+  setLastUsed: vi.fn(),
+  sampleFields: vi.fn()
 }
 
 beforeEach(() => {
@@ -88,6 +89,7 @@ describe('store', () => {
       ok: true,
       data: { docs: [{ _id: '1', name: 'Alice' }], totalCount: 1 }
     })
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] })
 
     await useStore.getState().selectCollection('testdb', 'users')
 

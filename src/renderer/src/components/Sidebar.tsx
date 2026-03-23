@@ -4,13 +4,15 @@ import { ScrollArea } from './ui/scroll-area'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible'
 import { Button } from './ui/button'
 import { Loader } from './Loader'
+import { Unplug } from 'lucide-react'
 
 interface SidebarProps {
   width: number
   onResize: (width: number) => void
+  onChangeConnection?: () => void
 }
 
-export function Sidebar({ width, onResize }: SidebarProps): JSX.Element {
+export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps): JSX.Element {
   const databases = useStore((s) => s.databases)
   const collections = useStore((s) => s.collections)
   const selectedDb = useStore((s) => s.selectedDb)
@@ -48,7 +50,18 @@ export function Sidebar({ width, onResize }: SidebarProps): JSX.Element {
 
   return (
     <div className="border-r bg-muted/30 flex flex-col relative" style={{ width }}>
-      <div className="p-3 font-semibold text-sm border-b">Databases</div>
+      <div className="p-3 font-semibold text-sm border-b flex items-center justify-between">
+        Databases
+        {onChangeConnection && (
+          <button
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            onClick={onChangeConnection}
+            title="Change connection"
+          >
+            <Unplug className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
           {databases.length === 0 && !loading && (
