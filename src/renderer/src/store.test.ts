@@ -106,6 +106,28 @@ describe('store', () => {
     })
   })
 
+  it('selectCollection resets filter to empty', async () => {
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [], totalCount: 0 }
+    })
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] })
+
+    // Set a non-empty filter before switching collections
+    useStore.setState({ filter: { status: 'active' }, pendingFilterText: '{"status":"active"}' })
+
+    await useStore.getState().selectCollection('testdb', 'orders')
+
+    const state = useStore.getState()
+    expect(state.filter).toEqual({})
+    expect(state.pendingFilterText).toBe('{}')
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'orders', {
+      filter: {},
+      skip: 0,
+      limit: 20
+    })
+  })
+
   it('disconnect() resets state', async () => {
     mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined })
 
