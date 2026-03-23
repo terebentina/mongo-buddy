@@ -96,13 +96,13 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                 return (
                   <TableHead
                     key={col}
-                    className={`whitespace-nowrap px-4 pr-6 relative select-none border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
+                    className={`px-4 pr-6 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
                     style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
-                    <span className="inline-flex items-center gap-1">
-                      {col}
-                      {!isAggregate && <SortIcon className={`h-3.5 w-3.5 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`} />}
+                    <span className="flex items-center gap-1 min-w-0">
+                      <span className="truncate">{col}</span>
+                      {!isAggregate && <SortIcon className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`} />}
                     </span>
                     <div
                       className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
