@@ -1,16 +1,16 @@
-import { app, shell, BrowserWindow, Menu } from 'electron'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { app, shell, BrowserWindow, Menu } from 'electron';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-import { MongoService } from './mongo-service'
-import { ConnectionStore } from './connection-store'
-import { registerIpcHandlers } from './ipc-handlers'
+const __dirname = dirname(fileURLToPath(import.meta.url));
+import { MongoService } from './mongo-service';
+import { ConnectionStore } from './connection-store';
+import { registerIpcHandlers } from './ipc-handlers';
 
-const mongoService = new MongoService()
-const connectionStore = new ConnectionStore()
-registerIpcHandlers(mongoService, connectionStore)
+const mongoService = new MongoService();
+const connectionStore = new ConnectionStore();
+registerIpcHandlers(mongoService, connectionStore);
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -19,44 +19,44 @@ function createWindow(): void {
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
-      sandbox: false
-    }
-  })
+      sandbox: false,
+    },
+  });
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
+    mainWindow.show();
+  });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
+    shell.openExternal(details.url);
+    return { action: 'deny' };
+  });
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
 app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.mongobuddy')
+  electronApp.setAppUserModelId('com.mongobuddy');
 
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
+    optimizer.watchWindowShortcuts(window);
+  });
 
-  Menu.setApplicationMenu(null)
+  Menu.setApplicationMenu(null);
 
-  createWindow()
+  createWindow();
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    app.quit()
+    app.quit();
   }
-})
+});

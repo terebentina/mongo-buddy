@@ -1,80 +1,80 @@
-import { useRef, useEffect, useCallback } from 'react'
-import { EditorView, keymap, placeholder } from '@codemirror/view'
-import { EditorState, Compartment } from '@codemirror/state'
-import { json } from '@codemirror/lang-json'
-import { oneDark } from '@codemirror/theme-one-dark'
-import { autocompletion, CompletionContext } from '@codemirror/autocomplete'
-import { useStore } from '../store'
-import { toast } from 'sonner'
-import { Button } from './ui/button'
+import { useRef, useEffect, useCallback } from 'react';
+import { EditorView, keymap, placeholder } from '@codemirror/view';
+import { EditorState, Compartment } from '@codemirror/state';
+import { json } from '@codemirror/lang-json';
+import { oneDark } from '@codemirror/theme-one-dark';
+import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
+import { useStore } from '../store';
+import { toast } from 'sonner';
+import { Button } from './ui/button';
 
-const autocompleteConf = new Compartment()
+const autocompleteConf = new Compartment();
 
 function fieldCompletion(fieldNames: string[]) {
   return autocompletion({
     override: [
       (context: CompletionContext) => {
         // Match inside a JSON key: after " that follows { or , (with optional whitespace)
-        const match = context.matchBefore(/"[^"]*/)
-        if (!match) return null
+        const match = context.matchBefore(/"[^"]*/);
+        if (!match) return null;
 
         // Check that we're in a key position (not a value)
-        const before = context.state.doc.sliceString(0, match.from)
-        const trimmed = before.trimEnd()
-        const lastChar = trimmed[trimmed.length - 1]
-        if (lastChar !== '{' && lastChar !== ',') return null
+        const before = context.state.doc.sliceString(0, match.from);
+        const trimmed = before.trimEnd();
+        const lastChar = trimmed[trimmed.length - 1];
+        if (lastChar !== '{' && lastChar !== ',') return null;
 
         return {
           from: match.from + 1, // after the opening "
           options: fieldNames.map((name) => ({
             label: name,
-            type: 'property'
+            type: 'property',
           })),
-          filter: true
-        }
-      }
-    ]
-  })
+          filter: true,
+        };
+      },
+    ],
+  });
 }
 
 export function QueryEditor(): JSX.Element {
-  const editorRef = useRef<HTMLDivElement>(null)
-  const viewRef = useRef<EditorView | null>(null)
-  const queryMode = useStore((s) => s.queryMode)
-  const setQueryMode = useStore((s) => s.setQueryMode)
-  const runQuery = useStore((s) => s.runQuery)
-  const loading = useStore((s) => s.loading)
-  const fieldNames = useStore((s) => s.fieldNames)
-  const pendingFilterText = useStore((s) => s.pendingFilterText)
-  const clearPendingFilterText = useStore((s) => s.clearPendingFilterText)
+  const editorRef = useRef<HTMLDivElement>(null);
+  const viewRef = useRef<EditorView | null>(null);
+  const queryMode = useStore((s) => s.queryMode);
+  const setQueryMode = useStore((s) => s.setQueryMode);
+  const runQuery = useStore((s) => s.runQuery);
+  const loading = useStore((s) => s.loading);
+  const fieldNames = useStore((s) => s.fieldNames);
+  const pendingFilterText = useStore((s) => s.pendingFilterText);
+  const clearPendingFilterText = useStore((s) => s.clearPendingFilterText);
 
   const getEditorText = useCallback((): string => {
     if (viewRef.current) {
-      return viewRef.current.state.doc.toString()
+      return viewRef.current.state.doc.toString();
     }
-    return queryMode === 'filter' ? '{}' : '[]'
-  }, [queryMode])
+    return queryMode === 'filter' ? '{}' : '[]';
+  }, [queryMode]);
 
   const handleRun = useCallback(async () => {
-    const text = getEditorText() || (queryMode === 'filter' ? '{}' : '[]')
-    const error = await runQuery(text)
+    const text = getEditorText() || (queryMode === 'filter' ? '{}' : '[]');
+    const error = await runQuery(text);
     if (error) {
-      toast.error(error)
+      toast.error(error);
     }
-  }, [getEditorText, queryMode, runQuery])
+  }, [getEditorText, queryMode, runQuery]);
 
   useEffect(() => {
-    if (!editorRef.current) return
+    if (!editorRef.current) return;
 
     const runKeymap = keymap.of([
       {
         key: 'Mod-Enter',
         run: () => {
-          handleRun()
-          return true
-        }
-      }
-    ])
+          handleRun();
+          return true;
+        },
+      },
+    ]);
 
     const state = EditorState.create({
       doc: queryMode === 'filter' ? '{}' : '[]',
@@ -83,42 +83,42 @@ export function QueryEditor(): JSX.Element {
         oneDark,
         runKeymap,
         placeholder('Enter query...'),
-        autocompleteConf.of(fieldCompletion(fieldNames))
-      ]
-    })
+        autocompleteConf.of(fieldCompletion(fieldNames)),
+      ],
+    });
 
     const view = new EditorView({
       state,
-      parent: editorRef.current
-    })
-    viewRef.current = view
+      parent: editorRef.current,
+    });
+    viewRef.current = view;
 
     return () => {
-      view.destroy()
-      viewRef.current = null
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      view.destroy();
+      viewRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply pending filter text from store (e.g. filter-by-cell)
   useEffect(() => {
-    if (pendingFilterText === null || !viewRef.current) return
+    if (pendingFilterText === null || !viewRef.current) return;
     if (queryMode === 'aggregate') {
-      setQueryMode('filter')
+      setQueryMode('filter');
     }
     viewRef.current.dispatch({
-      changes: { from: 0, to: viewRef.current.state.doc.length, insert: pendingFilterText }
-    })
-    clearPendingFilterText()
-  }, [pendingFilterText, clearPendingFilterText, queryMode, setQueryMode])
+      changes: { from: 0, to: viewRef.current.state.doc.length, insert: pendingFilterText },
+    });
+    clearPendingFilterText();
+  }, [pendingFilterText, clearPendingFilterText, queryMode, setQueryMode]);
 
   // Update autocomplete when fieldNames change
   useEffect(() => {
     if (viewRef.current) {
       viewRef.current.dispatch({
-        effects: autocompleteConf.reconfigure(fieldCompletion(fieldNames))
-      })
+        effects: autocompleteConf.reconfigure(fieldCompletion(fieldNames)),
+      });
     }
-  }, [fieldNames])
+  }, [fieldNames]);
 
   return (
     <div className="border-b border-border p-2 flex flex-col gap-2">
@@ -148,5 +148,5 @@ export function QueryEditor(): JSX.Element {
         className="min-h-[80px] border border-border rounded overflow-hidden"
       />
     </div>
-  )
+  );
 }
