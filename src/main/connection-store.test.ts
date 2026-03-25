@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ConnectionStore } from './connection-store'
 
+let encryptionAvailable = true
+
+vi.mock('electron', () => ({
+  safeStorage: {
+    isEncryptionAvailable: vi.fn(() => encryptionAvailable),
+    encryptString: vi.fn((str: string) => Buffer.from(str)),
+    decryptString: vi.fn((buf: Buffer) => buf.toString())
+  }
+}))
+
 vi.mock('electron-store', () => {
   return {
     default: vi.fn().mockImplementation(() => {
@@ -25,14 +35,13 @@ describe('ConnectionStore', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    encryptionAvailable = true
     store = new ConnectionStore()
   })
 
-  it('creates electron-store with encryption key', async () => {
+  it('creates electron-store with name connections-v2 and no encryptionKey', async () => {
     const ElectronStore = (await import('electron-store')).default
-    expect(ElectronStore).toHaveBeenCalledWith(
-      expect.objectContaining({ encryptionKey: expect.any(String) })
-    )
+    expect(ElectronStore).toHaveBeenCalledWith({ name: 'connections-v2' })
   })
 
   it('getAll returns empty array when no connections saved', () => {
@@ -74,5 +83,25 @@ describe('ConnectionStore', () => {
   it('setLastUsed stores and getLastUsed retrieves it', () => {
     store.setLastUsed('mongodb://localhost:27017')
     expect(store.getLastUsed()).toBe('mongodb://localhost:27017')
+  })
+
+  describe('when encryption is unavailable', () => {
+    beforeEach(() => {
+      encryptionAvailable = false
+    })
+
+    it('save throws an error', () => {
+      expect(() => store.save({ name: 'Local', uri: 'mongodb://localhost:27017' })).toThrow(
+        'Encryption is not available'
+      )
+    })
+
+    it('getAll returns empty array', () => {
+      expect(store.getAll()).toEqual([])
+    })
+
+    it('getLastUsed returns null', () => {
+      expect(store.getLastUsed()).toBeNull()
+    })
   })
 })
