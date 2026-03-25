@@ -1,0 +1,48 @@
+# Ralph Progress Log
+Started: Wed Mar 25 15:17:06 EET 2026
+
+## Codebase Patterns
+- ConnectionDialog.tsx is the main connection UI component, uses local useState for form state
+- Store (zustand) handles connect/disconnect, error is set on store.error after connect()
+- Pre-existing lint error: set-state-in-effect in ConnectionDialog useEffect (ignore it)
+- Always run `pnpm run format` before lint to fix prettier issues
+- handleConnect reads error from useStore.getState() after connect() call
+
+---
+
+## 2026-03-25 - US-004
+- What was implemented: Deferred connection saving — handleSubmit no longer saves before connecting, stores name in pendingName. On successful connect (both normal and credentials paths), saveConnection is called with the final URI (including injected credentials if applicable).
+- Files changed: src/renderer/src/components/ConnectionDialog.tsx
+- **Learnings for future iterations:**
+  - handleConnect saves using connectName param or falls back to pendingName state
+  - handleCredentialsSubmit saves with credential-injected URI so auto-reconnect works
+  - Saved connections with baked-in creds will reconnect without re-prompting (encrypted at rest via safeStorage)
+---
+
+## 2026-03-25 - US-003
+- What was implemented: injectCredentials helper (regex-based, handles mongodb:// and mongodb+srv://, strips existing creds, percent-encodes new ones), handleCredentialsSubmit that injects creds and connects, auth errors shown inline, non-auth errors as toast
+- Files changed: src/renderer/src/components/ConnectionDialog.tsx
+- **Learnings for future iterations:**
+  - Regex for stripping creds: /^(mongodb(?:\+srv)?:\/\/)[^@]*@/ then $1
+  - encodeURIComponent handles special chars in username/password
+  - On re-auth error: setAuthError shows inline message, stays on credentials form
+  - On success: dialog closes via onOpenChange(false)
+---
+
+## 2026-03-25 - US-002
+- What was implemented: Credentials form UI was built as part of US-001 (needed to reference state vars for typecheck). Username field, password field (type=password), Connect button, Back button with state reset all present.
+- Files changed: src/renderer/src/components/ConnectionDialog.tsx (same commit as US-001)
+- **Learnings for future iterations:**
+  - TS noUnusedLocals is enforced — state vars must be referenced in JSX or they fail typecheck
+  - Building UI scaffold alongside state avoids extra commits
+---
+
+## 2026-03-25 - US-001
+- What was implemented: Auth error detection in handleConnect, new state variables (showCredentials, username, password, pendingUri, pendingName, authError), isAuthError helper function, credentials form UI scaffold
+- Files changed: src/renderer/src/components/ConnectionDialog.tsx
+- **Learnings for future iterations:**
+  - Auth error patterns: authentication failed, requires authentication, not authorized, bad auth (case-insensitive regex)
+  - handleConnect now accepts optional connectName param to pass saved connection name through to credentials flow
+  - handleSavedClick now passes full conn object (not just uri) so name flows to pendingName
+  - Credentials form replaces main form when showCredentials=true (conditional render in JSX)
+---

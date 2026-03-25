@@ -1,0 +1,78 @@
+{
+  "projectName": "Auth Credentials Dialog",
+  "branchName": "ralph/auth-credentials-dialog",
+  "description": "Detect MongoDB auth errors on connection failure and show a credentials dialog with masked password field instead of just a toast",
+  "dependsOn": [],
+  "status": "pending",
+  "completedAt": null,
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add auth error detection and credentials form state",
+      "description": "As a user, when I connect to a MongoDB instance that requires auth and my URI lacks credentials, I want to see a credentials prompt instead of just an error toast",
+      "acceptanceCriteria": [
+        "New state added: showCredentials, username, password, pendingUri, pendingName, authError",
+        "handleConnect detects auth errors (case-insensitive match on: authentication failed, requires authentication, not authorized, bad auth)",
+        "Auth errors set showCredentials=true and store URI in pendingUri, name in pendingName",
+        "Non-auth errors still show as toast (existing behavior preserved)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Auth error detection is the foundation — must land before the UI form"
+    },
+    {
+      "id": "US-002",
+      "title": "Add credentials form UI with masked password",
+      "description": "As a user, when an auth error is detected, I want to see username and password fields so I can provide credentials to connect",
+      "acceptanceCriteria": [
+        "When showCredentials is true, main connection form is replaced with credentials form",
+        "Username Input field is present",
+        "Password Input field uses type=password (shows dots, not plaintext)",
+        "Connect button and Back button are present",
+        "Back button resets credentials state and returns to main connection form",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Only modifies ConnectionDialog.tsx — credentials form replaces main form when showCredentials is true"
+    },
+    {
+      "id": "US-003",
+      "title": "Inject credentials into URI and connect",
+      "description": "As a user, when I submit credentials, I want them injected into the MongoDB URI and a connection attempt made",
+      "acceptanceCriteria": [
+        "injectCredentials helper uses regex (not URL API) to handle replica set URIs with comma-separated hosts",
+        "Handles both mongodb:// and mongodb+srv:// schemes",
+        "Strips existing credentials from URI before injecting new ones",
+        "Special characters in username/password are percent-encoded via encodeURIComponent",
+        "On success: dialog closes",
+        "On auth error again: inline error message shown (red text), stays on credentials form",
+        "On non-auth error: toast shown",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Regex: strip existing creds with /^(mongodb(?:\\+srv)?:\\/\\/)[^@]*@/ then prepend new creds"
+    },
+    {
+      "id": "US-004",
+      "title": "Defer connection saving until after successful connect",
+      "description": "As a user, when I provide a connection name and credentials, I want the saved URI to include my credentials so auto-reconnect works next time",
+      "acceptanceCriteria": [
+        "handleSubmit no longer saves before connecting — name is stored in pendingName state",
+        "On successful connect (both normal and credentials paths): if name was provided, saveConnection is called with the credential-injected URI",
+        "Saved connections with baked-in creds reconnect without re-prompting",
+        "Editing existing saved connection and re-authenticating updates the saved URI",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "URIs are encrypted at rest via safeStorage — safe to save with credentials"
+    }
+  ]
+}
