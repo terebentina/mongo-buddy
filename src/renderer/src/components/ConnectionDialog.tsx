@@ -78,6 +78,10 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
         toast.error(error);
       }
     } else {
+      const saveName = connectName ?? pendingName;
+      if (saveName) {
+        await saveConnection(saveName, connectUri);
+      }
       onOpenChange(false);
     }
   };
@@ -90,11 +94,9 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (name.trim()) {
-      await saveConnection(name.trim(), uri);
-    }
+    setPendingName(name.trim());
     setEditing(false);
-    await handleConnect(uri);
+    await handleConnect(uri, name.trim());
   };
 
   const handleSavedClick = async (conn: { name: string; uri: string }): Promise<void> => {
@@ -112,6 +114,9 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
         toast.error(error);
       }
     } else {
+      if (pendingName) {
+        await saveConnection(pendingName, credUri);
+      }
       onOpenChange(false);
     }
   };
