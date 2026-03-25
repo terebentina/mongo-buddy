@@ -1,83 +1,81 @@
-import { useState, useEffect } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription
-} from './ui/dialog'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { useStore } from '../store'
-import { toast } from 'sonner'
-import { Pencil } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { useStore } from '../store';
+import { toast } from 'sonner';
+import { Pencil, Trash2 } from 'lucide-react';
 
 interface ConnectionDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps): JSX.Element {
-  const [uri, setUri] = useState('')
-  const [name, setName] = useState('')
-  const [editing, setEditing] = useState(false)
-  const connected = useStore((s) => s.connected)
-  const connect = useStore((s) => s.connect)
-  const savedConnections = useStore((s) => s.savedConnections)
-  const loadSavedConnections = useStore((s) => s.loadSavedConnections)
-  const saveConnection = useStore((s) => s.saveConnection)
-  const deleteConnection = useStore((s) => s.deleteConnection)
+  const [uri, setUri] = useState('');
+  const [name, setName] = useState('');
+  const [editing, setEditing] = useState(false);
+  const connected = useStore((s) => s.connected);
+  const connect = useStore((s) => s.connect);
+  const savedConnections = useStore((s) => s.savedConnections);
+  const loadSavedConnections = useStore((s) => s.loadSavedConnections);
+  const saveConnection = useStore((s) => s.saveConnection);
+  const deleteConnection = useStore((s) => s.deleteConnection);
 
   const handleOpenChange = (value: boolean): void => {
-    if (!value && !connected) return
-    onOpenChange(value)
-  }
+    if (!value && !connected) return;
+    onOpenChange(value);
+  };
 
   useEffect(() => {
     if (open) {
-      loadSavedConnections()
+      loadSavedConnections();
     }
-  }, [open, loadSavedConnections])
+  }, [open, loadSavedConnections]);
 
   const handleConnect = async (connectUri: string): Promise<void> => {
-    await connect(connectUri)
-    const { error } = useStore.getState()
+    await connect(connectUri);
+    const { error } = useStore.getState();
     if (error) {
-      toast.error(error)
+      toast.error(error);
     } else {
-      onOpenChange(false)
+      onOpenChange(false);
     }
-  }
+  };
 
   const handleEdit = (conn: { name: string; uri: string }): void => {
-    setName(conn.name)
-    setUri(conn.uri)
-    setEditing(true)
-  }
+    setName(conn.name);
+    setUri(conn.uri);
+    setEditing(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault()
+    e.preventDefault();
     if (name.trim()) {
-      await saveConnection(name.trim(), uri)
+      await saveConnection(name.trim(), uri);
     }
-    setEditing(false)
-    await handleConnect(uri)
-  }
+    setEditing(false);
+    await handleConnect(uri);
+  };
 
   const handleSavedClick = async (savedUri: string): Promise<void> => {
-    await handleConnect(savedUri)
-  }
+    await handleConnect(savedUri);
+  };
 
   const handleDelete = async (connName: string): Promise<void> => {
-    await deleteConnection(connName)
-  }
+    await deleteConnection(connName);
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         hideClose={!connected}
-        onInteractOutside={(e) => { if (!connected) e.preventDefault() }}
-        onEscapeKeyDown={(e) => { if (!connected) e.preventDefault() }}
+        onInteractOutside={(e) => {
+          if (!connected) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (!connected) e.preventDefault();
+        }}
       >
         <DialogHeader>
           <DialogTitle>Connect to MongoDB</DialogTitle>
@@ -89,19 +87,10 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
             <p className="text-sm font-medium">Saved Connections</p>
             {savedConnections.map((conn) => (
               <div key={conn.name} className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 justify-start"
-                  onClick={() => handleSavedClick(conn.uri)}
-                >
+                <Button variant="outline" className="flex-1 justify-start" onClick={() => handleSavedClick(conn.uri)}>
                   {conn.name}
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleEdit(conn)}
-                  aria-label={`Edit ${conn.name}`}
-                >
+                <Button variant="ghost" size="sm" onClick={() => handleEdit(conn)} aria-label={`Edit ${conn.name}`}>
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
@@ -110,7 +99,7 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
                   onClick={() => handleDelete(conn.name)}
                   aria-label={`Delete ${conn.name}`}
                 >
-                  &times;
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             ))}
@@ -118,21 +107,13 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            placeholder="Connection name (optional)"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <Input
-            placeholder="mongodb://localhost:27017"
-            value={uri}
-            onChange={(e) => setUri(e.target.value)}
-          />
+          <Input placeholder="Connection name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
+          <Input placeholder="mongodb://localhost:27017" value={uri} onChange={(e) => setUri(e.target.value)} />
           <Button type="submit" className="w-full">
             {editing ? 'Update & Connect' : 'Connect'}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,86 +1,81 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useStore } from '../store'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table'
-import { Button } from './ui/button'
-import { Popover, PopoverTrigger, PopoverContent } from './ui/popover'
-import { Loader } from './Loader'
-import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useStore } from '../store';
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
+import { Button } from './ui/button';
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
+import { Loader } from './Loader';
+import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter } from 'lucide-react';
+import { toast } from 'sonner';
 
 function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return ''
-  return typeof value === 'object' ? JSON.stringify(value) : String(value)
+  if (value === null || value === undefined) return '';
+  return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
 interface DocumentTableProps {
-  className?: string
-  onRowClick?: (doc: Record<string, unknown>) => void
+  className?: string;
+  onRowClick?: (doc: Record<string, unknown>) => void;
 }
 
 export function DocumentTable({ className, onRowClick }: DocumentTableProps): JSX.Element {
-  const docs = useStore((s) => s.docs)
-  const totalCount = useStore((s) => s.totalCount)
-  const skip = useStore((s) => s.skip)
-  const limit = useStore((s) => s.limit)
-  const loading = useStore((s) => s.loading)
-  const fetchPage = useStore((s) => s.fetchPage)
-  const sort = useStore((s) => s.sort)
-  const setSort = useStore((s) => s.setSort)
-  const queryMode = useStore((s) => s.queryMode)
-  const setLimit = useStore((s) => s.setLimit)
-  const addFilterValue = useStore((s) => s.addFilterValue)
+  const docs = useStore((s) => s.docs);
+  const totalCount = useStore((s) => s.totalCount);
+  const skip = useStore((s) => s.skip);
+  const limit = useStore((s) => s.limit);
+  const loading = useStore((s) => s.loading);
+  const fetchPage = useStore((s) => s.fetchPage);
+  const sort = useStore((s) => s.sort);
+  const setSort = useStore((s) => s.setSort);
+  const queryMode = useStore((s) => s.queryMode);
+  const setLimit = useStore((s) => s.setLimit);
+  const addFilterValue = useStore((s) => s.addFilterValue);
 
-  const columns = getColumns(docs)
-  const currentPage = Math.floor(skip / limit) + 1
-  const totalPages = Math.max(1, Math.ceil(totalCount / limit))
+  const columns = getColumns(docs);
+  const currentPage = Math.floor(skip / limit) + 1;
+  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
-  const [pageInput, setPageInput] = useState(String(currentPage))
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
-  const columnsKey = columns.join(',')
-  const prevColumnsKey = useRef(columnsKey)
+  const [pageInput, setPageInput] = useState(String(currentPage));
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const columnsKey = columns.join(',');
+  const prevColumnsKey = useRef(columnsKey);
 
   useEffect(() => {
-    setPageInput(String(currentPage))
-  }, [currentPage])
+    setPageInput(String(currentPage));
+  }, [currentPage]);
 
   useEffect(() => {
     if (prevColumnsKey.current !== columnsKey) {
-      setColumnWidths({})
-      prevColumnsKey.current = columnsKey
+      setColumnWidths({});
+      prevColumnsKey.current = columnsKey;
     }
-  }, [columnsKey])
+  }, [columnsKey]);
 
-  const handleResizeStart = useCallback(
-    (col: string, startX: number, startWidth: number) => {
-      document.body.style.userSelect = 'none'
+  const handleResizeStart = useCallback((col: string, startX: number, startWidth: number) => {
+    document.body.style.userSelect = 'none';
 
-      const onMouseMove = (e: MouseEvent): void => {
-        const newWidth = Math.max(40, startWidth + e.clientX - startX)
-        setColumnWidths((prev) => ({ ...prev, [col]: newWidth }))
-      }
+    const onMouseMove = (e: MouseEvent): void => {
+      const newWidth = Math.max(40, startWidth + e.clientX - startX);
+      setColumnWidths((prev) => ({ ...prev, [col]: newWidth }));
+    };
 
-      const onMouseUp = (): void => {
-        document.body.style.userSelect = ''
-        document.removeEventListener('mousemove', onMouseMove)
-        document.removeEventListener('mouseup', onMouseUp)
-      }
+    const onMouseUp = (): void => {
+      document.body.style.userSelect = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
 
-      document.addEventListener('mousemove', onMouseMove)
-      document.addEventListener('mouseup', onMouseUp)
-    },
-    []
-  )
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, []);
 
   if (loading) {
-    return <Loader className="flex-1" />
+    return <Loader className="flex-1" />;
   }
 
   if (docs.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        No documents found
-      </div>
-    )
+      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">No documents found</div>
+    );
   }
 
   return (
@@ -90,9 +85,9 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {columns.map((col) => {
-                const isAggregate = queryMode === 'aggregate'
-                const sortDir = sort && col in sort ? sort[col] : null
-                const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown
+                const isAggregate = queryMode === 'aggregate';
+                const sortDir = sort && col in sort ? sort[col] : null;
+                const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown;
                 return (
                   <TableHead
                     key={col}
@@ -102,19 +97,23 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                   >
                     <span className="flex items-center gap-1 min-w-0">
                       <span className="truncate">{col}</span>
-                      {!isAggregate && <SortIcon className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`} />}
+                      {!isAggregate && (
+                        <SortIcon
+                          className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
+                        />
+                      )}
                     </span>
                     <div
                       className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
                       onMouseDown={(e) => {
-                        e.stopPropagation()
-                        const th = e.currentTarget.parentElement!
-                        handleResizeStart(col, e.clientX, th.offsetWidth)
+                        e.stopPropagation();
+                        const th = e.currentTarget.parentElement!;
+                        handleResizeStart(col, e.clientX, th.offsetWidth);
                       }}
                       onClick={(e) => e.stopPropagation()}
                     />
                   </TableHead>
-                )
+                );
               })}
             </TableRow>
           </TableHeader>
@@ -126,10 +125,10 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                 onClick={() => onRowClick?.(doc)}
               >
                 {columns.map((col) => {
-                  const cellValue = doc[col]
-                  const raw = formatCell(cellValue)
-                  const isPrimitive = typeof cellValue !== 'object' || cellValue === null
-                  const showFilter = isPrimitive && queryMode === 'filter'
+                  const cellValue = doc[col];
+                  const raw = formatCell(cellValue);
+                  const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
+                  const showFilter = isPrimitive && queryMode === 'filter';
                   return (
                     <TableCell key={col} className="overflow-visible relative group">
                       <span className="block truncate">{raw}</span>
@@ -138,8 +137,8 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                           <button
                             className="p-0.5 rounded hover:bg-muted"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              addFilterValue(col, cellValue as string | number | boolean | null)
+                              e.stopPropagation();
+                              addFilterValue(col, cellValue as string | number | boolean | null);
                             }}
                           >
                             <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
@@ -147,22 +146,23 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                         )}
                         <Popover>
                           <PopoverTrigger asChild>
-                            <button
-                              className="p-0.5 rounded hover:bg-muted"
-                              onClick={(e) => e.stopPropagation()}
-                            >
+                            <button className="p-0.5 rounded hover:bg-muted" onClick={(e) => e.stopPropagation()}>
                               <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
                             </button>
                           </PopoverTrigger>
                           <PopoverContent className="w-80 max-h-64 overflow-auto">
-                            <pre className="text-xs whitespace-pre-wrap break-words">{typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue, null, 2) : raw}</pre>
+                            <pre className="text-xs whitespace-pre-wrap break-words">
+                              {typeof cellValue === 'object' && cellValue !== null
+                                ? JSON.stringify(cellValue, null, 2)
+                                : raw}
+                            </pre>
                             <Button
                               variant="outline"
                               size="sm"
                               className="mt-2 w-full"
                               onClick={() => {
-                                navigator.clipboard.writeText(raw)
-                                toast.success('Copied to clipboard')
+                                navigator.clipboard.writeText(raw);
+                                toast.success('Copied to clipboard');
                               }}
                             >
                               <Copy className="h-3.5 w-3.5 mr-1.5" />
@@ -172,7 +172,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                         </Popover>
                       </div>
                     </TableCell>
-                  )
+                  );
                 })}
               </TableRow>
             ))}
@@ -180,12 +180,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
         </Table>
       </div>
       <div className="flex items-center gap-4 px-4 py-2 border-t">
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={skip === 0}
-          onClick={() => fetchPage(Math.max(0, skip - limit))}
-        >
+        <Button variant="outline" size="sm" disabled={skip === 0} onClick={() => fetchPage(Math.max(0, skip - limit))}>
           Previous
         </Button>
         <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -198,12 +193,12 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
             max={totalPages}
             onChange={(e) => setPageInput(e.target.value)}
             onBlur={() => {
-              const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1))
-              setPageInput(String(page))
-              fetchPage((page - 1) * limit)
+              const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1));
+              setPageInput(String(page));
+              fetchPage((page - 1) * limit);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}
           />
           of {totalPages}
@@ -214,7 +209,9 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
           onChange={(e) => setLimit(Number(e.target.value))}
         >
           {[10, 20, 50, 100].map((n) => (
-            <option key={n} value={n}>{n} / page</option>
+            <option key={n} value={n}>
+              {n} / page
+            </option>
           ))}
         </select>
         <div className="flex-1" />
@@ -228,21 +225,21 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 function getColumns(docs: Record<string, unknown>[]): string[] {
-  const keySet = new Set<string>()
+  const keySet = new Set<string>();
   for (const doc of docs.slice(0, 20)) {
     for (const key of Object.keys(doc)) {
-      keySet.add(key)
+      keySet.add(key);
     }
   }
-  const keys = Array.from(keySet)
-  const idIndex = keys.indexOf('_id')
+  const keys = Array.from(keySet);
+  const idIndex = keys.indexOf('_id');
   if (idIndex > 0) {
-    keys.splice(idIndex, 1)
-    keys.unshift('_id')
+    keys.splice(idIndex, 1);
+    keys.unshift('_id');
   }
-  return keys
+  return keys;
 }

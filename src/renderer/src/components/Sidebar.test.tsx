@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { Sidebar } from './Sidebar'
-import { useStore } from '../store'
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Sidebar } from './Sidebar';
+import { useStore } from '../store';
 
 const mockApi = {
   connect: vi.fn(),
@@ -11,11 +11,11 @@ const mockApi = {
   listCollections: vi.fn(),
   find: vi.fn(),
   count: vi.fn(),
-  sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] })
-}
+  sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+};
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.clearAllMocks();
   useStore.setState({
     connected: false,
     uri: '',
@@ -29,10 +29,10 @@ beforeEach(() => {
     limit: 20,
     filter: {},
     error: null,
-    loading: false
-  })
-  ;(window as any).api = mockApi
-})
+    loading: false,
+  });
+  (window as unknown as Record<string, unknown>).api = mockApi;
+});
 
 describe('Sidebar', () => {
   it('renders database list', () => {
@@ -40,74 +40,74 @@ describe('Sidebar', () => {
       connected: true,
       databases: [
         { name: 'testdb', sizeOnDisk: 1024, empty: false },
-        { name: 'admin', sizeOnDisk: 512, empty: false }
-      ]
-    })
+        { name: 'admin', sizeOnDisk: 512, empty: false },
+      ],
+    });
 
-    render(<Sidebar width={240} onResize={() => {}} />)
+    render(<Sidebar width={240} onResize={() => {}} />);
 
-    expect(screen.getByText('testdb')).toBeInTheDocument()
-    expect(screen.getByText('admin')).toBeInTheDocument()
-  })
+    expect(screen.getByText('testdb')).toBeInTheDocument();
+    expect(screen.getByText('admin')).toBeInTheDocument();
+  });
 
   it('click DB expands to show collections', async () => {
     mockApi.listCollections.mockResolvedValue({
       ok: true,
       data: [
         { name: 'users', type: 'collection' },
-        { name: 'posts', type: 'collection' }
-      ]
-    })
+        { name: 'posts', type: 'collection' },
+      ],
+    });
 
     useStore.setState({
       connected: true,
-      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }]
-    })
+      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
 
-    render(<Sidebar width={240} onResize={() => {}} />)
+    render(<Sidebar width={240} onResize={() => {}} />);
 
-    await userEvent.click(screen.getByText('testdb'))
+    await userEvent.click(screen.getByText('testdb'));
 
-    expect(mockApi.listCollections).toHaveBeenCalledWith('testdb')
+    expect(mockApi.listCollections).toHaveBeenCalledWith('testdb');
 
     await waitFor(() => {
-      expect(screen.getByText('users')).toBeInTheDocument()
-      expect(screen.getByText('posts')).toBeInTheDocument()
-    })
-  })
+      expect(screen.getByText('users')).toBeInTheDocument();
+      expect(screen.getByText('posts')).toBeInTheDocument();
+    });
+  });
 
   it('click collection calls store.selectCollection', async () => {
     mockApi.listCollections.mockResolvedValue({
       ok: true,
-      data: [{ name: 'users', type: 'collection' }]
-    })
+      data: [{ name: 'users', type: 'collection' }],
+    });
     mockApi.find.mockResolvedValue({
       ok: true,
-      data: { docs: [], totalCount: 0 }
-    })
+      data: { docs: [], totalCount: 0 },
+    });
 
     useStore.setState({
       connected: true,
-      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }]
-    })
+      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
 
-    render(<Sidebar width={240} onResize={() => {}} />)
+    render(<Sidebar width={240} onResize={() => {}} />);
 
     // Click to expand db (triggers selectDb which loads collections)
-    await userEvent.click(screen.getByText('testdb'))
+    await userEvent.click(screen.getByText('testdb'));
 
     // Wait for collections to appear
     await waitFor(() => {
-      expect(screen.getByText('users')).toBeInTheDocument()
-    })
+      expect(screen.getByText('users')).toBeInTheDocument();
+    });
 
     // Click collection
-    await userEvent.click(screen.getByText('users'))
+    await userEvent.click(screen.getByText('users'));
 
     await waitFor(() => {
-      expect(mockApi.find).toHaveBeenCalled()
-    })
-  })
+      expect(mockApi.find).toHaveBeenCalled();
+    });
+  });
 
   it('shows selected collection as active', async () => {
     useStore.setState({
@@ -117,14 +117,14 @@ describe('Sidebar', () => {
       selectedCollection: 'users',
       collections: [
         { name: 'users', type: 'collection' },
-        { name: 'posts', type: 'collection' }
-      ]
-    })
+        { name: 'posts', type: 'collection' },
+      ],
+    });
 
-    render(<Sidebar width={240} onResize={() => {}} />)
+    render(<Sidebar width={240} onResize={() => {}} />);
 
     // Collapsible is controlled by selectedDb === db.name, so it should be open
-    const usersItem = screen.getByText('users').closest('button')
-    expect(usersItem).toHaveClass('bg-accent')
-  })
-})
+    const usersItem = screen.getByText('users').closest('button');
+    expect(usersItem).toHaveClass('bg-accent');
+  });
+});
