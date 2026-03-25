@@ -17,6 +17,15 @@ function isAuthError(message: string): boolean {
   return AUTH_ERROR_PATTERNS.some((pattern) => pattern.test(message));
 }
 
+function injectCredentials(uri: string, username: string, password: string): string {
+  const encodedUser = encodeURIComponent(username);
+  const encodedPass = encodeURIComponent(password);
+  // Strip existing credentials if present
+  const stripped = uri.replace(/^(mongodb(?:\+srv)?:\/\/)[^@]*@/, '$1');
+  // Inject new credentials after the scheme
+  return stripped.replace(/^(mongodb(?:\+srv)?:\/\/)/, `$1${encodedUser}:${encodedPass}@`);
+}
+
 export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps): JSX.Element {
   const [uri, setUri] = useState('');
   const [name, setName] = useState('');
@@ -93,8 +102,18 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
   };
 
   const handleCredentialsSubmit = async (): Promise<void> => {
-    // TODO: US-003 will implement credential injection and connection
-    setAuthError('Credential injection not yet implemented');
+    const credUri = injectCredentials(pendingUri, username, password);
+    await connect(credUri);
+    const { error } = useStore.getState();
+    if (error) {
+      if (isAuthError(error)) {
+        setAuthError(error);
+      } else {
+        toast.error(error);
+      }
+    } else {
+      onOpenChange(false);
+    }
   };
 
   const handleDelete = async (connName: string): Promise<void> => {
