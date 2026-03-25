@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.9.0](https://github.com/terebentina/mongo-buddy/compare/v1.8.0...v1.9.0) (2026-03-25)
+
+
+### Features
+
+* **table:** unwrap MongoDB extended JSON types in cell display ([2ea4579](https://github.com/terebentina/mongo-buddy/commit/2ea4579210dfd8a21b182109838e53aa06144991))
+
 ## [1.8.0](https://github.com/terebentina/mongo-buddy/compare/v1.7.5...v1.8.0) (2026-03-25)
 
 
