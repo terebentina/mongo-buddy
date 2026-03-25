@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.7.3](https://github.com/terebentina/mongo-buddy/compare/v1.7.2...v1.7.3) (2026-03-25)
+
+
+### Bug Fixes
+
+* **connections:** clear input fields when connection dialog opens ([f140eeb](https://github.com/terebentina/mongo-buddy/commit/f140eeb901a4c40d908ba379680329d4e5cd8846))
+
 ## [1.7.2](https://github.com/terebentina/mongo-buddy/compare/v1.7.1...v1.7.2) (2026-03-25)
 
 ## [1.7.1](https://github.com/terebentina/mongo-buddy/compare/v1.7.0...v1.7.1) (2026-03-25)
