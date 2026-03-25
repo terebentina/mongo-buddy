@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.8.0](https://github.com/terebentina/mongo-buddy/compare/v1.7.5...v1.8.0) (2026-03-25)
+
+
+### Features
+
+* **table:** auto-resize column on double-click of resize handle ([47f6a95](https://github.com/terebentina/mongo-buddy/commit/47f6a9565c7fc8b6394662e2af2d44f189c701dd))
+
 ## [1.7.5](https://github.com/terebentina/mongo-buddy/compare/v1.7.4...v1.7.5) (2026-03-25)
 
 ## [1.7.4](https://github.com/terebentina/mongo-buddy/compare/v1.7.3...v1.7.4) (2026-03-25)
