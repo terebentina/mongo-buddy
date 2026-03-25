@@ -29,6 +29,9 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
 
   useEffect(() => {
     if (open) {
+      setUri('');
+      setName('');
+      setEditing(false);
       loadSavedConnections();
     }
   }, [open, loadSavedConnections]);
