@@ -33,6 +33,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
   const columns = getColumns(docs);
   const currentPage = Math.floor(skip / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+  const tableRef = useRef<HTMLTableElement>(null);
 
   const [pageInput, setPageInput] = useState(String(currentPage));
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -49,6 +50,35 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
       prevColumnsKey.current = columnsKey;
     }
   }, [columnsKey]);
+
+  const handleAutoResize = useCallback(
+    (col: string) => {
+      const table = tableRef.current;
+      if (!table) return;
+      const style = getComputedStyle(table);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+
+      // Measure header (font-medium = weight 500)
+      ctx.font = `500 ${style.fontSize} ${style.fontFamily}`;
+      const headerTextWidth = ctx.measureText(col).width;
+      const sortIconWidth = queryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
+      const headerPadding = 40; // px-4 (16px) + pr-6 (24px)
+      const headerWidth = headerTextWidth + sortIconWidth + headerPadding;
+
+      // Measure body cells (normal weight)
+      ctx.font = `400 ${style.fontSize} ${style.fontFamily}`;
+      const cellPadding = 24; // px-3 (12px) * 2
+      let maxWidth = headerWidth;
+      for (const doc of docs) {
+        const textWidth = ctx.measureText(formatCell(doc[col])).width;
+        maxWidth = Math.max(maxWidth, textWidth + cellPadding);
+      }
+
+      setColumnWidths((prev) => ({ ...prev, [col]: Math.max(40, Math.ceil(maxWidth) + 2) }));
+    },
+    [docs, queryMode]
+  );
 
   const handleResizeStart = useCallback((col: string, startX: number, startWidth: number) => {
     document.body.style.userSelect = 'none';
@@ -81,7 +111,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
   return (
     <div className={`flex flex-col ${className ?? ''}`}>
       <div className="flex-1 overflow-auto">
-        <Table style={{ tableLayout: 'fixed', minWidth: columns.length * 150 }}>
+        <Table ref={tableRef} style={{ tableLayout: 'fixed', minWidth: columns.length * 150 }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               {columns.map((col) => {
@@ -111,6 +141,10 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                         handleResizeStart(col, e.clientX, th.offsetWidth);
                       }}
                       onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        handleAutoResize(col);
+                      }}
                     />
                   </TableHead>
                 );
