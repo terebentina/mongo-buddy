@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.7.0](https://github.com/terebentina/mongo-buddy/compare/v1.6.6...v1.7.0) (2026-03-25)
+
+
+### Features
+
+* **connections:** add edit button for saved connections ([fab2465](https://github.com/terebentina/mongo-buddy/commit/fab2465bc972e69aedc1377a1c41eddd026fe3bc))
+
 ## [1.6.6](https://github.com/terebentina/mongo-buddy/compare/v1.6.5...v1.6.6) (2026-03-23)
 
 
