@@ -10,6 +10,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { useStore } from '../store'
 import { toast } from 'sonner'
+import { Pencil } from 'lucide-react'
 
 interface ConnectionDialogProps {
   open: boolean
@@ -19,6 +20,7 @@ interface ConnectionDialogProps {
 export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps): JSX.Element {
   const [uri, setUri] = useState('')
   const [name, setName] = useState('')
+  const [editing, setEditing] = useState(false)
   const connected = useStore((s) => s.connected)
   const connect = useStore((s) => s.connect)
   const savedConnections = useStore((s) => s.savedConnections)
@@ -47,11 +49,18 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
     }
   }
 
+  const handleEdit = (conn: { name: string; uri: string }): void => {
+    setName(conn.name)
+    setUri(conn.uri)
+    setEditing(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     if (name.trim()) {
       await saveConnection(name.trim(), uri)
     }
+    setEditing(false)
     await handleConnect(uri)
   }
 
@@ -90,6 +99,14 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => handleEdit(conn)}
+                  aria-label={`Edit ${conn.name}`}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => handleDelete(conn.name)}
                   aria-label={`Delete ${conn.name}`}
                 >
@@ -112,7 +129,7 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
             onChange={(e) => setUri(e.target.value)}
           />
           <Button type="submit" className="w-full">
-            Connect
+            {editing ? 'Update & Connect' : 'Connect'}
           </Button>
         </form>
       </DialogContent>
