@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { useStore } from '../store';
@@ -31,7 +31,6 @@ const editorTheme = EditorView.theme({
 
 export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.Element {
   const [open, setOpen] = useState(!!editDoc);
-  const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [maximized, setMaximized] = useState(false);
@@ -41,38 +40,39 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
 
   const isEditing = !!editDoc;
 
-  const initialDoc = editDoc
-    ? JSON.stringify(
-        (() => {
-          const { _id, ...rest } = editDoc;
-          return rest;
-        })(),
-        null,
-        2
-      )
-    : '{\n  \n}';
-
-  useEffect(() => {
-    if (!editorRef.current) return;
-    const state = EditorState.create({
-      doc: initialDoc,
-      extensions: [
-        json(),
-        oneDark,
-        editorTheme,
-        foldGutter(),
-        history(),
-        keymap.of([...foldKeymap, ...defaultKeymap, ...historyKeymap]),
-        EditorView.lineWrapping,
-      ],
-    });
-    const view = new EditorView({ state, parent: editorRef.current });
-    viewRef.current = view;
-    return () => {
-      view.destroy();
-      viewRef.current = null;
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const editorRefCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node) {
+        const doc = editDoc
+          ? JSON.stringify(
+              (() => {
+                const { _id, ...rest } = editDoc;
+                return rest;
+              })(),
+              null,
+              2
+            )
+          : '{\n  \n}';
+        const state = EditorState.create({
+          doc,
+          extensions: [
+            json(),
+            oneDark,
+            editorTheme,
+            foldGutter(),
+            history(),
+            keymap.of([...foldKeymap, ...defaultKeymap, ...historyKeymap]),
+            EditorView.lineWrapping,
+          ],
+        });
+        viewRef.current = new EditorView({ state, parent: node });
+      } else {
+        viewRef.current?.destroy();
+        viewRef.current = null;
+      }
+    },
+    [editDoc]
+  );
 
   const handleOpen = (): void => {
     setConfirming(false);
@@ -167,7 +167,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
             </div>
           )}
           <div
-            ref={editorRef}
+            ref={editorRefCallback}
             className={`w-full border rounded overflow-hidden ${maximized ? 'flex-1 min-h-0' : 'h-64'}`}
           />
           <div className="flex justify-between">
