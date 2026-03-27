@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button';
 import { useStore } from '../store';
 import { toast } from 'sonner';
-import { Copy } from 'lucide-react';
+import { Copy, Maximize2, Minimize2 } from 'lucide-react';
 
 interface DocumentEditorProps {
   editDoc?: Record<string, unknown> | null;
@@ -28,6 +28,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
     return '{\n  \n}';
   });
   const [confirming, setConfirming] = useState(false);
+  const [maximized, setMaximized] = useState(false);
   const insertDoc = useStore((s) => s.insertDoc);
   const updateDoc = useStore((s) => s.updateDoc);
   const deleteDoc = useStore((s) => s.deleteDoc);
@@ -98,7 +99,16 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
         </Button>
       )}
       <Dialog open={isEditing ? true : open} onOpenChange={handleClose}>
-        <DialogContent>
+        <DialogContent
+          className={maximized ? 'max-w-[90vw] w-[90vw] h-[90vh] flex flex-col' : ''}
+        >
+          <button
+            className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            onClick={() => setMaximized((m) => !m)}
+          >
+            {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            <span className="sr-only">{maximized ? 'Minimize' : 'Maximize'}</span>
+          </button>
           <DialogHeader>
             <DialogTitle>{isEditing ? 'Edit Document' : 'Add Document'}</DialogTitle>
             <DialogDescription>
@@ -121,7 +131,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
           )}
           <textarea
             role="textbox"
-            className="w-full h-64 p-2 font-mono text-sm border rounded bg-background text-foreground"
+            className={`w-full p-2 font-mono text-sm border rounded bg-background text-foreground ${maximized ? 'flex-1 min-h-0' : 'h-64'}`}
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
