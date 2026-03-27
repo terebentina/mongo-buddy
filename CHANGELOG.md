@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.10.2](https://github.com/terebentina/mongo-buddy/compare/v1.10.1...v1.10.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **editor:** use callback ref so CodeMirror mounts when dialog opens ([1a57327](https://github.com/terebentina/mongo-buddy/commit/1a57327544236813e393b44addf6e8d5ac2bf630))
+
 ## [1.10.1](https://github.com/terebentina/mongo-buddy/compare/v1.10.0...v1.10.1) (2026-03-27)
 
 ## [1.10.0](https://github.com/terebentina/mongo-buddy/compare/v1.9.0...v1.10.0) (2026-03-27)
