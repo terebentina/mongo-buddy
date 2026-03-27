@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.10.0](https://github.com/terebentina/mongo-buddy/compare/v1.9.0...v1.10.0) (2026-03-27)
+
+
+### Features
+
+* **editor:** add maximize/minimize toggle to document edit modal ([ba19d07](https://github.com/terebentina/mongo-buddy/commit/ba19d07cab1553c89a6d7455e309e6e8a482bdbd))
+* **editor:** replace textarea with CodeMirror for JSON folding ([739dc9b](https://github.com/terebentina/mongo-buddy/commit/739dc9b69a15a2b047c491c4291ddb1e8a8ce329))
+
 ## [1.9.0](https://github.com/terebentina/mongo-buddy/compare/v1.8.0...v1.9.0) (2026-03-25)
 
 
