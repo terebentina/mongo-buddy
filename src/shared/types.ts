@@ -28,3 +28,12 @@ export interface SavedConnection {
   name: string;
   uri: string;
 }
+
+export interface QueryHistoryEntry {
+  id: string;
+  type: 'filter' | 'aggregate';
+  query: string;
+  db: string;
+  collection: string;
+  timestamp: number;
+}

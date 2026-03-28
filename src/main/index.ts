@@ -6,11 +6,13 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
+import { QueryHistoryStore } from './query-history-store';
 import { registerIpcHandlers } from './ipc-handlers';
 
 const mongoService = new MongoService();
 const connectionStore = new ConnectionStore();
-registerIpcHandlers(mongoService, connectionStore);
+const queryHistoryStore = new QueryHistoryStore();
+registerIpcHandlers(mongoService, connectionStore, queryHistoryStore);
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

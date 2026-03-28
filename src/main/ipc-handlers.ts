@@ -1,9 +1,14 @@
 import { ipcMain } from 'electron';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
-import type { Result, FindOpts, SavedConnection } from '../shared/types';
+import type { QueryHistoryStore } from './query-history-store';
+import type { Result, FindOpts, SavedConnection, QueryHistoryEntry } from '../shared/types';
 
-export function registerIpcHandlers(service: MongoService, connStore: ConnectionStore): void {
+export function registerIpcHandlers(
+  service: MongoService,
+  connStore: ConnectionStore,
+  historyStore: QueryHistoryStore,
+): void {
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
       try {
@@ -94,5 +99,18 @@ export function registerIpcHandlers(service: MongoService, connStore: Connection
   ipcMain.handle(
     'connections:set-last-used',
     wrapSync((uri: unknown) => connStore.setLastUsed(uri as string))
+  );
+
+  ipcMain.handle(
+    'history:load',
+    wrapSync(() => historyStore.getAll())
+  );
+  ipcMain.handle(
+    'history:save',
+    wrapSync((entries: unknown) => historyStore.save(entries as QueryHistoryEntry[]))
+  );
+  ipcMain.handle(
+    'history:clear',
+    wrapSync(() => historyStore.clear())
   );
 }
