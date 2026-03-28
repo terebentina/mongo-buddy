@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.11.0](https://github.com/terebentina/mongo-buddy/compare/v1.10.4...v1.11.0) (2026-03-28)
+
+
+### Features
+
+* add history entries for filter clicks and collection switches ([f3c6e7a](https://github.com/terebentina/mongo-buddy/commit/f3c6e7a25771080354e777fb633bdb82d0a15c29))
+
+
+### Bug Fixes
+
+* **test:** update DocumentEditor tests for CodeMirror and $oid ids ([da2ebd0](https://github.com/terebentina/mongo-buddy/commit/da2ebd0bd9dc1378f85ea5c03fa172ad714a096a))
+
 ## [1.10.4](https://github.com/terebentina/mongo-buddy/compare/v1.10.3...v1.10.4) (2026-03-28)
 
 ## [1.10.3](https://github.com/terebentina/mongo-buddy/compare/v1.10.2...v1.10.3) (2026-03-28)
