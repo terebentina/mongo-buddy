@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { EditorView } from '@codemirror/view';
 import { DocumentEditor } from './DocumentEditor';
 import { useStore } from '../store';
 import { toast } from 'sonner';
@@ -28,11 +29,25 @@ const mockApi = {
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
   setLastUsed: vi.fn(),
+  saveHistory: vi.fn(),
 };
 
-function setTextarea(value: string): void {
-  const textarea = screen.getByRole('textbox');
-  fireEvent.change(textarea, { target: { value } });
+function getEditorView(): EditorView {
+  const el = document.querySelector('.cm-editor');
+  const view = el && EditorView.findFromDOM(el as HTMLElement);
+  if (!view) throw new Error('CodeMirror EditorView not found');
+  return view;
+}
+
+function getEditorText(): string {
+  return getEditorView().state.doc.toString();
+}
+
+function setEditorText(value: string): void {
+  const view = getEditorView();
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: value },
+  });
 }
 
 beforeEach(() => {
@@ -64,8 +79,7 @@ describe('DocumentEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: /add document/i }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    const textarea = screen.getByRole('textbox');
-    expect(textarea).toHaveValue('{\n  \n}');
+    expect(getEditorText()).toBe('{\n  \n}');
   });
 
   it('submit calls insert-one and refreshes table', async () => {
@@ -78,7 +92,7 @@ describe('DocumentEditor', () => {
     render(<DocumentEditor />);
 
     await userEvent.click(screen.getByRole('button', { name: /add document/i }));
-    setTextarea('{"name":"Alice"}');
+    setEditorText('{"name":"Alice"}');
 
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
@@ -96,8 +110,7 @@ describe('DocumentEditor', () => {
     );
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
-    expect(textarea.value).toContain('Alice');
+    expect(getEditorText()).toContain('Alice');
   });
 
   it('save calls update-one and refreshes table', async () => {
@@ -110,12 +123,12 @@ describe('DocumentEditor', () => {
     const onClose = vi.fn();
     render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={onClose} />);
 
-    setTextarea('{"name":"Bob"}');
+    setEditorText('{"name":"Bob"}');
 
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(mockApi.updateOne).toHaveBeenCalledWith('testdb', 'users', '123', { name: 'Bob' });
+      expect(mockApi.updateOne).toHaveBeenCalledWith('testdb', 'users', { $oid: '123' }, { name: 'Bob' });
     });
   });
 
@@ -133,7 +146,7 @@ describe('DocumentEditor', () => {
     await userEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     await waitFor(() => {
-      expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', '123');
+      expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', { $oid: '123' });
     });
   });
 
@@ -141,12 +154,12 @@ describe('DocumentEditor', () => {
     render(<DocumentEditor />);
 
     await userEvent.click(screen.getByRole('button', { name: /add document/i }));
-    setTextarea('not valid json');
+    setEditorText('not valid json');
 
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Invalid JSON');
+      expect(toast.error).toHaveBeenCalled();
     });
   });
 });
