@@ -18,6 +18,9 @@ const mockApi = {
   getLastUsed: vi.fn(),
   setLastUsed: vi.fn(),
   sampleFields: vi.fn(),
+  loadHistory: vi.fn().mockResolvedValue([]),
+  saveHistory: vi.fn().mockResolvedValue(undefined),
+  clearHistory: vi.fn().mockResolvedValue(undefined),
 };
 
 beforeEach(() => {
@@ -47,12 +50,16 @@ beforeEach(() => {
 });
 
 describe('store', () => {
-  it('connect(uri) sets connected=true and loads databases', async () => {
+  it('connect(uri) sets connected=true and loads databases and history', async () => {
+    const historyEntries = [
+      { id: '1', type: 'filter' as const, query: '{}', db: 'test', collection: 'users', timestamp: 1000 },
+    ];
     mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
     mockApi.listDatabases.mockResolvedValue({
       ok: true,
       data: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
     });
+    mockApi.loadHistory.mockResolvedValue(historyEntries);
 
     await useStore.getState().connect('mongodb://localhost');
 
@@ -60,8 +67,10 @@ describe('store', () => {
     expect(state.connected).toBe(true);
     expect(state.uri).toBe('mongodb://localhost');
     expect(state.databases).toEqual([{ name: 'testdb', sizeOnDisk: 1024, empty: false }]);
+    expect(state.queryHistory).toEqual(historyEntries);
     expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost');
     expect(mockApi.listDatabases).toHaveBeenCalled();
+    expect(mockApi.loadHistory).toHaveBeenCalled();
   });
 
   it('connect failure sets error, connected=false', async () => {

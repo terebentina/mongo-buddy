@@ -86,7 +86,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       return;
     }
     await window.api.setLastUsed(uri);
-    set({ loading: false, connected: true, uri, databases: dbResult.data });
+    const history = await window.api.loadHistory();
+    set({ loading: false, connected: true, uri, databases: dbResult.data, queryHistory: history });
   },
 
   disconnect: async () => {
@@ -304,7 +305,9 @@ export const useStore = create<StoreState>()((set, get) => ({
     ) {
       return;
     }
-    set({ queryHistory: [entry, ...queryHistory].slice(0, 50) });
+    const updated = [entry, ...queryHistory].slice(0, 50);
+    set({ queryHistory: updated });
+    window.api.saveHistory(updated);
   },
 
   switchCollection: async (db: string, collection: string) => {

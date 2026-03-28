@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { electronAPI } from '@electron-toolkit/preload';
-import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult, SavedConnection } from '../shared/types';
+import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult, SavedConnection, QueryHistoryEntry } from '../shared/types';
 
 const api = {
   connect: (uri: string): Promise<Result<undefined>> => ipcRenderer.invoke('mongo:connect', uri),
@@ -33,6 +33,9 @@ const api = {
   deleteConnection: (name: string): Promise<void> => ipcRenderer.invoke('connections:delete', name),
   getLastUsed: (): Promise<string | null> => ipcRenderer.invoke('connections:get-last-used'),
   setLastUsed: (uri: string): Promise<void> => ipcRenderer.invoke('connections:set-last-used', uri),
+  loadHistory: (): Promise<QueryHistoryEntry[]> => ipcRenderer.invoke('history:load'),
+  saveHistory: (entries: QueryHistoryEntry[]): Promise<void> => ipcRenderer.invoke('history:save', entries),
+  clearHistory: (): Promise<void> => ipcRenderer.invoke('history:clear'),
 };
 
 export type MongoApi = typeof api;

@@ -23,6 +23,9 @@ const mockApi = {
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
   setLastUsed: vi.fn(),
+  loadHistory: vi.fn().mockResolvedValue([]),
+  saveHistory: vi.fn().mockResolvedValue(undefined),
+  clearHistory: vi.fn().mockResolvedValue(undefined),
 };
 
 beforeEach(() => {

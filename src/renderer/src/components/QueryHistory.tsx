@@ -34,6 +34,7 @@ export function QueryHistory(): JSX.Element {
 
   const handleClear = (): void => {
     useStore.setState({ queryHistory: [] });
+    window.api.clearHistory();
   };
 
   return (
