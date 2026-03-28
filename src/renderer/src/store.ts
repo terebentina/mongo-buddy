@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import JSON5 from 'json5';
-import type { DbInfo, CollectionInfo, SavedConnection } from '../../shared/types';
+import type { DbInfo, CollectionInfo, SavedConnection, QueryHistoryEntry } from '../../shared/types';
 
 interface StoreState {
   connected: boolean;
@@ -21,6 +21,8 @@ interface StoreState {
   fieldNames: string[];
   sort: Record<string, 1 | -1> | null;
   pendingFilterText: string | null;
+  queryHistory: QueryHistoryEntry[];
+  pendingQueryMode: 'filter' | 'aggregate' | null;
 
   connect: (uri: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -38,6 +40,9 @@ interface StoreState {
   loadSavedConnections: () => Promise<void>;
   saveConnection: (name: string, uri: string) => Promise<void>;
   deleteConnection: (name: string) => Promise<void>;
+  addToHistory: (entry: QueryHistoryEntry) => void;
+  switchCollection: (db: string, collection: string) => Promise<void>;
+  restoreFromHistory: (entry: QueryHistoryEntry) => Promise<void>;
   addFilterValue: (column: string, value: unknown) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
@@ -62,6 +67,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   fieldNames: [],
   sort: null,
   pendingFilterText: null,
+  queryHistory: [],
+  pendingQueryMode: null,
 
   connect: async (uri: string) => {
     if (get().connected) {
@@ -79,7 +86,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       return;
     }
     await window.api.setLastUsed(uri);
-    set({ loading: false, connected: true, uri, databases: dbResult.data });
+    const history = await window.api.loadHistory();
+    set({ loading: false, connected: true, uri, databases: dbResult.data, queryHistory: history });
   },
 
   disconnect: async () => {
@@ -121,6 +129,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       sort: null,
       filter: {},
       pendingFilterText: '{}',
+      pendingQueryMode: 'filter',
     });
     const [result, fieldsResult] = await Promise.all([
       window.api.find(db, collection, { filter: {}, skip: 0, limit }),
@@ -165,6 +174,15 @@ export const useStore = create<StoreState>()((set, get) => ({
     } catch (e) {
       return e instanceof Error ? e.message : 'Invalid JSON';
     }
+
+    get().addToHistory({
+      id: crypto.randomUUID(),
+      type: queryMode,
+      query: queryText,
+      db: selectedDb,
+      collection: selectedCollection,
+      timestamp: Date.now(),
+    });
 
     set({ loading: true, skip: 0, error: null, sort: null });
 
@@ -275,6 +293,40 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({ savedConnections: connections });
   },
 
+  addToHistory: (entry: QueryHistoryEntry) => {
+    const { queryHistory } = get();
+    const top = queryHistory[0];
+    if (
+      top &&
+      top.query === entry.query &&
+      top.db === entry.db &&
+      top.collection === entry.collection &&
+      top.type === entry.type
+    ) {
+      return;
+    }
+    const updated = [entry, ...queryHistory].slice(0, 50);
+    set({ queryHistory: updated });
+    window.api.saveHistory(updated);
+  },
+
+  switchCollection: async (db: string, collection: string) => {
+    set({ selectedDb: db, selectedCollection: collection, fieldNames: [] });
+    const fieldsResult = await window.api.sampleFields(db, collection);
+    set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });
+  },
+
+  restoreFromHistory: async (entry: QueryHistoryEntry) => {
+    const { selectedDb, selectedCollection } = get();
+    if (entry.db !== selectedDb || entry.collection !== selectedCollection) {
+      await get().switchCollection(entry.db, entry.collection);
+    }
+    set({
+      pendingFilterText: entry.query,
+      pendingQueryMode: entry.type,
+    });
+  },
+
   addFilterValue: (column: string, value: unknown) => {
     const { filter } = get();
     const newFilter = { ...filter };
@@ -309,12 +361,13 @@ export const useStore = create<StoreState>()((set, get) => ({
       filter: newFilter,
       skip: 0,
       pendingFilterText: JSON.stringify(newFilter, null, 2),
+      pendingQueryMode: 'filter',
     });
     get().fetchPage(0);
   },
 
   clearPendingFilterText: () => {
-    set({ pendingFilterText: null });
+    set({ pendingFilterText: null, pendingQueryMode: null });
   },
 
   autoReconnect: async () => {

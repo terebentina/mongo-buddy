@@ -3,6 +3,7 @@ import { ipcMain } from 'electron';
 import { registerIpcHandlers } from './ipc-handlers';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
+import { QueryHistoryStore } from './query-history-store';
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -12,6 +13,7 @@ vi.mock('electron', () => ({
 
 vi.mock('./mongo-service');
 vi.mock('./connection-store');
+vi.mock('./query-history-store');
 
 describe('IPC Handlers', () => {
   let mockService: {
@@ -32,6 +34,11 @@ describe('IPC Handlers', () => {
     remove: ReturnType<typeof vi.fn>;
     getLastUsed: ReturnType<typeof vi.fn>;
     setLastUsed: ReturnType<typeof vi.fn>;
+  };
+  let mockHistoryStore: {
+    getAll: ReturnType<typeof vi.fn>;
+    save: ReturnType<typeof vi.fn>;
+    clear: ReturnType<typeof vi.fn>;
   };
   let handlers: Record<string, (...args: unknown[]) => unknown>;
 
@@ -57,12 +64,22 @@ describe('IPC Handlers', () => {
       setLastUsed: vi.fn(),
     };
 
+    mockHistoryStore = {
+      getAll: vi.fn(),
+      save: vi.fn(),
+      clear: vi.fn(),
+    };
+
     handlers = {};
     vi.mocked(ipcMain.handle).mockImplementation(((channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers[channel] = handler;
     }) as typeof ipcMain.handle);
 
-    registerIpcHandlers(mockService as unknown as MongoService, mockConnStore as unknown as ConnectionStore);
+    registerIpcHandlers(
+      mockService as unknown as MongoService,
+      mockConnStore as unknown as ConnectionStore,
+      mockHistoryStore as unknown as QueryHistoryStore,
+    );
   });
 
   afterEach(() => {
@@ -85,6 +102,9 @@ describe('IPC Handlers', () => {
     expect(handlers['connections:delete']).toBeDefined();
     expect(handlers['connections:get-last-used']).toBeDefined();
     expect(handlers['connections:set-last-used']).toBeDefined();
+    expect(handlers['history:load']).toBeDefined();
+    expect(handlers['history:save']).toBeDefined();
+    expect(handlers['history:clear']).toBeDefined();
   });
 
   describe('mongo:connect', () => {
@@ -245,6 +265,30 @@ describe('IPC Handlers', () => {
     it('stores last used URI', () => {
       handlers['connections:set-last-used']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
       expect(mockConnStore.setLastUsed).toHaveBeenCalledWith('mongodb://localhost:27017');
+    });
+  });
+
+  describe('history:load', () => {
+    it('returns entries from QueryHistoryStore', () => {
+      const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
+      mockHistoryStore.getAll.mockReturnValue(entries);
+      const result = handlers['history:load']({} as Electron.IpcMainInvokeEvent);
+      expect(result).toEqual(entries);
+    });
+  });
+
+  describe('history:save', () => {
+    it('saves entries to QueryHistoryStore', () => {
+      const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
+      handlers['history:save']({} as Electron.IpcMainInvokeEvent, entries);
+      expect(mockHistoryStore.save).toHaveBeenCalledWith(entries);
+    });
+  });
+
+  describe('history:clear', () => {
+    it('clears QueryHistoryStore', () => {
+      handlers['history:clear']({} as Electron.IpcMainInvokeEvent);
+      expect(mockHistoryStore.clear).toHaveBeenCalled();
     });
   });
 });
