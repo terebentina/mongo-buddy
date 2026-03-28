@@ -69,15 +69,17 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps): 
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((db) => (
               <Collapsible key={db.name} open={selectedDb === db.name}>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-sm font-medium"
-                    onClick={() => selectDb(db.name)}
-                  >
-                    {db.name}
-                  </Button>
-                </CollapsibleTrigger>
+                <CollapsibleTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-sm font-medium"
+                      onClick={() => selectDb(db.name)}
+                    >
+                      {db.name}
+                    </Button>
+                  }
+                />
                 <CollapsibleContent>
                   <div className="ml-3 space-y-0.5">
                     {collections.length === 0 && loading && <Loader className="py-2" />}
