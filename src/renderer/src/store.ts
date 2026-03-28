@@ -32,8 +32,8 @@ interface StoreState {
   setSort: (field: string) => void;
   setLimit: (newLimit: number) => void;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
-  updateDoc: (id: string, doc: Record<string, unknown>) => Promise<string | null>;
-  deleteDoc: (id: string) => Promise<string | null>;
+  updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
+  deleteDoc: (id: unknown) => Promise<string | null>;
   refreshDocs: () => Promise<void>;
   loadSavedConnections: () => Promise<void>;
   saveConnection: (name: string, uri: string) => Promise<void>;
@@ -226,7 +226,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     return null;
   },
 
-  updateDoc: async (id: string, doc: Record<string, unknown>) => {
+  updateDoc: async (id: unknown, doc: Record<string, unknown>) => {
     const { selectedDb, selectedCollection } = get();
     if (!selectedDb || !selectedCollection) return 'No collection selected';
     const result = await window.api.updateOne(selectedDb, selectedCollection, id, doc);
@@ -235,7 +235,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     return null;
   },
 
-  deleteDoc: async (id: string) => {
+  deleteDoc: async (id: unknown) => {
     const { selectedDb, selectedCollection } = get();
     if (!selectedDb || !selectedCollection) return 'No collection selected';
     const result = await window.api.deleteOne(selectedDb, selectedCollection, id);
