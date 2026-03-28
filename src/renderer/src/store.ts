@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import JSON5 from 'json5';
 import type { DbInfo, CollectionInfo, SavedConnection } from '../../shared/types';
 
 interface StoreState {
@@ -160,9 +161,9 @@ export const useStore = create<StoreState>()((set, get) => ({
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(queryText);
-    } catch {
-      return 'Invalid JSON';
+      parsed = JSON5.parse(queryText);
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Invalid JSON';
     }
 
     set({ loading: true, skip: 0, error: null, sort: null });
