@@ -38,6 +38,8 @@ beforeEach(() => {
     loading: false,
     savedConnections: [],
     queryMode: 'filter' as const,
+    queryHistory: [],
+    pendingQueryMode: null,
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });

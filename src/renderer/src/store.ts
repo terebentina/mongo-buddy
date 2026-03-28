@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import JSON5 from 'json5';
-import type { DbInfo, CollectionInfo, SavedConnection } from '../../shared/types';
+import type { DbInfo, CollectionInfo, SavedConnection, QueryHistoryEntry } from '../../shared/types';
 
 interface StoreState {
   connected: boolean;
@@ -21,6 +21,8 @@ interface StoreState {
   fieldNames: string[];
   sort: Record<string, 1 | -1> | null;
   pendingFilterText: string | null;
+  queryHistory: QueryHistoryEntry[];
+  pendingQueryMode: 'filter' | 'aggregate' | null;
 
   connect: (uri: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -62,6 +64,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   fieldNames: [],
   sort: null,
   pendingFilterText: null,
+  queryHistory: [],
+  pendingQueryMode: null,
 
   connect: async (uri: string) => {
     if (get().connected) {
@@ -314,7 +318,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   clearPendingFilterText: () => {
-    set({ pendingFilterText: null });
+    set({ pendingFilterText: null, pendingQueryMode: null });
   },
 
   autoReconnect: async () => {
