@@ -145,6 +145,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       totalCount: result.data.totalCount,
       fieldNames: fieldsResult.ok ? fieldsResult.data : [],
     });
+    get().addToHistory({
+      id: crypto.randomUUID(),
+      type: 'filter',
+      query: '{}',
+      db,
+      collection,
+      timestamp: Date.now(),
+    });
   },
 
   fetchPage: async (skip: number) => {
@@ -364,6 +372,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       pendingQueryMode: 'filter',
     });
     get().fetchPage(0);
+    get().addToHistory({
+      id: crypto.randomUUID(),
+      type: 'filter',
+      query: JSON.stringify(newFilter, null, 2),
+      db: get().selectedDb!,
+      collection: get().selectedCollection!,
+      timestamp: Date.now(),
+    });
   },
 
   clearPendingFilterText: () => {

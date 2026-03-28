@@ -12,6 +12,7 @@ const mockApi = {
   find: vi.fn(),
   count: vi.fn(),
   sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  saveHistory: vi.fn(),
 };
 
 beforeEach(() => {
