@@ -40,6 +40,8 @@ interface StoreState {
   loadSavedConnections: () => Promise<void>;
   saveConnection: (name: string, uri: string) => Promise<void>;
   deleteConnection: (name: string) => Promise<void>;
+  addToHistory: (entry: QueryHistoryEntry) => void;
+  switchCollection: (db: string, collection: string) => Promise<void>;
   addFilterValue: (column: string, value: unknown) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
@@ -171,6 +173,15 @@ export const useStore = create<StoreState>()((set, get) => ({
       return e instanceof Error ? e.message : 'Invalid JSON';
     }
 
+    get().addToHistory({
+      id: crypto.randomUUID(),
+      type: queryMode,
+      query: queryText,
+      db: selectedDb,
+      collection: selectedCollection,
+      timestamp: Date.now(),
+    });
+
     set({ loading: true, skip: 0, error: null, sort: null });
 
     if (queryMode === 'aggregate') {
@@ -278,6 +289,27 @@ export const useStore = create<StoreState>()((set, get) => ({
     await window.api.deleteConnection(name);
     const connections = await window.api.listConnections();
     set({ savedConnections: connections });
+  },
+
+  addToHistory: (entry: QueryHistoryEntry) => {
+    const { queryHistory } = get();
+    const top = queryHistory[0];
+    if (
+      top &&
+      top.query === entry.query &&
+      top.db === entry.db &&
+      top.collection === entry.collection &&
+      top.type === entry.type
+    ) {
+      return;
+    }
+    set({ queryHistory: [entry, ...queryHistory].slice(0, 50) });
+  },
+
+  switchCollection: async (db: string, collection: string) => {
+    set({ selectedDb: db, selectedCollection: collection, fieldNames: [] });
+    const fieldsResult = await window.api.sampleFields(db, collection);
+    set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });
   },
 
   addFilterValue: (column: string, value: unknown) => {

@@ -38,6 +38,8 @@ beforeEach(() => {
     loading: false,
     savedConnections: [],
     queryMode: 'filter' as const,
+    fieldNames: [],
+    pendingFilterText: null,
     queryHistory: [],
     pendingQueryMode: null,
   });
@@ -259,6 +261,27 @@ describe('store', () => {
     expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', [{ $group: { _id: null, total: { $sum: 1 } } }]);
   });
 
+  it('runQuery() adds entry to queryHistory after successful parse', async () => {
+    useStore.setState({
+      connected: true,
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+    });
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [], totalCount: 0 },
+    });
+
+    await useStore.getState().runQuery('{"name":"Alice"}');
+
+    const state = useStore.getState();
+    expect(state.queryHistory).toHaveLength(1);
+    expect(state.queryHistory[0].type).toBe('filter');
+    expect(state.queryHistory[0].query).toBe('{"name":"Alice"}');
+    expect(state.queryHistory[0].db).toBe('testdb');
+    expect(state.queryHistory[0].collection).toBe('users');
+  });
+
   it('runQuery() returns error string for invalid JSON', async () => {
     useStore.setState({
       connected: true,
@@ -353,5 +376,74 @@ describe('store', () => {
     expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', '1');
     expect(useStore.getState().docs).toEqual([]);
     expect(useStore.getState().totalCount).toBe(0);
+  });
+});
+
+describe('addToHistory', () => {
+  const makeEntry = (overrides = {}) => ({
+    id: 'test-id',
+    type: 'filter' as const,
+    query: '{"name":"Alice"}',
+    db: 'testdb',
+    collection: 'users',
+    timestamp: 1000,
+    ...overrides,
+  });
+
+  it('prepends entry to queryHistory', () => {
+    useStore.getState().addToHistory(makeEntry({ id: '1' }));
+    useStore.getState().addToHistory(makeEntry({ id: '2', query: '{"age":30}' }));
+
+    const history = useStore.getState().queryHistory;
+    expect(history).toHaveLength(2);
+    expect(history[0].id).toBe('2');
+    expect(history[1].id).toBe('1');
+  });
+
+  it('deduplicates when top entry has same query+db+collection+type', () => {
+    useStore.getState().addToHistory(makeEntry({ id: '1' }));
+    useStore.getState().addToHistory(makeEntry({ id: '2' }));
+
+    const history = useStore.getState().queryHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0].id).toBe('1');
+  });
+
+  it('caps queryHistory at 50 entries', () => {
+    for (let i = 0; i < 55; i++) {
+      useStore.getState().addToHistory(makeEntry({ id: `id-${i}`, query: `{"i":${i}}` }));
+    }
+
+    expect(useStore.getState().queryHistory).toHaveLength(50);
+  });
+});
+
+describe('switchCollection', () => {
+  it('sets selectedDb and selectedCollection and fetches fields', async () => {
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
+
+    await useStore.getState().switchCollection('testdb', 'users');
+
+    const state = useStore.getState();
+    expect(state.selectedDb).toBe('testdb');
+    expect(state.selectedCollection).toBe('users');
+    expect(state.fieldNames).toEqual(['_id', 'name']);
+    expect(mockApi.sampleFields).toHaveBeenCalledWith('testdb', 'users');
+  });
+
+  it('does NOT call find', async () => {
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+
+    await useStore.getState().switchCollection('testdb', 'users');
+
+    expect(mockApi.find).not.toHaveBeenCalled();
+  });
+
+  it('does NOT set pendingFilterText', async () => {
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+
+    await useStore.getState().switchCollection('testdb', 'users');
+
+    expect(useStore.getState().pendingFilterText).toBeNull();
   });
 });
