@@ -42,6 +42,7 @@ interface StoreState {
   deleteConnection: (name: string) => Promise<void>;
   addToHistory: (entry: QueryHistoryEntry) => void;
   switchCollection: (db: string, collection: string) => Promise<void>;
+  restoreFromHistory: (entry: QueryHistoryEntry) => Promise<void>;
   addFilterValue: (column: string, value: unknown) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
@@ -310,6 +311,17 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({ selectedDb: db, selectedCollection: collection, fieldNames: [] });
     const fieldsResult = await window.api.sampleFields(db, collection);
     set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });
+  },
+
+  restoreFromHistory: async (entry: QueryHistoryEntry) => {
+    const { selectedDb, selectedCollection } = get();
+    if (entry.db !== selectedDb || entry.collection !== selectedCollection) {
+      await get().switchCollection(entry.db, entry.collection);
+    }
+    set({
+      pendingFilterText: entry.query,
+      pendingQueryMode: entry.type,
+    });
   },
 
   addFilterValue: (column: string, value: unknown) => {
