@@ -5,6 +5,7 @@ import { Sidebar } from './components/Sidebar';
 import { DocumentTable } from './components/DocumentTable';
 import { QueryEditor } from './components/QueryEditor';
 import { DocumentEditor } from './components/DocumentEditor';
+import { QueryHistory } from './components/QueryHistory';
 import { Toaster } from './components/ui/sonner';
 
 function App(): JSX.Element {
@@ -53,6 +54,7 @@ function App(): JSX.Element {
           <>
             <div className="flex items-center gap-2 px-4 py-2 border-b">
               <DocumentEditor />
+              <QueryHistory />
             </div>
             <QueryEditor />
             <DocumentTable className="flex-1 min-h-0" onRowClick={(doc) => setEditDoc(doc)} />
