@@ -46,6 +46,7 @@ export function QueryEditor(): JSX.Element {
   const loading = useStore((s) => s.loading);
   const fieldNames = useStore((s) => s.fieldNames);
   const pendingFilterText = useStore((s) => s.pendingFilterText);
+  const pendingQueryMode = useStore((s) => s.pendingQueryMode);
   const clearPendingFilterText = useStore((s) => s.clearPendingFilterText);
 
   const getEditorText = useCallback((): string => {
@@ -99,17 +100,17 @@ export function QueryEditor(): JSX.Element {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Apply pending filter text from store (e.g. filter-by-cell)
+  // Apply pending filter text from store (e.g. filter-by-cell, history restore)
   useEffect(() => {
     if (pendingFilterText === null || !viewRef.current) return;
-    if (queryMode === 'aggregate') {
-      setQueryMode('filter');
+    if (pendingQueryMode !== null) {
+      setQueryMode(pendingQueryMode);
     }
     viewRef.current.dispatch({
       changes: { from: 0, to: viewRef.current.state.doc.length, insert: pendingFilterText },
     });
     clearPendingFilterText();
-  }, [pendingFilterText, clearPendingFilterText, queryMode, setQueryMode]);
+  }, [pendingFilterText, pendingQueryMode, clearPendingFilterText, setQueryMode]);
 
   // Update autocomplete when fieldNames change
   useEffect(() => {

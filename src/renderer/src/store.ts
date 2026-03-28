@@ -125,6 +125,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       sort: null,
       filter: {},
       pendingFilterText: '{}',
+      pendingQueryMode: 'filter',
     });
     const [result, fieldsResult] = await Promise.all([
       window.api.find(db, collection, { filter: {}, skip: 0, limit }),
@@ -313,6 +314,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       filter: newFilter,
       skip: 0,
       pendingFilterText: JSON.stringify(newFilter, null, 2),
+      pendingQueryMode: 'filter',
     });
     get().fetchPage(0);
   },
