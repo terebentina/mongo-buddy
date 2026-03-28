@@ -1,0 +1,94 @@
+# Ralph Progress Log
+Started: Sun Mar 29 00:34:28 EET 2026
+## Codebase Patterns
+- Use `pnpm` not `npm` for all package operations
+- Pre-existing lint errors (4 errors, 1 warning) exist in ConnectionDialog.tsx and button.tsx — don't try to fix these as part of migration
+- Use `useRender` from `@base-ui/react/use-render` for render prop pattern — handles ref merging and prop merging correctly
+- Import path pattern: `@base-ui/react/<feature-name>` (e.g., `@base-ui/react/use-render`, `@base-ui/react/collapsible`, `@base-ui/react/dialog`)
+- Base UI `render` prop pattern: `<Trigger render={<CustomElement>children</CustomElement>} />` — children go inside the render element
+- Base UI animation data attrs: `data-[open]` and `data-[closed]` (not `data-[state=open]`/`data-[state=closed]`)
+- When Radix props (e.g., `onInteractOutside`) don't exist in Base UI, destructure & discard them in the wrapper component
+- Base UI Popover requires `Positioner` wrapper between Portal and Popup (unlike Radix which puts positioning on Content directly)
+- Base UI Popover.Positioner uses `align` prop (not `alignment`) for positioning: `'start' | 'center' | 'end'`
+- Base UI Popover has no `Anchor` subcomponent — remove PopoverAnchor export if unused
+- Search ALL consumers of a component when migrating (not just those listed in PRD notes) — e.g., QueryHistory.tsx also used PopoverTrigger asChild
+
+---
+
+## 2026-03-29 - US-001
+- Installed @base-ui/react@1.3.0
+- Files changed: package.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - shadcn was removed as a devDependency during install (pnpm resolved it away) — this is expected
+  - 8 packages added, 200 removed (radix peer deps pruned)
+  - Typecheck passes clean, lint has 5 pre-existing issues unrelated to migration
+---
+
+## 2026-03-29 - US-002
+- Rewrote button.tsx: removed @radix-ui/react-slot, replaced asChild prop with render prop using `useRender` from @base-ui/react
+- Files changed: src/renderer/src/components/ui/button.tsx
+- **Learnings for future iterations:**
+  - `useRender` returns a ReactElement directly (not an object with methods)
+  - Pass `defaultTagName: 'button'` to useRender when the default element should be a button
+  - `React.cloneElement` with ref triggers `react-hooks/refs` lint error — use `useRender` instead
+  - No consumers currently use asChild on Button, so migration was non-breaking
+---
+
+## 2026-03-29 - US-003
+- Rewrote collapsible.tsx: replaced @radix-ui/react-collapsible with @base-ui/react/collapsible
+- Updated Sidebar.tsx: replaced `asChild` with `render` prop on CollapsibleTrigger
+- Files changed: src/renderer/src/components/ui/collapsible.tsx, src/renderer/src/components/Sidebar.tsx
+- **Learnings for future iterations:**
+  - Base UI Collapsible API: `Collapsible.Root`, `Collapsible.Trigger`, `Collapsible.Panel` (Panel replaces Content)
+  - Import path: `@base-ui/react/collapsible` (named export `Collapsible`)
+  - `render` prop accepts a ReactElement directly: `<CollapsibleTrigger render={<Button>...</Button>} />`
+  - Trigger children go inside the render element, not as children of Trigger
+  - Pre-existing typecheck errors (QueryHistory, store.ts) and lint errors (ConnectionDialog, button.tsx, ipc-handlers, preload) are unrelated to migration
+---
+
+## 2026-03-29 - US-004
+- Rewrote dialog.tsx: replaced @radix-ui/react-dialog with @base-ui/react/dialog
+- Files changed: src/renderer/src/components/ui/dialog.tsx
+- **Learnings for future iterations:**
+  - Base UI Dialog API: `Dialog.Root`, `Dialog.Trigger`, `Dialog.Portal`, `Dialog.Backdrop` (replaces Overlay), `Dialog.Popup` (replaces Content), `Dialog.Title`, `Dialog.Description`, `Dialog.Close`
+  - Base UI Dialog also has `Dialog.Viewport` wrapper but it's optional for basic usage
+  - Animation data attributes: `data-[state=open]` → `data-[open]`, `data-[state=closed]` → `data-[closed]`
+  - Base UI Dialog.Popup does NOT support `onInteractOutside`/`onEscapeKeyDown` — these Radix-specific props must be destructured and discarded; dismissal is controlled via Root's `onOpenChange`
+  - ConnectionDialog's dismiss-prevention already works via its `onOpenChange` handler, so discarding those props is safe
+---
+
+## 2026-03-29 - US-005
+- Rewrote popover.tsx: replaced @radix-ui/react-popover with @base-ui/react/popover
+- Updated DocumentTable.tsx: replaced `asChild` with `render` prop on PopoverTrigger
+- Updated QueryHistory.tsx: also used `asChild` on PopoverTrigger, migrated to `render` prop
+- Removed PopoverAnchor export (unused, no Base UI equivalent)
+- Files changed: src/renderer/src/components/ui/popover.tsx, src/renderer/src/components/DocumentTable.tsx, src/renderer/src/components/QueryHistory.tsx
+- **Learnings for future iterations:**
+  - Base UI ScrollArea API: `ScrollArea.Root`, `ScrollArea.Viewport`, `ScrollArea.Scrollbar`, `ScrollArea.Thumb`, `ScrollArea.Corner` — nearly 1:1 with Radix
+- Base UI Popover API: `Popover.Root`, `Popover.Trigger`, `Popover.Portal`, `Popover.Positioner`, `Popover.Popup`
+  - `Positioner` is required between Portal and Popup — it handles `sideOffset` and `align` props
+  - The `align` prop replaces Radix's `align` on Content (same name, different component)
+  - No `Popover.Anchor` exists in Base UI — dropped the export since it was unused
+  - QueryHistory.tsx was an unlisted consumer of PopoverTrigger asChild — always grep for all usages
+---
+
+## 2026-03-29 - US-006
+- Rewrote scroll-area.tsx: replaced @radix-ui/react-scroll-area with @base-ui/react/scroll-area
+- Files changed: src/renderer/src/components/ui/scroll-area.tsx
+- **Learnings for future iterations:**
+  - Base UI ScrollArea is nearly 1:1 with Radix — Root, Viewport, Scrollbar, Thumb, Corner all map directly
+  - Import: `{ ScrollArea as BaseScrollArea } from '@base-ui/react/scroll-area'`
+  - Radix `ScrollAreaPrimitive.ScrollAreaScrollbar` → Base UI `BaseScrollArea.Scrollbar` (shorter name)
+  - Radix `ScrollAreaPrimitive.ScrollAreaThumb` → Base UI `BaseScrollArea.Thumb`
+  - No consumer changes needed — only QueryHistory.tsx and Sidebar.tsx use ScrollArea, and their API is unchanged
+---
+
+## 2026-03-29 - US-007
+- Removed all @radix-ui packages: react-collapsible, react-dialog, react-popover, react-scroll-area, react-slot
+- 37 packages removed from node_modules (radix + peer deps)
+- Files changed: package.json, pnpm-lock.yaml
+- **Learnings for future iterations:**
+  - All @radix-ui imports were already cleaned up in US-002 through US-006, so removal was clean with no code changes needed
+  - Build, typecheck, and lint all pass (only pre-existing errors remain)
+  - pnpm remove handles transitive dependency cleanup automatically — 37 packages pruned
+---
