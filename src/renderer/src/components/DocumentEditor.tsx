@@ -17,12 +17,12 @@ interface DocumentEditorProps {
   onClose?: () => void;
 }
 
-function extractId(doc: Record<string, unknown>): string | null {
+function extractIdDisplay(doc: Record<string, unknown>): string | null {
   const id = doc._id;
   if (!id) return null;
   if (typeof id === 'string') return id;
   if (typeof id === 'object' && id !== null && '$oid' in id) return (id as { $oid: string }).$oid;
-  return String(id);
+  return JSON.stringify(id);
 }
 
 function isDarkMode(): boolean {
@@ -108,7 +108,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
     }
 
     if (isEditing) {
-      const id = extractId(editDoc!);
+      const id = editDoc!._id;
       if (!id) return;
       const error = await updateDoc(id, parsed);
       if (error) {
@@ -130,7 +130,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
       setConfirming(true);
       return;
     }
-    const id = extractId(editDoc!);
+    const id = editDoc!._id;
     if (!id) return;
     const error = await deleteDoc(id);
     if (error) {
@@ -164,11 +164,11 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
           </DialogHeader>
           {isEditing && editDoc && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
-              <span>_id: {extractId(editDoc)}</span>
+              <span>_id: {extractIdDisplay(editDoc)}</span>
               <button
                 className="hover:text-foreground"
                 onClick={() => {
-                  navigator.clipboard.writeText(extractId(editDoc) ?? '');
+                  navigator.clipboard.writeText(extractIdDisplay(editDoc) ?? '');
                   toast.success('Copied to clipboard');
                 }}
               >
