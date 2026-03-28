@@ -248,10 +248,7 @@ describe('MongoService', () => {
         expect(result.data._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
         expect(result.data.name).toBe('Bob');
       }
-      expect(mockCollection.replaceOne).toHaveBeenCalledWith(
-        { _id: oid },
-        { name: 'Bob' }
-      );
+      expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: oid }, { name: 'Bob' });
     });
 
     it('with string id queries with string, not ObjectId', async () => {
@@ -265,10 +262,7 @@ describe('MongoService', () => {
       if (result.ok) {
         expect(result.data.name).toBe('Bob');
       }
-      expect(mockCollection.replaceOne).toHaveBeenCalledWith(
-        { _id: 'my-string-id' },
-        { name: 'Bob' }
-      );
+      expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: 'my-string-id' }, { name: 'Bob' });
     });
 
     it('returns error when not connected', async () => {
