@@ -185,11 +185,14 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                           </button>
                         )}
                         <Popover>
-                          <PopoverTrigger asChild>
-                            <button className="p-0.5 rounded hover:bg-muted" onClick={(e) => e.stopPropagation()}>
-                              <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                          </PopoverTrigger>
+                          <PopoverTrigger
+                            render={
+                              <button className="p-0.5 rounded hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+                                <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+                              </button>
+                            }
+                          />
+
                           <PopoverContent className="w-80 max-h-64 overflow-auto">
                             <pre className="text-xs whitespace-pre-wrap break-words">
                               {typeof cellValue === 'object' && cellValue !== null
