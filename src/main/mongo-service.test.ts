@@ -241,14 +241,28 @@ describe('MongoService', () => {
       mockCollection.findOne.mockResolvedValue({ _id: oid, name: 'Bob' });
 
       await service.connect('mongodb://localhost:27017');
-      const result = await service.updateOne('testdb', 'users', '507f1f77bcf86cd799439011', { name: 'Bob' });
+      const result = await service.updateOne('testdb', 'users', { $oid: '507f1f77bcf86cd799439011' }, { name: 'Bob' });
 
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.data._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
         expect(result.data.name).toBe('Bob');
       }
-      expect(mockCollection.replaceOne).toHaveBeenCalled();
+      expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: oid }, { name: 'Bob' });
+    });
+
+    it('with string id queries with string, not ObjectId', async () => {
+      mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
+      mockCollection.findOne.mockResolvedValue({ _id: 'my-string-id', name: 'Bob' });
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.updateOne('testdb', 'users', 'my-string-id', { name: 'Bob' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.name).toBe('Bob');
+      }
+      expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: 'my-string-id' }, { name: 'Bob' });
     });
 
     it('returns error when not connected', async () => {
@@ -258,14 +272,25 @@ describe('MongoService', () => {
   });
 
   describe('deleteOne', () => {
-    it('deletes document by id', async () => {
+    it('deletes document by ObjectId', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
       await service.connect('mongodb://localhost:27017');
-      const result = await service.deleteOne('testdb', 'users', '507f1f77bcf86cd799439011');
+      const result = await service.deleteOne('testdb', 'users', { $oid: '507f1f77bcf86cd799439011' });
 
       expect(result).toEqual({ ok: true, data: undefined });
-      expect(mockCollection.deleteOne).toHaveBeenCalled();
+      expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: oid });
+    });
+
+    it('with string id queries with string, not ObjectId', async () => {
+      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.deleteOne('testdb', 'users', 'my-string-id');
+
+      expect(result).toEqual({ ok: true, data: undefined });
+      expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: 'my-string-id' });
     });
 
     it('returns error when not connected', async () => {

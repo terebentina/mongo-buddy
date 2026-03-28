@@ -1,4 +1,4 @@
-import { MongoClient, ObjectId } from 'mongodb';
+import { MongoClient } from 'mongodb';
 import { EJSON } from 'bson';
 import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult } from '../shared/types';
 
@@ -131,7 +131,7 @@ export class MongoService {
   async updateOne(
     dbName: string,
     collName: string,
-    id: string,
+    id: unknown,
     doc: Record<string, unknown>
   ): Promise<Result<Record<string, unknown>>> {
     if (!this.client) return { ok: false, error: 'Not connected' };
@@ -139,8 +139,10 @@ export class MongoService {
       const collection = this.client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
       const { _id, ...updateFields } = deserialized;
-      await collection.replaceOne({ _id: new ObjectId(id) }, updateFields);
-      const updated = await collection.findOne({ _id: new ObjectId(id) });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filterid = (EJSON.deserialize({ _id: id }) as Record<string, unknown>)._id as any;
+      await collection.replaceOne({ _id: filterid }, updateFields);
+      const updated = await collection.findOne({ _id: filterid });
       return { ok: true, data: EJSON.serialize(updated) as Record<string, unknown> };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
@@ -165,11 +167,13 @@ export class MongoService {
     }
   }
 
-  async deleteOne(dbName: string, collName: string, id: string): Promise<Result<undefined>> {
+  async deleteOne(dbName: string, collName: string, id: unknown): Promise<Result<undefined>> {
     if (!this.client) return { ok: false, error: 'Not connected' };
     try {
       const collection = this.client.db(dbName).collection(collName);
-      await collection.deleteOne({ _id: new ObjectId(id) });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const filterid = (EJSON.deserialize({ _id: id }) as Record<string, unknown>)._id as any;
+      await collection.deleteOne({ _id: filterid });
       return { ok: true, data: undefined };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

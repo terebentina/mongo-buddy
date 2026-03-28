@@ -67,12 +67,12 @@ export function registerIpcHandlers(service: MongoService, connStore: Connection
   ipcMain.handle(
     'mongo:update-one',
     wrap((db: unknown, coll: unknown, id: unknown, doc: unknown) =>
-      service.updateOne(db as string, coll as string, id as string, doc as Record<string, unknown>)
+      service.updateOne(db as string, coll as string, id, doc as Record<string, unknown>)
     )
   );
   ipcMain.handle(
     'mongo:delete-one',
-    wrap((db: unknown, coll: unknown, id: unknown) => service.deleteOne(db as string, coll as string, id as string))
+    wrap((db: unknown, coll: unknown, id: unknown) => service.deleteOne(db as string, coll as string, id))
   );
 
   ipcMain.handle(

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { EditorView, keymap, placeholder } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
-import { json } from '@codemirror/lang-json';
+import { javascript } from '@codemirror/lang-javascript';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { useStore } from '../store';
@@ -79,8 +79,8 @@ export function QueryEditor(): JSX.Element {
     const state = EditorState.create({
       doc: queryMode === 'filter' ? '{}' : '[]',
       extensions: [
-        json(),
-        oneDark,
+        javascript(),
+        ...(document.documentElement.classList.contains('dark') ? [oneDark] : []),
         runKeymap,
         placeholder('Enter query...'),
         autocompleteConf.of(fieldCompletion(fieldNames)),

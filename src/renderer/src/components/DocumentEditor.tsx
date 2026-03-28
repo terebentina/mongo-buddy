@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { Copy, Maximize2, Minimize2 } from 'lucide-react';
 import { EditorView, keymap } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { json } from '@codemirror/lang-json';
+import { javascript } from '@codemirror/lang-javascript';
+import JSON5 from 'json5';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { defaultKeymap, historyKeymap, history } from '@codemirror/commands';
@@ -16,17 +17,26 @@ interface DocumentEditorProps {
   onClose?: () => void;
 }
 
-function extractId(doc: Record<string, unknown>): string | null {
+function extractIdDisplay(doc: Record<string, unknown>): string | null {
   const id = doc._id;
   if (!id) return null;
   if (typeof id === 'string') return id;
   if (typeof id === 'object' && id !== null && '$oid' in id) return (id as { $oid: string }).$oid;
-  return String(id);
+  return JSON.stringify(id);
+}
+
+function isDarkMode(): boolean {
+  return document.documentElement.classList.contains('dark');
 }
 
 const editorTheme = EditorView.theme({
   '&': { height: '100%' },
   '.cm-scroller': { overflow: 'auto' },
+  '.cm-foldGutter .cm-gutterElement': {
+    fontSize: '1.2em',
+    lineHeight: '1.2',
+    padding: '0 2px',
+  },
 });
 
 export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.Element {
@@ -56,8 +66,8 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
         const state = EditorState.create({
           doc,
           extensions: [
-            json(),
-            oneDark,
+            javascript(),
+            ...(isDarkMode() ? [oneDark] : []),
             editorTheme,
             foldGutter(),
             history(),
@@ -91,14 +101,14 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
     const editorText = viewRef.current?.state.doc.toString() ?? '';
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(editorText);
-    } catch {
-      toast.error('Invalid JSON');
+      parsed = JSON5.parse(editorText);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Invalid JSON');
       return;
     }
 
     if (isEditing) {
-      const id = extractId(editDoc!);
+      const id = editDoc!._id;
       if (!id) return;
       const error = await updateDoc(id, parsed);
       if (error) {
@@ -120,7 +130,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
       setConfirming(true);
       return;
     }
-    const id = extractId(editDoc!);
+    const id = editDoc!._id;
     if (!id) return;
     const error = await deleteDoc(id);
     if (error) {
@@ -154,11 +164,11 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
           </DialogHeader>
           {isEditing && editDoc && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
-              <span>_id: {extractId(editDoc)}</span>
+              <span>_id: {extractIdDisplay(editDoc)}</span>
               <button
                 className="hover:text-foreground"
                 onClick={() => {
-                  navigator.clipboard.writeText(extractId(editDoc) ?? '');
+                  navigator.clipboard.writeText(extractIdDisplay(editDoc) ?? '');
                   toast.success('Copied to clipboard');
                 }}
               >
