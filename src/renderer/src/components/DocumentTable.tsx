@@ -7,6 +7,40 @@ import { Loader } from './Loader';
 import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter } from 'lucide-react';
 import { toast } from 'sonner';
 
+function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }): JSX.Element {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button className="p-0.5 rounded hover:bg-muted" onClick={(e) => e.stopPropagation()}>
+            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        }
+      />
+
+      <PopoverContent className="w-80 max-h-64 overflow-auto" onClick={(e) => e.stopPropagation()}>
+        <pre className="text-xs whitespace-pre-wrap break-words">
+          {typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue, null, 2) : raw}
+        </pre>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full"
+          onClick={() => {
+            navigator.clipboard.writeText(raw);
+            toast.success('Copied to clipboard');
+            setOpen(false);
+          }}
+        >
+          <Copy className="h-3.5 w-3.5 mr-1.5" />
+          Copy
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'object' && value !== null) {
@@ -184,35 +218,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                             <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
                           </button>
                         )}
-                        <Popover>
-                          <PopoverTrigger
-                            render={
-                              <button className="p-0.5 rounded hover:bg-muted" onClick={(e) => e.stopPropagation()}>
-                                <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                            }
-                          />
-
-                          <PopoverContent className="w-80 max-h-64 overflow-auto" onClick={(e) => e.stopPropagation()}>
-                            <pre className="text-xs whitespace-pre-wrap break-words">
-                              {typeof cellValue === 'object' && cellValue !== null
-                                ? JSON.stringify(cellValue, null, 2)
-                                : raw}
-                            </pre>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="mt-2 w-full"
-                              onClick={() => {
-                                navigator.clipboard.writeText(raw);
-                                toast.success('Copied to clipboard');
-                              }}
-                            >
-                              <Copy className="h-3.5 w-3.5 mr-1.5" />
-                              Copy
-                            </Button>
-                          </PopoverContent>
-                        </Popover>
+                        <ExpandPopover raw={raw} cellValue={cellValue} />
                       </div>
                     </TableCell>
                   );

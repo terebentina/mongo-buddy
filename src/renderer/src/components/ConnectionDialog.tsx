@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -48,20 +48,22 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
     onOpenChange(value);
   };
 
-  useEffect(() => {
-    if (open) {
-      setUri('');
-      setName('');
-      setEditing(false);
-      setShowCredentials(false);
-      setUsername('');
-      setPassword('');
-      setPendingUri('');
-      setPendingName('');
-      setAuthError(null);
-      loadSavedConnections();
-    }
-  }, [open, loadSavedConnections]);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open && !prevOpen) {
+    setPrevOpen(open);
+    setUri('');
+    setName('');
+    setEditing(false);
+    setShowCredentials(false);
+    setUsername('');
+    setPassword('');
+    setPendingUri('');
+    setPendingName('');
+    setAuthError(null);
+    loadSavedConnections();
+  } else if (open !== prevOpen) {
+    setPrevOpen(open);
+  }
 
   const handleConnect = async (connectUri: string, connectName?: string): Promise<void> => {
     await connect(connectUri);

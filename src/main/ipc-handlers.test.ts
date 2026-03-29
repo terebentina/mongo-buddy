@@ -47,7 +47,10 @@ vi.mock('zlib', () => ({
 
 vi.mock('./mongo-service');
 vi.mock('./connection-store');
-vi.mock('./query-history-store');
+vi.mock('./query-history-store', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./query-history-store')>();
+  return { ...actual, QueryHistoryStore: vi.fn() };
+});
 
 describe('IPC Handlers', () => {
   let mockService: {
@@ -306,27 +309,32 @@ describe('IPC Handlers', () => {
     });
   });
 
-  describe('history:load', () => {
-    it('returns entries from QueryHistoryStore', () => {
+  describe('history (per-connection)', () => {
+    const uri = 'mongodb://myhost:9999/testdb';
+    const key = 'myhost:9999';
+
+    beforeEach(async () => {
+      mockService.connect.mockResolvedValue({ ok: true, data: undefined });
+      await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, uri);
+    });
+
+    it('load returns entries for current connection key', () => {
       const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       mockHistoryStore.getAll.mockReturnValue(entries);
       const result = handlers['history:load']({} as Electron.IpcMainInvokeEvent);
+      expect(mockHistoryStore.getAll).toHaveBeenCalledWith(key);
       expect(result).toEqual(entries);
     });
-  });
 
-  describe('history:save', () => {
-    it('saves entries to QueryHistoryStore', () => {
+    it('save passes connection key to QueryHistoryStore', () => {
       const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       handlers['history:save']({} as Electron.IpcMainInvokeEvent, entries);
-      expect(mockHistoryStore.save).toHaveBeenCalledWith(entries);
+      expect(mockHistoryStore.save).toHaveBeenCalledWith(key, entries);
     });
-  });
 
-  describe('history:clear', () => {
-    it('clears QueryHistoryStore', () => {
+    it('clear passes connection key to QueryHistoryStore', () => {
       handlers['history:clear']({} as Electron.IpcMainInvokeEvent);
-      expect(mockHistoryStore.clear).toHaveBeenCalled();
+      expect(mockHistoryStore.clear).toHaveBeenCalledWith(key);
     });
   });
 
@@ -349,7 +357,10 @@ describe('IPC Handlers', () => {
         if (evt === 'finish') cb();
       });
       mockService.exportCollection.mockImplementation(
-        () => new Promise((resolve) => { resolveExport = resolve; })
+        () =>
+          new Promise((resolve) => {
+            resolveExport = resolve;
+          })
       );
 
       // Start first export (don't await — it blocks on exportCollection)
