@@ -1,5 +1,14 @@
 import { ElectronAPI } from '@electron-toolkit/preload';
-import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult, SavedConnection } from '../shared/types';
+import type {
+  Result,
+  DbInfo,
+  CollectionInfo,
+  FindOpts,
+  FindResult,
+  SavedConnection,
+  QueryHistoryEntry,
+  ExportProgress,
+} from '../shared/types';
 
 interface MongoApi {
   connect(uri: string): Promise<Result<undefined>>;
@@ -27,6 +36,12 @@ interface MongoApi {
   deleteConnection(name: string): Promise<void>;
   getLastUsed(): Promise<string | null>;
   setLastUsed(uri: string): Promise<void>;
+  loadHistory(): Promise<QueryHistoryEntry[]>;
+  saveHistory(entries: QueryHistoryEntry[]): Promise<void>;
+  clearHistory(): Promise<void>;
+  exportCollection(db: string, collection: string): Promise<Result<number | null>>;
+  cancelExport(db: string, collection: string): Promise<Result<undefined>>;
+  onExportProgress(cb: (data: ExportProgress) => void): () => void;
 }
 
 declare global {

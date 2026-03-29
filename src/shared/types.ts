@@ -29,6 +29,12 @@ export interface SavedConnection {
   uri: string;
 }
 
+export interface ExportProgress {
+  db: string;
+  collection: string;
+  count: number;
+}
+
 export interface QueryHistoryEntry {
   id: string;
   type: 'filter' | 'aggregate';
