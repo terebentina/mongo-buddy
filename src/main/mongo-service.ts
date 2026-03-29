@@ -1,5 +1,6 @@
 import { MongoClient } from 'mongodb';
-import { EJSON } from 'bson';
+import { BSON, EJSON } from 'bson';
+import type { Writable } from 'stream';
 import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult } from '../shared/types';
 
 export class MongoService {
@@ -162,6 +163,47 @@ export class MongoService {
       }
       const fields = Array.from(keySet).sort();
       return { ok: true, data: fields };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async exportCollection(
+    dbName: string,
+    collName: string,
+    output: Writable,
+    onProgress: (count: number) => void,
+    signal: AbortSignal
+  ): Promise<Result<number>> {
+    if (!this.client) return { ok: false, error: 'Not connected' };
+    try {
+      const collection = this.client.db(dbName).collection(collName);
+      const cursor = collection.find({});
+      let count = 0;
+      let lastProgressTime = 0;
+
+      for await (const doc of cursor) {
+        if (signal.aborted) {
+          await cursor.close();
+          return { ok: false, error: 'Export cancelled' };
+        }
+
+        const buffer = BSON.serialize(doc);
+        const canContinue = output.write(buffer);
+        if (!canContinue) {
+          await new Promise<void>((resolve) => output.once('drain', resolve));
+        }
+
+        count++;
+        const now = Date.now();
+        if (now - lastProgressTime >= 200) {
+          lastProgressTime = now;
+          onProgress(count);
+        }
+      }
+
+      onProgress(count);
+      return { ok: true, data: count };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
