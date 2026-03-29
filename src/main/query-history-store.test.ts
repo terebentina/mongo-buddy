@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryHistoryStore } from './query-history-store';
+import { QueryHistoryStore, connectionKeyFromUri } from './query-history-store';
 
 vi.mock('electron-store', () => {
   return {
@@ -18,8 +18,27 @@ vi.mock('electron-store', () => {
   };
 });
 
+describe('connectionKeyFromUri', () => {
+  it('extracts host:port from standard URI', () => {
+    expect(connectionKeyFromUri('mongodb://localhost:27017')).toBe('localhost:27017');
+  });
+
+  it('extracts host:port stripping credentials', () => {
+    expect(connectionKeyFromUri('mongodb://user:pass@myhost:9999/mydb')).toBe('myhost:9999');
+  });
+
+  it('handles SRV URIs', () => {
+    expect(connectionKeyFromUri('mongodb+srv://cluster0.example.net')).toBe('cluster0.example.net');
+  });
+
+  it('falls back to localhost:27017 for invalid URIs', () => {
+    expect(connectionKeyFromUri('not-a-uri')).toBe('localhost:27017');
+  });
+});
+
 describe('QueryHistoryStore', () => {
   let store: QueryHistoryStore;
+  const key = 'localhost:27017';
 
   const entry = {
     id: '1',
@@ -36,18 +55,28 @@ describe('QueryHistoryStore', () => {
   });
 
   it('getAll returns empty array when nothing saved', () => {
-    expect(store.getAll()).toEqual([]);
+    expect(store.getAll(key)).toEqual([]);
   });
 
   it('save + getAll roundtrip returns same entries', () => {
     const entries = [entry, { ...entry, id: '2', query: '{ age: 30 }' }];
-    store.save(entries);
-    expect(store.getAll()).toEqual(entries);
+    store.save(key, entries);
+    expect(store.getAll(key)).toEqual(entries);
   });
 
   it('clear then getAll returns empty array', () => {
-    store.save([entry]);
-    store.clear();
-    expect(store.getAll()).toEqual([]);
+    store.save(key, [entry]);
+    store.clear(key);
+    expect(store.getAll(key)).toEqual([]);
+  });
+
+  it('different keys have independent history', () => {
+    const otherKey = 'otherhost:27017';
+    store.save(key, [entry]);
+    store.save(otherKey, [{ ...entry, id: '2', query: '{ age: 30 }' }]);
+    expect(store.getAll(key)).toHaveLength(1);
+    expect(store.getAll(otherKey)).toHaveLength(1);
+    expect(store.getAll(key)[0].id).toBe('1');
+    expect(store.getAll(otherKey)[0].id).toBe('2');
   });
 });

@@ -4,7 +4,7 @@ import { unlink } from 'fs/promises';
 import { createGzip } from 'zlib';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
-import type { QueryHistoryStore } from './query-history-store';
+import { connectionKeyFromUri, type QueryHistoryStore } from './query-history-store';
 import type { Result, FindOpts, SavedConnection, QueryHistoryEntry } from '../shared/types';
 
 export function registerIpcHandlers(
@@ -28,13 +28,23 @@ export function registerIpcHandlers(
     };
   };
 
+  let currentUri = '';
+
   ipcMain.handle(
     'mongo:connect',
-    wrap((uri: unknown) => service.connect(uri as string))
+    wrap(async (uri: unknown) => {
+      const result = await service.connect(uri as string);
+      if (result.ok) currentUri = uri as string;
+      return result;
+    })
   );
   ipcMain.handle(
     'mongo:disconnect',
-    wrap(() => service.disconnect())
+    wrap(async () => {
+      const result = await service.disconnect();
+      currentUri = '';
+      return result;
+    })
   );
   ipcMain.handle(
     'mongo:list-databases',
@@ -106,15 +116,15 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     'history:load',
-    wrapSync(() => historyStore.getAll())
+    wrapSync(() => historyStore.getAll(connectionKeyFromUri(currentUri)))
   );
   ipcMain.handle(
     'history:save',
-    wrapSync((entries: unknown) => historyStore.save(entries as QueryHistoryEntry[]))
+    wrapSync((entries: unknown) => historyStore.save(connectionKeyFromUri(currentUri), entries as QueryHistoryEntry[]))
   );
   ipcMain.handle(
     'history:clear',
-    wrapSync(() => historyStore.clear())
+    wrapSync(() => historyStore.clear(connectionKeyFromUri(currentUri)))
   );
 
   const activeExports = new Map<string, AbortController>();
