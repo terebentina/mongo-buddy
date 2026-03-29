@@ -1,11 +1,12 @@
 import { ipcMain, dialog } from 'electron';
-import { createWriteStream } from 'fs';
+import { createReadStream, createWriteStream } from 'fs';
 import { unlink } from 'fs/promises';
-import { createGzip } from 'zlib';
+import path from 'path';
+import { createGunzip, createGzip } from 'zlib';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
 import { connectionKeyFromUri, type QueryHistoryStore } from './query-history-store';
-import type { Result, FindOpts, SavedConnection, QueryHistoryEntry } from '../shared/types';
+import type { Result, FindOpts, SavedConnection, QueryHistoryEntry, PickedFile, ImportOptions } from '../shared/types';
 
 export function registerIpcHandlers(
   service: MongoService,
@@ -199,6 +200,83 @@ export function registerIpcHandlers(
     const ac = activeExports.get(key);
     if (!ac) {
       return { ok: false, error: 'No active export for this collection' };
+    }
+    ac.abort();
+    return { ok: true, data: undefined };
+  });
+
+  ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile | null>> => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      filters: [{ name: 'BSON Gzip', extensions: ['bson.gz'] }],
+      properties: ['openFile'],
+    });
+
+    if (canceled || filePaths.length === 0) {
+      return { ok: true, data: null };
+    }
+
+    const filePath = filePaths[0];
+    const suggestedName = path.basename(filePath, '.bson.gz');
+
+    return { ok: true, data: { filePath, suggestedName } };
+  });
+
+  const activeImports = new Map<string, AbortController>();
+
+  ipcMain.handle(
+    'mongo:import-collection',
+    async (
+      event,
+      db: string,
+      collection: string,
+      filePath: string,
+      options: ImportOptions
+    ): Promise<Result<{ inserted: number; skipped: number } | null>> => {
+      const key = `${db}.${collection}`;
+
+      if (activeImports.has(key)) {
+        return { ok: false, error: 'Import already in progress for this collection' };
+      }
+
+      const ac = new AbortController();
+      activeImports.set(key, ac);
+
+      const fileStream = createReadStream(filePath);
+      const gunzip = createGunzip();
+      const input = fileStream.pipe(gunzip);
+
+      const cleanup = (): void => {
+        activeImports.delete(key);
+        fileStream.destroy();
+        gunzip.destroy();
+      };
+
+      try {
+        const result = await service.importCollection(
+          db,
+          collection,
+          input,
+          options,
+          (count) => {
+            event.sender.send('import:progress', { db, collection, count });
+          },
+          ac.signal
+        );
+
+        cleanup();
+        return result;
+      } catch (err) {
+        cleanup();
+        return { ok: false, error: (err as Error).message };
+      }
+    }
+  );
+
+  ipcMain.handle('mongo:cancel-import', (_event, db: string, collection: string): Result<undefined> => {
+    const key = `${db}.${collection}`;
+    const ac = activeImports.get(key);
+    if (!ac) {
+      return { ok: false, error: 'No active import for this collection' };
     }
     ac.abort();
     return { ok: true, data: undefined };

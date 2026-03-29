@@ -9,6 +9,9 @@ import type {
   SavedConnection,
   QueryHistoryEntry,
   ExportProgress,
+  ImportProgress,
+  ImportOptions,
+  PickedFile,
 } from '../shared/types';
 
 const api = {
@@ -53,6 +56,21 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, data: ExportProgress): void => cb(data);
     ipcRenderer.on('export:progress', handler);
     return () => ipcRenderer.removeListener('export:progress', handler);
+  },
+  pickImportFile: (): Promise<Result<PickedFile | null>> => ipcRenderer.invoke('mongo:pick-import-file'),
+  importCollection: (
+    db: string,
+    collection: string,
+    filePath: string,
+    options: ImportOptions
+  ): Promise<Result<{ inserted: number; skipped: number } | null>> =>
+    ipcRenderer.invoke('mongo:import-collection', db, collection, filePath, options),
+  cancelImport: (db: string, collection: string): Promise<Result<undefined>> =>
+    ipcRenderer.invoke('mongo:cancel-import', db, collection),
+  onImportProgress: (cb: (data: ImportProgress) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: ImportProgress): void => cb(data);
+    ipcRenderer.on('import:progress', handler);
+    return () => ipcRenderer.removeListener('import:progress', handler);
   },
 };
 

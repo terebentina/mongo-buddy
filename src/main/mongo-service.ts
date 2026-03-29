@@ -1,7 +1,7 @@
-import { MongoClient } from 'mongodb';
+import { MongoClient, MongoBulkWriteError } from 'mongodb';
 import { BSON, EJSON } from 'bson';
-import type { Writable } from 'stream';
-import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult } from '../shared/types';
+import type { Readable, Writable } from 'stream';
+import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult, ImportOptions } from '../shared/types';
 
 export class MongoService {
   private client: MongoClient | null = null;
@@ -204,6 +204,122 @@ export class MongoService {
 
       onProgress(count);
       return { ok: true, data: count };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async importCollection(
+    dbName: string,
+    collName: string,
+    input: Readable,
+    options: ImportOptions,
+    onProgress: (count: number) => void,
+    signal: AbortSignal
+  ): Promise<Result<{ inserted: number; skipped: number }>> {
+    if (!this.client) return { ok: false, error: 'Not connected' };
+    try {
+      const collection = this.client.db(dbName).collection(collName);
+
+      if (options.clearFirst) {
+        await collection.deleteMany({});
+      }
+
+      let inserted = 0;
+      let skipped = 0;
+      let batch: Record<string, unknown>[] = [];
+      let leftover = Buffer.alloc(0);
+      let lastProgressTime = 0;
+
+      const BATCH_SIZE = 1000;
+      const MAX_DOC_SIZE = 16 * 1024 * 1024; // 16 MB
+
+      const flush = async (): Promise<void> => {
+        if (batch.length === 0) return;
+
+        if (options.onDuplicate === 'skip') {
+          try {
+            const result = await collection.insertMany(batch, { ordered: false });
+            inserted += result.insertedCount;
+          } catch (err) {
+            if (err instanceof MongoBulkWriteError) {
+              inserted += err.result.insertedCount;
+              skipped += batch.length - err.result.insertedCount;
+            } else {
+              throw err;
+            }
+          }
+        } else if (options.onDuplicate === 'fail') {
+          const result = await collection.insertMany(batch, { ordered: true });
+          inserted += result.insertedCount;
+        } else {
+          // upsert
+          const ops = batch.map((doc) => ({
+            replaceOne: {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              filter: { _id: doc._id } as any,
+              replacement: doc,
+              upsert: true as const,
+            },
+          }));
+          const result = await collection.bulkWrite(ops);
+          inserted += result.upsertedCount + result.modifiedCount;
+        }
+
+        batch = [];
+      };
+
+      const reportProgress = (): void => {
+        const now = Date.now();
+        if (now - lastProgressTime >= 200) {
+          lastProgressTime = now;
+          onProgress(inserted + skipped);
+        }
+      };
+
+      for await (const chunk of input) {
+        if (signal.aborted) {
+          return { ok: false, error: `Import cancelled (${inserted} docs imported)` };
+        }
+
+        leftover = Buffer.concat([leftover, chunk as Buffer]);
+        let offset = 0;
+
+        while (offset + 4 <= leftover.length) {
+          const docSize = leftover.readInt32LE(offset);
+
+          if (docSize < 5 || docSize > MAX_DOC_SIZE) {
+            return {
+              ok: false,
+              error: `Invalid BSON document size ${docSize} at offset ${offset} (${inserted} docs imported)`,
+            };
+          }
+
+          if (offset + docSize > leftover.length) break; // incomplete doc, wait for more data
+
+          const docBuffer = leftover.subarray(offset, offset + docSize);
+          const doc = BSON.deserialize(docBuffer) as Record<string, unknown>;
+          batch.push(doc);
+          offset += docSize;
+
+          if (batch.length >= BATCH_SIZE) {
+            await flush();
+            reportProgress();
+
+            if (signal.aborted) {
+              return { ok: false, error: `Import cancelled (${inserted} docs imported)` };
+            }
+          }
+        }
+
+        leftover = leftover.subarray(offset);
+      }
+
+      // Flush remaining docs
+      await flush();
+      onProgress(inserted + skipped);
+
+      return { ok: true, data: { inserted, skipped } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
