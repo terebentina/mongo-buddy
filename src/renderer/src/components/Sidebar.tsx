@@ -6,7 +6,8 @@ import { Button } from './ui/button';
 import { Loader } from './Loader';
 import { Unplug, Download, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
-import type { ExportProgress } from '../../../shared/types';
+import { ImportDialog } from './ImportDialog';
+import type { ExportProgress, ImportOptions, PickedFile } from '../../../shared/types';
 
 interface SidebarProps {
   width: number;
@@ -96,6 +97,114 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   );
 }
 
+interface DatabaseRowProps {
+  dbName: string;
+  isOpen: boolean;
+  collections: { name: string; count?: number }[];
+  selectedCollection: string | null;
+  loading: boolean;
+  onSelectDb: () => void;
+  onSelectCollection: (dbName: string, collName: string) => void;
+}
+
+function DatabaseRow({
+  dbName,
+  isOpen,
+  collections,
+  selectedCollection,
+  loading,
+  onSelectDb,
+  onSelectCollection,
+}: DatabaseRowProps): JSX.Element {
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [pickedFile, setPickedFile] = useState<PickedFile | null>(null);
+
+  const handleUploadClick = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    const pickResult = await window.api.pickImportFile();
+    if (!pickResult.ok) {
+      toast.error(pickResult.error);
+      return;
+    }
+    if (!pickResult.data) return;
+    setPickedFile(pickResult.data);
+    setImportDialogOpen(true);
+  };
+
+  const handleImportConfirm = async (collection: string, options: ImportOptions): Promise<void> => {
+    if (!pickedFile) return;
+    setImportDialogOpen(false);
+    const importResult = await window.api.importCollection(dbName, collection, pickedFile.filePath, options);
+    if (!importResult.ok) {
+      toast.error(importResult.error);
+      return;
+    }
+    if (importResult.data) {
+      const { inserted, skipped } = importResult.data;
+      const msg =
+        skipped > 0
+          ? `Imported ${inserted.toLocaleString()} documents (${skipped.toLocaleString()} duplicates skipped)`
+          : `Imported ${inserted.toLocaleString()} documents`;
+      toast.success(msg);
+    }
+    onSelectDb();
+  };
+
+  return (
+    <>
+      <Collapsible open={isOpen}>
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant="ghost"
+              className="group/db w-full justify-between text-sm font-medium"
+              onClick={onSelectDb}
+            >
+              <span className="truncate">{dbName}</span>
+              <button
+                className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
+                onClick={handleUploadClick}
+                title="Import collection"
+              >
+                <Upload className="h-3 w-3" />
+              </button>
+            </Button>
+          }
+        />
+        <CollapsibleContent>
+          <div className="ml-3 space-y-0.5">
+            {collections.length === 0 && loading && <Loader className="py-2" />}
+            {collections.length === 0 && !loading && (
+              <p className="text-xs text-muted-foreground px-2 py-2">No collections</p>
+            )}
+            {[...collections]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((coll) => (
+                <CollectionRow
+                  key={coll.name}
+                  dbName={dbName}
+                  coll={coll}
+                  isSelected={selectedCollection === coll.name}
+                  onSelect={() => onSelectCollection(dbName, coll.name)}
+                />
+              ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+      {pickedFile && (
+        <ImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          dbName={dbName}
+          filePath={pickedFile.filePath}
+          defaultCollection={pickedFile.suggestedName}
+          onConfirm={handleImportConfirm}
+        />
+      )}
+    </>
+  );
+}
+
 export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps): JSX.Element {
   const databases = useStore((s) => s.databases);
   const collections = useStore((s) => s.collections);
@@ -152,71 +261,16 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps): 
           {[...databases]
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((db) => (
-              <Collapsible key={db.name} open={selectedDb === db.name}>
-                <CollapsibleTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      className="group/db w-full justify-between text-sm font-medium"
-                      onClick={() => selectDb(db.name)}
-                    >
-                      <span className="truncate">{db.name}</span>
-                      <button
-                        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const pickResult = await window.api.pickImportFile();
-                          if (!pickResult.ok) {
-                            toast.error(pickResult.error);
-                            return;
-                          }
-                          if (!pickResult.data) return;
-                          const { filePath, suggestedName } = pickResult.data;
-                          const importResult = await window.api.importCollection(db.name, suggestedName, filePath, {
-                            onDuplicate: 'skip',
-                            clearFirst: false,
-                          });
-                          if (!importResult.ok) {
-                            toast.error(importResult.error);
-                            return;
-                          }
-                          if (importResult.data) {
-                            const { inserted, skipped } = importResult.data;
-                            const msg =
-                              skipped > 0
-                                ? `Imported ${inserted.toLocaleString()} documents (${skipped.toLocaleString()} duplicates skipped)`
-                                : `Imported ${inserted.toLocaleString()} documents`;
-                            toast.success(msg);
-                          }
-                          selectDb(db.name);
-                        }}
-                        title="Import collection"
-                      >
-                        <Upload className="h-3 w-3" />
-                      </button>
-                    </Button>
-                  }
-                />
-                <CollapsibleContent>
-                  <div className="ml-3 space-y-0.5">
-                    {collections.length === 0 && loading && <Loader className="py-2" />}
-                    {collections.length === 0 && !loading && (
-                      <p className="text-xs text-muted-foreground px-2 py-2">No collections</p>
-                    )}
-                    {[...collections]
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((coll) => (
-                        <CollectionRow
-                          key={coll.name}
-                          dbName={db.name}
-                          coll={coll}
-                          isSelected={selectedCollection === coll.name}
-                          onSelect={() => selectCollection(db.name, coll.name)}
-                        />
-                      ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+              <DatabaseRow
+                key={db.name}
+                dbName={db.name}
+                isOpen={selectedDb === db.name}
+                collections={collections}
+                selectedCollection={selectedCollection}
+                loading={loading}
+                onSelectDb={() => selectDb(db.name)}
+                onSelectCollection={selectCollection}
+              />
             ))}
         </div>
       </ScrollArea>
