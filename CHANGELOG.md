@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.13.2](https://github.com/terebentina/mongo-buddy/compare/v1.13.1...v1.13.2) (2026-03-29)
+
+
+### Bug Fixes
+
+* **ui:** load saved connections on initial startup ([90e7db9](https://github.com/terebentina/mongo-buddy/commit/90e7db907130a7b39bc378a6c7c153797e0d61dc))
+
 ## [1.13.1](https://github.com/terebentina/mongo-buddy/compare/v1.13.0...v1.13.1) (2026-03-29)
 
 
