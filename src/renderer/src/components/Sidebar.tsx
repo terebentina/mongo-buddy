@@ -7,7 +7,7 @@ import { Loader } from './Loader';
 import { Unplug, Download, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
-import type { ExportProgress, ImportOptions, PickedFile } from '../../../shared/types';
+import type { ExportProgress, ImportOptions, ImportProgress, PickedFile } from '../../../shared/types';
 
 interface SidebarProps {
   width: number;
@@ -118,6 +118,22 @@ function DatabaseRow({
 }: DatabaseRowProps): JSX.Element {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pickedFile, setPickedFile] = useState<PickedFile | null>(null);
+  const [importingCollection, setImportingCollection] = useState<string | null>(null);
+  const [importCount, setImportCount] = useState(0);
+  const refreshDocs = useStore((s) => s.refreshDocs);
+  const storeSelectedDb = useStore((s) => s.selectedDb);
+  const storeSelectedCollection = useStore((s) => s.selectedCollection);
+
+  useEffect(() => {
+    const cleanup = window.api.onImportProgress((data: ImportProgress) => {
+      if (data.db === dbName && importingCollection && data.collection === importingCollection) {
+        setImportCount(data.count);
+      }
+    });
+    return cleanup;
+  }, [dbName, importingCollection]);
+
+  const importing = importingCollection !== null;
 
   const handleUploadClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
@@ -134,7 +150,11 @@ function DatabaseRow({
   const handleImportConfirm = async (collection: string, options: ImportOptions): Promise<void> => {
     if (!pickedFile) return;
     setImportDialogOpen(false);
+    setImportingCollection(collection);
+    setImportCount(0);
     const importResult = await window.api.importCollection(dbName, collection, pickedFile.filePath, options);
+    setImportingCollection(null);
+    setImportCount(0);
     if (!importResult.ok) {
       toast.error(importResult.error);
       return;
@@ -148,6 +168,16 @@ function DatabaseRow({
       toast.success(msg);
     }
     onSelectDb();
+    if (storeSelectedDb === dbName && storeSelectedCollection === collection) {
+      refreshDocs();
+    }
+  };
+
+  const handleCancelImport = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    if (!importingCollection) return;
+    await window.api.cancelImport(dbName, importingCollection);
+    toast('Import cancelled');
   };
 
   return (
@@ -157,17 +187,29 @@ function DatabaseRow({
           render={
             <Button
               variant="ghost"
-              className="group/db w-full justify-between text-sm font-medium"
+              className={`group/db w-full justify-between text-sm font-medium ${importing ? 'animate-pulse bg-accent/40' : ''}`}
               onClick={onSelectDb}
             >
               <span className="truncate">{dbName}</span>
-              <button
-                className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
-                onClick={handleUploadClick}
-                title="Import collection"
-              >
-                <Upload className="h-3 w-3" />
-              </button>
+              <span className="flex items-center gap-1">
+                {importing && <span className="text-[10px] text-muted-foreground">{importCount.toLocaleString()}</span>}
+                {importing ? (
+                  <button
+                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                    onClick={handleCancelImport}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                ) : (
+                  <button
+                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
+                    onClick={handleUploadClick}
+                    title="Import collection"
+                  >
+                    <Upload className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
             </Button>
           }
         />
