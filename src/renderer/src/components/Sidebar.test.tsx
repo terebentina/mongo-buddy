@@ -13,6 +13,9 @@ const mockApi = {
   count: vi.fn(),
   sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   saveHistory: vi.fn(),
+  exportCollection: vi.fn().mockResolvedValue({ ok: true, data: 10 }),
+  cancelExport: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+  onExportProgress: vi.fn().mockReturnValue(() => {}),
 };
 
 beforeEach(() => {
