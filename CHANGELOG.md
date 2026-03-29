@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.13.1](https://github.com/terebentina/mongo-buddy/compare/v1.13.0...v1.13.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **ui:** ensure popover renders above sticky table headers ([1108e7e](https://github.com/terebentina/mongo-buddy/commit/1108e7e6082bae412099de4aa9386f79d27afa16))
+
 ## [1.13.0](https://github.com/terebentina/mongo-buddy/compare/v1.12.0...v1.13.0) (2026-03-29)
 
 
