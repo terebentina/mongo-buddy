@@ -1,0 +1,121 @@
+{
+  "projectName": "Migrate Radix UI to Base UI",
+  "branchName": "ralph/radix-to-base-ui",
+  "description": "Replace all @radix-ui/* primitives with @base-ui/react equivalents. Radix is unmaintained; Base UI is actively developed by the MUI team. shadcn supports both since Jan 2026.",
+  "dependsOn": [],
+  "status": "pending",
+  "completedAt": null,
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Install @base-ui/react dependency",
+      "description": "As a developer, I need @base-ui/react installed so components can import Base UI primitives",
+      "acceptanceCriteria": [
+        "@base-ui/react is in package.json dependencies",
+        "pnpm install succeeds without errors",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Run: pnpm add @base-ui/react"
+    },
+    {
+      "id": "US-002",
+      "title": "Rewrite button.tsx from Radix Slot to Base UI render prop",
+      "description": "As a developer, I want Button to use Base UI's render prop pattern instead of Radix Slot/asChild so it no longer depends on @radix-ui/react-slot",
+      "acceptanceCriteria": [
+        "button.tsx has no @radix-ui imports",
+        "Button accepts render prop instead of asChild",
+        "Button renders as <button> by default when no render prop provided",
+        "Button renders as custom element when render prop is provided",
+        "buttonVariants export unchanged",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "File: src/renderer/src/components/ui/button.tsx. Remove Slot import from @radix-ui/react-slot. Replace asChild prop with render prop. Use useRender from @base-ui/react or implement render prop pattern manually. No consumers currently use asChild on Button directly."
+    },
+    {
+      "id": "US-003",
+      "title": "Rewrite collapsible.tsx and update Sidebar consumer",
+      "description": "As a user, I want the sidebar database collapsibles to work using Base UI Collapsible primitives",
+      "acceptanceCriteria": [
+        "collapsible.tsx imports from @base-ui/react not @radix-ui",
+        "Exports Collapsible, CollapsibleTrigger, CollapsibleContent (CollapsibleContent wraps Collapsible.Panel)",
+        "Sidebar.tsx uses render prop instead of asChild on CollapsibleTrigger",
+        "Database list in sidebar still expands/collapses on click",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Files: src/renderer/src/components/ui/collapsible.tsx, src/renderer/src/components/Sidebar.tsx:72. Base UI uses Collapsible.Panel instead of CollapsibleContent. Keep export name as CollapsibleContent for API compatibility. Change <CollapsibleTrigger asChild><Button> to <CollapsibleTrigger render={<Button>}>."
+    },
+    {
+      "id": "US-004",
+      "title": "Rewrite dialog.tsx with Base UI Dialog primitives",
+      "description": "As a user, I want dialogs (connection, document editor) to work using Base UI Dialog primitives",
+      "acceptanceCriteria": [
+        "dialog.tsx imports from @base-ui/react not @radix-ui",
+        "All existing exports preserved: Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription",
+        "hideClose prop on DialogContent still works",
+        "Animation data attributes updated: data-[state=open] → data-[open], data-[state=closed] → data-[closed]",
+        "Close button X still renders and works",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "File: src/renderer/src/components/ui/dialog.tsx. Base UI Dialog uses Dialog.Root, Dialog.Trigger, Dialog.Portal, Dialog.Backdrop (replaces Overlay), Dialog.Popup (replaces Content), Dialog.Title, Dialog.Description, Dialog.Close. Update Tailwind animation classes from data-[state=open] to data-[open] and data-[state=closed] to data-[closed]."
+    },
+    {
+      "id": "US-005",
+      "title": "Rewrite popover.tsx and update DocumentTable consumer",
+      "description": "As a user, I want the document table expand popover to work using Base UI Popover primitives",
+      "acceptanceCriteria": [
+        "popover.tsx imports from @base-ui/react not @radix-ui",
+        "All existing exports preserved: Popover, PopoverTrigger, PopoverContent, PopoverAnchor",
+        "PopoverContent uses Positioner wrapper for positioning",
+        "Animation data attributes updated: data-[state=open] → data-[open], data-[state=closed] → data-[closed], data-[side=*] → data-[side=*]",
+        "DocumentTable.tsx uses render prop instead of asChild on PopoverTrigger",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Files: src/renderer/src/components/ui/popover.tsx, src/renderer/src/components/DocumentTable.tsx:188. Base UI Popover requires Positioner wrapper between Portal and Popup. Change <PopoverTrigger asChild><button> to <PopoverTrigger render={<button>}>."
+    },
+    {
+      "id": "US-006",
+      "title": "Rewrite scroll-area.tsx with Base UI ScrollArea primitives",
+      "description": "As a user, I want the sidebar scroll area to work using Base UI ScrollArea primitives",
+      "acceptanceCriteria": [
+        "scroll-area.tsx imports from @base-ui/react not @radix-ui",
+        "Exports ScrollArea and ScrollBar unchanged",
+        "Scrollbar styling preserved for vertical and horizontal orientations",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "File: src/renderer/src/components/ui/scroll-area.tsx. Base UI ScrollArea has very similar API: ScrollArea.Root, ScrollArea.Viewport, ScrollArea.Scrollbar, ScrollArea.Thumb, ScrollArea.Corner."
+    },
+    {
+      "id": "US-007",
+      "title": "Remove all @radix-ui packages and verify build",
+      "description": "As a developer, I want all @radix-ui dependencies removed now that everything uses @base-ui/react",
+      "acceptanceCriteria": [
+        "No @radix-ui packages in package.json",
+        "No @radix-ui imports anywhere in src/",
+        "pnpm install succeeds",
+        "pnpm build succeeds",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Run: pnpm remove @radix-ui/react-slot @radix-ui/react-dialog @radix-ui/react-popover @radix-ui/react-scroll-area @radix-ui/react-collapsible"
+    }
+  ]
+}
