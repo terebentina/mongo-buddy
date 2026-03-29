@@ -43,3 +43,19 @@ export interface QueryHistoryEntry {
   collection: string;
   timestamp: number;
 }
+
+export interface ImportProgress {
+  db: string;
+  collection: string;
+  count: number;
+}
+
+export interface ImportOptions {
+  onDuplicate: 'skip' | 'fail' | 'upsert';
+  clearFirst: boolean;
+}
+
+export interface PickedFile {
+  filePath: string;
+  suggestedName: string;
+}

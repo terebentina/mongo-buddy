@@ -8,6 +8,9 @@ import type {
   SavedConnection,
   QueryHistoryEntry,
   ExportProgress,
+  ImportProgress,
+  ImportOptions,
+  PickedFile,
 } from '../shared/types';
 
 interface MongoApi {
@@ -42,6 +45,15 @@ interface MongoApi {
   exportCollection(db: string, collection: string): Promise<Result<number | null>>;
   cancelExport(db: string, collection: string): Promise<Result<undefined>>;
   onExportProgress(cb: (data: ExportProgress) => void): () => void;
+  pickImportFile(): Promise<Result<PickedFile | null>>;
+  importCollection(
+    db: string,
+    collection: string,
+    filePath: string,
+    options: ImportOptions
+  ): Promise<Result<{ inserted: number; skipped: number } | null>>;
+  cancelImport(db: string, collection: string): Promise<Result<undefined>>;
+  onImportProgress(cb: (data: ImportProgress) => void): () => void;
 }
 
 declare global {
