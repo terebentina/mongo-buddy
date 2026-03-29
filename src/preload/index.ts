@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { electronAPI } from '@electron-toolkit/preload';
-import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult, SavedConnection, QueryHistoryEntry } from '../shared/types';
+import type {
+  Result,
+  DbInfo,
+  CollectionInfo,
+  FindOpts,
+  FindResult,
+  SavedConnection,
+  QueryHistoryEntry,
+  ExportProgress,
+} from '../shared/types';
 
 const api = {
   connect: (uri: string): Promise<Result<undefined>> => ipcRenderer.invoke('mongo:connect', uri),
@@ -36,6 +45,15 @@ const api = {
   loadHistory: (): Promise<QueryHistoryEntry[]> => ipcRenderer.invoke('history:load'),
   saveHistory: (entries: QueryHistoryEntry[]): Promise<void> => ipcRenderer.invoke('history:save', entries),
   clearHistory: (): Promise<void> => ipcRenderer.invoke('history:clear'),
+  exportCollection: (db: string, collection: string): Promise<Result<number | null>> =>
+    ipcRenderer.invoke('mongo:export-collection', db, collection),
+  cancelExport: (db: string, collection: string): Promise<Result<undefined>> =>
+    ipcRenderer.invoke('mongo:cancel-export', db, collection),
+  onExportProgress: (cb: (data: ExportProgress) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: ExportProgress): void => cb(data);
+    ipcRenderer.on('export:progress', handler);
+    return () => ipcRenderer.removeListener('export:progress', handler);
+  },
 };
 
 export type MongoApi = typeof api;

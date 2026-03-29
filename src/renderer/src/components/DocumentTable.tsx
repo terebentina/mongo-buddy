@@ -193,7 +193,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps): JS
                             }
                           />
 
-                          <PopoverContent className="w-80 max-h-64 overflow-auto">
+                          <PopoverContent className="w-80 max-h-64 overflow-auto" onClick={(e) => e.stopPropagation()}>
                             <pre className="text-xs whitespace-pre-wrap break-words">
                               {typeof cellValue === 'object' && cellValue !== null
                                 ? JSON.stringify(cellValue, null, 2)

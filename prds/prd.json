@@ -1,121 +1,91 @@
 {
-  "projectName": "Migrate Radix UI to Base UI",
-  "branchName": "ralph/radix-to-base-ui",
-  "description": "Replace all @radix-ui/* primitives with @base-ui/react equivalents. Radix is unmaintained; Base UI is actively developed by the MUI team. shadcn supports both since Jan 2026.",
+  "projectName": "Collection Export (.bson.gz)",
+  "branchName": "ralph/collection-export",
+  "description": "Per-collection dump/download with streaming BSON export, progress bar, and cancellation support",
   "dependsOn": [],
   "status": "pending",
   "completedAt": null,
   "userStories": [
     {
       "id": "US-001",
-      "title": "Install @base-ui/react dependency",
-      "description": "As a developer, I need @base-ui/react installed so components can import Base UI primitives",
+      "title": "Add exportCollection method to MongoService",
+      "description": "As a developer, I want a streaming BSON export method so the main process can dump a collection to any writable stream with constant memory",
       "acceptanceCriteria": [
-        "@base-ui/react is in package.json dependencies",
-        "pnpm install succeeds without errors",
+        "exportCollection(dbName, collName, output, onProgress, signal) method exists on MongoService",
+        "Uses collection.find({}, { raw: true }) for zero-deserialize BSON buffers (fallback to BSON.serialize if typing issues)",
+        "Iterates cursor with for-await, writes each buffer to output stream",
+        "Handles backpressure via drain event",
+        "Checks signal.aborted each iteration, closes cursor and returns error if aborted",
+        "Throttles onProgress callback by time (~200ms) not doc count",
+        "Returns Result<number> with exported doc count on success",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Run: pnpm add @base-ui/react"
+      "notes": "raw: true on find returns Buffer directly from driver — no JS deserialization overhead. If TypeScript types fight us, fallback to BSON.serialize(doc) per document."
     },
     {
       "id": "US-002",
-      "title": "Rewrite button.tsx from Radix Slot to Base UI render prop",
-      "description": "As a developer, I want Button to use Base UI's render prop pattern instead of Radix Slot/asChild so it no longer depends on @radix-ui/react-slot",
+      "title": "Add export and cancel IPC handlers",
+      "description": "As a developer, I want IPC handlers that show a save dialog, stream the export to a gzipped file, send progress events, and support cancellation",
       "acceptanceCriteria": [
-        "button.tsx has no @radix-ui imports",
-        "Button accepts render prop instead of asChild",
-        "Button renders as <button> by default when no render prop provided",
-        "Button renders as custom element when render prop is provided",
-        "buttonVariants export unchanged",
+        "mongo:export-collection handler registered in ipc-handlers.ts",
+        "Shows dialog.showSaveDialog with default filename {collName}.bson.gz and filter ['bson.gz']",
+        "Returns { ok: true, data: null } if dialog cancelled",
+        "Rejects with error if export already in progress for that collection (Map<string, AbortController>)",
+        "Creates gzip stream piped to file write stream",
+        "Sends progress to renderer via event.sender.send('export:progress', { db, collection, count })",
+        "On complete: removes from active map, returns { ok: true, data: count }",
+        "On abort/error: destroys gzip and file streams, fs.unlink partial file, removes from map",
+        "mongo:cancel-export handler looks up AbortController and calls abort()",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "File: src/renderer/src/components/ui/button.tsx. Remove Slot import from @radix-ui/react-slot. Replace asChild prop with render prop. Use useRender from @base-ui/react or implement render prop pattern manually. No consumers currently use asChild on Button directly."
+      "notes": "Does not use wrap() helper — needs dialog + stream + progress lifecycle. Import dialog and BrowserWindow from electron, createWriteStream from fs, createGzip from zlib."
     },
     {
       "id": "US-003",
-      "title": "Rewrite collapsible.tsx and update Sidebar consumer",
-      "description": "As a user, I want the sidebar database collapsibles to work using Base UI Collapsible primitives",
+      "title": "Expose export API in preload bridge and type definitions",
+      "description": "As a developer, I want the export, cancel, and progress APIs exposed to the renderer process with correct types",
       "acceptanceCriteria": [
-        "collapsible.tsx imports from @base-ui/react not @radix-ui",
-        "Exports Collapsible, CollapsibleTrigger, CollapsibleContent (CollapsibleContent wraps Collapsible.Panel)",
-        "Sidebar.tsx uses render prop instead of asChild on CollapsibleTrigger",
-        "Database list in sidebar still expands/collapses on click",
+        "exportCollection(db, collection) added to preload api object",
+        "cancelExport(db, collection) added to preload api object",
+        "onExportProgress(cb) added — strips Electron IpcRendererEvent before calling cb, returns cleanup function",
+        "MongoApi interface in index.d.ts updated with all three methods",
+        "Missing loadHistory, saveHistory, clearHistory added to index.d.ts to fix existing TS errors",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Files: src/renderer/src/components/ui/collapsible.tsx, src/renderer/src/components/Sidebar.tsx:72. Base UI uses Collapsible.Panel instead of CollapsibleContent. Keep export name as CollapsibleContent for API compatibility. Change <CollapsibleTrigger asChild><Button> to <CollapsibleTrigger render={<Button>}>."
+      "notes": "onExportProgress must wrap the ipcRenderer.on handler to strip the Electron event: (_event, data) => cb(data)"
     },
     {
       "id": "US-004",
-      "title": "Rewrite dialog.tsx with Base UI Dialog primitives",
-      "description": "As a user, I want dialogs (connection, document editor) to work using Base UI Dialog primitives",
+      "title": "Add download icon and progress bar to Sidebar collection rows",
+      "description": "As a user, I want to see a download icon on hover over each collection, a progress bar background fill during export, and an X icon to cancel",
       "acceptanceCriteria": [
-        "dialog.tsx imports from @base-ui/react not @radix-ui",
-        "All existing exports preserved: Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription",
-        "hideClose prop on DialogContent still works",
-        "Animation data attributes updated: data-[state=open] → data-[open], data-[state=closed] → data-[closed]",
-        "Close button X still renders and works",
+        "Download icon (lucide-react) appears inline right of collection name on hover",
+        "Icon uses opacity-0 group-hover/coll:opacity-100 pattern",
+        "Clicking download icon does not trigger collection selection (stopPropagation)",
+        "Clicking download icon opens save dialog and starts export",
+        "During export: icon changes to X, always visible (not hover-only)",
+        "During export: row background fills left-to-right using linear-gradient with accent color based on count/coll.count",
+        "Clicking X cancels export and clears progress state",
+        "Toast shown on export complete with doc count",
+        "Toast shown on export error",
+        "Double-click safe: cannot start second export on same collection",
+        "Progress state is local useState, not in store",
+        "useEffect subscribes to onExportProgress, cleans up on unmount",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "File: src/renderer/src/components/ui/dialog.tsx. Base UI Dialog uses Dialog.Root, Dialog.Trigger, Dialog.Portal, Dialog.Backdrop (replaces Overlay), Dialog.Popup (replaces Content), Dialog.Title, Dialog.Description, Dialog.Close. Update Tailwind animation classes from data-[state=open] to data-[open] and data-[state=closed] to data-[closed]."
-    },
-    {
-      "id": "US-005",
-      "title": "Rewrite popover.tsx and update DocumentTable consumer",
-      "description": "As a user, I want the document table expand popover to work using Base UI Popover primitives",
-      "acceptanceCriteria": [
-        "popover.tsx imports from @base-ui/react not @radix-ui",
-        "All existing exports preserved: Popover, PopoverTrigger, PopoverContent, PopoverAnchor",
-        "PopoverContent uses Positioner wrapper for positioning",
-        "Animation data attributes updated: data-[state=open] → data-[open], data-[state=closed] → data-[closed], data-[side=*] → data-[side=*]",
-        "DocumentTable.tsx uses render prop instead of asChild on PopoverTrigger",
-        "Typecheck passes",
-        "Lint passes"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Files: src/renderer/src/components/ui/popover.tsx, src/renderer/src/components/DocumentTable.tsx:188. Base UI Popover requires Positioner wrapper between Portal and Popup. Change <PopoverTrigger asChild><button> to <PopoverTrigger render={<button>}>."
-    },
-    {
-      "id": "US-006",
-      "title": "Rewrite scroll-area.tsx with Base UI ScrollArea primitives",
-      "description": "As a user, I want the sidebar scroll area to work using Base UI ScrollArea primitives",
-      "acceptanceCriteria": [
-        "scroll-area.tsx imports from @base-ui/react not @radix-ui",
-        "Exports ScrollArea and ScrollBar unchanged",
-        "Scrollbar styling preserved for vertical and horizontal orientations",
-        "Typecheck passes",
-        "Lint passes"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "File: src/renderer/src/components/ui/scroll-area.tsx. Base UI ScrollArea has very similar API: ScrollArea.Root, ScrollArea.Viewport, ScrollArea.Scrollbar, ScrollArea.Thumb, ScrollArea.Corner."
-    },
-    {
-      "id": "US-007",
-      "title": "Remove all @radix-ui packages and verify build",
-      "description": "As a developer, I want all @radix-ui dependencies removed now that everything uses @base-ui/react",
-      "acceptanceCriteria": [
-        "No @radix-ui packages in package.json",
-        "No @radix-ui imports anywhere in src/",
-        "pnpm install succeeds",
-        "pnpm build succeeds",
-        "Lint passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Run: pnpm remove @radix-ui/react-slot @radix-ui/react-dialog @radix-ui/react-popover @radix-ui/react-scroll-area @radix-ui/react-collapsible"
+      "notes": "Progress % = exportedCount / coll.count (estimatedDocumentCount). Not exact but good enough for a progress bar."
     }
   ]
 }
