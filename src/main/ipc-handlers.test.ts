@@ -5,10 +5,44 @@ import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
 
+const mockShowSaveDialog = vi.fn();
+
 vi.mock('electron', () => ({
   ipcMain: {
     handle: vi.fn(),
   },
+  dialog: {
+    showSaveDialog: (...args: unknown[]) => mockShowSaveDialog(...args),
+  },
+}));
+
+const mockWrite = vi.fn();
+const mockDestroy = vi.fn();
+const mockOn = vi.fn();
+const mockEnd = vi.fn();
+const mockPipe = vi.fn();
+
+vi.mock('fs', () => ({
+  createWriteStream: vi.fn(() => ({
+    write: mockWrite,
+    destroy: mockDestroy,
+    on: mockOn,
+    end: vi.fn(),
+  })),
+}));
+
+vi.mock('fs/promises', () => ({
+  unlink: vi.fn(async () => {}),
+}));
+
+vi.mock('zlib', () => ({
+  createGzip: vi.fn(() => ({
+    write: mockWrite,
+    destroy: mockDestroy,
+    on: mockOn,
+    end: mockEnd,
+    pipe: mockPipe,
+  })),
 }));
 
 vi.mock('./mongo-service');
@@ -27,6 +61,7 @@ describe('IPC Handlers', () => {
     insertOne: ReturnType<typeof vi.fn>;
     updateOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
+    exportCollection: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>;
@@ -54,6 +89,7 @@ describe('IPC Handlers', () => {
       insertOne: vi.fn(),
       updateOne: vi.fn(),
       deleteOne: vi.fn(),
+      exportCollection: vi.fn(),
     };
 
     mockConnStore = {
@@ -78,7 +114,7 @@ describe('IPC Handlers', () => {
     registerIpcHandlers(
       mockService as unknown as MongoService,
       mockConnStore as unknown as ConnectionStore,
-      mockHistoryStore as unknown as QueryHistoryStore,
+      mockHistoryStore as unknown as QueryHistoryStore
     );
   });
 
@@ -105,6 +141,8 @@ describe('IPC Handlers', () => {
     expect(handlers['history:load']).toBeDefined();
     expect(handlers['history:save']).toBeDefined();
     expect(handlers['history:clear']).toBeDefined();
+    expect(handlers['mongo:export-collection']).toBeDefined();
+    expect(handlers['mongo:cancel-export']).toBeDefined();
   });
 
   describe('mongo:connect', () => {
@@ -289,6 +327,89 @@ describe('IPC Handlers', () => {
     it('clears QueryHistoryStore', () => {
       handlers['history:clear']({} as Electron.IpcMainInvokeEvent);
       expect(mockHistoryStore.clear).toHaveBeenCalled();
+    });
+  });
+
+  describe('mongo:export-collection', () => {
+    const mockEvent = {
+      sender: { send: vi.fn() },
+    } as unknown as Electron.IpcMainInvokeEvent;
+
+    it('returns { ok: true, data: null } when dialog is cancelled', async () => {
+      mockShowSaveDialog.mockResolvedValue({ canceled: true, filePath: undefined });
+      const result = await handlers['mongo:export-collection'](mockEvent, 'testdb', 'users');
+      expect(result).toEqual({ ok: true, data: null });
+    });
+
+    it('rejects if export already in progress for same collection', async () => {
+      let resolveExport: (v: { ok: true; data: number }) => void;
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/test.bson.gz' });
+      mockEnd.mockImplementation((cb: () => void) => cb());
+      mockOn.mockImplementation((evt: string, cb: () => void) => {
+        if (evt === 'finish') cb();
+      });
+      mockService.exportCollection.mockImplementation(
+        () => new Promise((resolve) => { resolveExport = resolve; })
+      );
+
+      // Start first export (don't await — it blocks on exportCollection)
+      const first = handlers['mongo:export-collection'](mockEvent, 'testdb', 'users') as Promise<unknown>;
+      // Flush microtasks so first export reaches exportCollection and sets the key
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Second attempt should fail immediately
+      const result = await handlers['mongo:export-collection'](mockEvent, 'testdb', 'users');
+      expect(result).toEqual({ ok: false, error: 'Export already in progress for this collection' });
+
+      // Resolve first export so test can finish
+      resolveExport!({ ok: true, data: 5 });
+      await first;
+    });
+
+    it('sends progress events to renderer', async () => {
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/test.bson.gz' });
+      mockEnd.mockImplementation((cb: () => void) => cb());
+      mockOn.mockImplementation((evt: string, cb: () => void) => {
+        if (evt === 'finish') cb();
+      });
+      mockService.exportCollection.mockImplementation(
+        async (_db: string, _coll: string, _output: unknown, onProgress: (n: number) => void) => {
+          onProgress(50);
+          onProgress(100);
+          return { ok: true, data: 100 };
+        }
+      );
+
+      await handlers['mongo:export-collection'](mockEvent, 'testdb', 'users');
+      expect(mockEvent.sender.send).toHaveBeenCalledWith('export:progress', {
+        db: 'testdb',
+        collection: 'users',
+        count: 50,
+      });
+      expect(mockEvent.sender.send).toHaveBeenCalledWith('export:progress', {
+        db: 'testdb',
+        collection: 'users',
+        count: 100,
+      });
+    });
+
+    it('returns doc count on successful export', async () => {
+      mockShowSaveDialog.mockResolvedValue({ canceled: false, filePath: '/tmp/test.bson.gz' });
+      mockEnd.mockImplementation((cb: () => void) => cb());
+      mockOn.mockImplementation((evt: string, cb: () => void) => {
+        if (evt === 'finish') cb();
+      });
+      mockService.exportCollection.mockResolvedValue({ ok: true, data: 42 });
+
+      const result = await handlers['mongo:export-collection'](mockEvent, 'testdb', 'users');
+      expect(result).toEqual({ ok: true, data: 42 });
+    });
+  });
+
+  describe('mongo:cancel-export', () => {
+    it('returns error when no active export', () => {
+      const result = handlers['mongo:cancel-export']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
+      expect(result).toEqual({ ok: false, error: 'No active export for this collection' });
     });
   });
 });
