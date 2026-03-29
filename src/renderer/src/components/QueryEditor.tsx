@@ -44,6 +44,7 @@ export function QueryEditor(): JSX.Element {
   const setQueryMode = useStore((s) => s.setQueryMode);
   const runQuery = useStore((s) => s.runQuery);
   const loading = useStore((s) => s.loading);
+  const filter = useStore((s) => s.filter);
   const fieldNames = useStore((s) => s.fieldNames);
   const pendingFilterText = useStore((s) => s.pendingFilterText);
   const pendingQueryMode = useStore((s) => s.pendingQueryMode);
@@ -63,6 +64,21 @@ export function QueryEditor(): JSX.Element {
       toast.error(error);
     }
   }, [getEditorText, queryMode, runQuery]);
+
+  const hasActiveFilter = Object.keys(filter).length > 0 || queryMode === 'aggregate';
+
+  const handleClear = useCallback(async () => {
+    if (viewRef.current) {
+      viewRef.current.dispatch({
+        changes: { from: 0, to: viewRef.current.state.doc.length, insert: '{}' },
+      });
+    }
+    setQueryMode('filter');
+    const error = await runQuery('{}');
+    if (error) {
+      toast.error(error);
+    }
+  }, [setQueryMode, runQuery]);
 
   useEffect(() => {
     if (!editorRef.current) return;
@@ -139,6 +155,9 @@ export function QueryEditor(): JSX.Element {
           Aggregate
         </Button>
         <div className="flex-1" />
+        <Button size="sm" variant="outline" onClick={handleClear} disabled={!hasActiveFilter || loading}>
+          Clear
+        </Button>
         <Button size="sm" onClick={handleRun} disabled={loading}>
           Run
         </Button>
