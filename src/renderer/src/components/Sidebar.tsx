@@ -4,7 +4,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, X } from 'lucide-react';
+import { Unplug, Download, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ExportProgress } from '../../../shared/types';
 
@@ -157,10 +157,43 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps): 
                   render={
                     <Button
                       variant="ghost"
-                      className="w-full justify-start text-sm font-medium"
+                      className="group/db w-full justify-between text-sm font-medium"
                       onClick={() => selectDb(db.name)}
                     >
-                      {db.name}
+                      <span className="truncate">{db.name}</span>
+                      <button
+                        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const pickResult = await window.api.pickImportFile();
+                          if (!pickResult.ok) {
+                            toast.error(pickResult.error);
+                            return;
+                          }
+                          if (!pickResult.data) return;
+                          const { filePath, suggestedName } = pickResult.data;
+                          const importResult = await window.api.importCollection(db.name, suggestedName, filePath, {
+                            onDuplicate: 'skip',
+                            clearFirst: false,
+                          });
+                          if (!importResult.ok) {
+                            toast.error(importResult.error);
+                            return;
+                          }
+                          if (importResult.data) {
+                            const { inserted, skipped } = importResult.data;
+                            const msg =
+                              skipped > 0
+                                ? `Imported ${inserted.toLocaleString()} documents (${skipped.toLocaleString()} duplicates skipped)`
+                                : `Imported ${inserted.toLocaleString()} documents`;
+                            toast.success(msg);
+                          }
+                          selectDb(db.name);
+                        }}
+                        title="Import collection"
+                      >
+                        <Upload className="h-3 w-3" />
+                      </button>
                     </Button>
                   }
                 />
