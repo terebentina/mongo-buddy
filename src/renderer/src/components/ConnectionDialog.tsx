@@ -48,7 +48,7 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
     onOpenChange(value);
   };
 
-  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevOpen, setPrevOpen] = useState(false);
   if (open && !prevOpen) {
     setPrevOpen(open);
     setUri('');
