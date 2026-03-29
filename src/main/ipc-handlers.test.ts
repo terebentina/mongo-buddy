@@ -349,7 +349,10 @@ describe('IPC Handlers', () => {
         if (evt === 'finish') cb();
       });
       mockService.exportCollection.mockImplementation(
-        () => new Promise((resolve) => { resolveExport = resolve; })
+        () =>
+          new Promise((resolve) => {
+            resolveExport = resolve;
+          })
       );
 
       // Start first export (don't await — it blocks on exportCollection)
