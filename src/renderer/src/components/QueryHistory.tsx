@@ -39,12 +39,14 @@ export function QueryHistory(): JSX.Element {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <History className="h-4 w-4 mr-1" />
-          History
-        </Button>
-      </PopoverTrigger>
+      <PopoverTrigger
+        render={
+          <Button variant="outline" size="sm">
+            <History className="h-4 w-4 mr-1" />
+            History
+          </Button>
+        }
+      />
       <PopoverContent align="start" className="w-80 p-0">
         {queryHistory.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">No query history yet</div>
