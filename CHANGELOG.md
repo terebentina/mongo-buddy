@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.12.0](https://github.com/terebentina/mongo-buddy/compare/v1.11.2...v1.12.0) (2026-03-29)
+
+
+### Features
+
+* **history:** scope query history per connection by hostname+port ([b9abf7a](https://github.com/terebentina/mongo-buddy/commit/b9abf7a42bf7963bd19c0af7d523e577fe28a2f1))
+
+
+### Bug Fixes
+
+* **lint:** resolve all lint errors across codebase ([d0dab85](https://github.com/terebentina/mongo-buddy/commit/d0dab85e754f18d0a82800eb6fcf42f426bd370a))
+* **ui:** close expand popover after copying value to clipboard ([dce8e72](https://github.com/terebentina/mongo-buddy/commit/dce8e72a495a2ec9842bd5f5a29887a1038f4c48))
+
 ## [1.11.2](https://github.com/terebentina/mongo-buddy/compare/v1.11.1...v1.11.2) (2026-03-29)
 
 ## [1.11.1](https://github.com/terebentina/mongo-buddy/compare/v1.11.0...v1.11.1) (2026-03-29)
