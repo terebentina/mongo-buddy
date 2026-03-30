@@ -68,6 +68,14 @@ describe('ConnectionStore', () => {
     expect(result).toEqual([{ name: 'Remote', uri: 'mongodb://remote:27017' }]);
   });
 
+  it('getAll returns connections sorted alphabetically by name', () => {
+    store.save({ name: 'Zeta', uri: 'mongodb://zeta:27017' });
+    store.save({ name: 'alpha', uri: 'mongodb://alpha:27017' });
+    store.save({ name: 'Beta', uri: 'mongodb://beta:27017' });
+    const result = store.getAll();
+    expect(result.map((c) => c.name)).toEqual(['alpha', 'Beta', 'Zeta']);
+  });
+
   it('remove is a no-op if name not found', () => {
     store.save({ name: 'Local', uri: 'mongodb://localhost:27017' });
     store.remove('Nonexistent');

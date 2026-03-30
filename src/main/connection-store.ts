@@ -41,7 +41,9 @@ export class ConnectionStore {
       return [];
     }
     const raw = this.getRawConnections();
-    return raw.map((c) => ({ name: c.name, uri: this.decrypt(c.uri) }));
+    return raw
+      .map((c) => ({ name: c.name, uri: this.decrypt(c.uri) }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
 
   save(conn: SavedConnection): void {
