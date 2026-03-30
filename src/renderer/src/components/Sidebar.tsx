@@ -149,10 +149,12 @@ function DatabaseRow({
 
   const handleImportConfirm = async (collection: string, options: ImportOptions): Promise<void> => {
     if (!pickedFile) return;
+    const filePath = pickedFile.filePath;
     setImportDialogOpen(false);
+    setPickedFile(null);
     setImportingCollection(collection);
     setImportCount(0);
-    const importResult = await window.api.importCollection(dbName, collection, pickedFile.filePath, options);
+    const importResult = await window.api.importCollection(dbName, collection, filePath, options);
     setImportingCollection(null);
     setImportCount(0);
     if (!importResult.ok) {
