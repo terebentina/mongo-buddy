@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.14.2](https://github.com/terebentina/mongo-buddy/compare/v1.14.1...v1.14.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* **import:** clear pickedFile after confirm so next import gets fresh name ([9690fab](https://github.com/terebentina/mongo-buddy/commit/9690fab65c35becfe35432295161c93f5c473184))
+
 ## [1.14.1](https://github.com/terebentina/mongo-buddy/compare/v1.14.0...v1.14.1) (2026-03-30)
 
 
