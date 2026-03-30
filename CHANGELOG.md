@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.14.0](https://github.com/terebentina/mongo-buddy/compare/v1.13.3...v1.14.0) (2026-03-30)
+
+
+### Features
+
+* **connections:** sort saved connections alphabetically in Connect modal ([7b12619](https://github.com/terebentina/mongo-buddy/commit/7b126193f9c7397e3450b555bf09624982235578))
+* **ui:** add Cancel button to exit edit mode in Connect modal ([23755f1](https://github.com/terebentina/mongo-buddy/commit/23755f1cbad3e60e176d53e3914d9e1dc36d4196))
+
 ## [1.13.3](https://github.com/terebentina/mongo-buddy/compare/v1.13.2...v1.13.3) (2026-03-29)
 
 ## [1.13.2](https://github.com/terebentina/mongo-buddy/compare/v1.13.1...v1.13.2) (2026-03-29)
