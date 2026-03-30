@@ -236,7 +236,10 @@ function DatabaseRow({
       {pickedFile && (
         <ImportDialog
           open={importDialogOpen}
-          onOpenChange={setImportDialogOpen}
+          onOpenChange={(open) => {
+            setImportDialogOpen(open);
+            if (!open) setPickedFile(null);
+          }}
           dbName={dbName}
           filePath={pickedFile.filePath}
           defaultCollection={pickedFile.suggestedName}
