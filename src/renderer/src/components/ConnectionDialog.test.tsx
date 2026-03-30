@@ -141,6 +141,28 @@ describe('ConnectionDialog', () => {
     });
   });
 
+  it('cancel edit resets inputs and exits edit mode', async () => {
+    mockApi.listConnections.mockResolvedValue([{ name: 'Local', uri: 'mongodb://localhost:27017' }]);
+
+    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Local')).toBeInTheDocument();
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /edit local/i }));
+
+    expect(screen.getByPlaceholderText(/connection name/i)).toHaveValue('Local');
+    expect(screen.getByPlaceholderText(/mongodb/i)).toHaveValue('mongodb://localhost:27017');
+    expect(screen.getByRole('button', { name: /update & connect/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(screen.getByPlaceholderText(/connection name/i)).toHaveValue('');
+    expect(screen.getByPlaceholderText(/mongodb/i)).toHaveValue('');
+    expect(screen.getByRole('button', { name: /^connect$/i })).toBeInTheDocument();
+  });
+
   it('delete removes connection from store', async () => {
     mockApi.listConnections
       .mockResolvedValueOnce([{ name: 'Local', uri: 'mongodb://localhost:27017' }])

@@ -208,9 +208,25 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps):
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input placeholder="Connection name (optional)" value={name} onChange={(e) => setName(e.target.value)} />
               <Input placeholder="mongodb://localhost:27017" value={uri} onChange={(e) => setUri(e.target.value)} />
-              <Button type="submit" className="w-full">
-                {editing ? 'Update & Connect' : 'Connect'}
-              </Button>
+              <div className="flex gap-2">
+                {editing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setName('');
+                      setUri('');
+                      setEditing(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" className="flex-1">
+                  {editing ? 'Update & Connect' : 'Connect'}
+                </Button>
+              </div>
             </form>
           </>
         )}
