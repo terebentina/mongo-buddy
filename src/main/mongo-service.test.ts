@@ -7,7 +7,7 @@ vi.mock('mongodb', async () => {
   const actual = await vi.importActual<typeof import('mongodb')>('mongodb');
   return {
     ...actual,
-    MongoClient: vi.fn(),
+    MongoClient: vi.fn(function () {}),
   };
 });
 
@@ -61,7 +61,9 @@ describe('MongoService', () => {
         ],
       }),
     });
-    vi.mocked(MongoClient).mockImplementation(() => mockClient as unknown as MongoClient);
+    vi.mocked(MongoClient).mockImplementation(function () {
+      return mockClient as unknown as MongoClient;
+    });
     service = new MongoService();
   });
 

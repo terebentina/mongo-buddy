@@ -1,11 +1,13 @@
 import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['electron-store', 'mongodb', 'bson'] })],
     build: {
+      externalizeDeps: {
+        exclude: ['electron-store', 'mongodb', 'bson']
+      },
       rollupOptions: {
         external: [
           'kerberos',
@@ -20,7 +22,6 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
         output: {
