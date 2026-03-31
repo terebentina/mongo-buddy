@@ -151,7 +151,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
       <Dialog open={isEditing ? true : open} onOpenChange={handleClose}>
         <DialogContent className={maximized ? 'max-w-[90vw] w-[90vw] h-[90vh] flex flex-col' : ''}>
           <button
-            className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
             onClick={() =>
               setMaximized((m) => {
                 const next = !m;
