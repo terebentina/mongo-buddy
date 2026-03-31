@@ -9,7 +9,7 @@ import { EditorState } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import JSON5 from 'json5';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { foldGutter, foldKeymap } from '@codemirror/language';
+import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { defaultKeymap, historyKeymap, history } from '@codemirror/commands';
 
 interface DocumentEditorProps {
@@ -68,7 +68,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
           doc,
           extensions: [
             javascript(),
-            ...(isDarkMode() ? [oneDark] : []),
+            ...(isDarkMode() ? [oneDark] : [syntaxHighlighting(defaultHighlightStyle)]),
             editorTheme,
             foldGutter(),
             history(),

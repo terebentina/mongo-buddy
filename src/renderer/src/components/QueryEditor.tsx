@@ -2,6 +2,7 @@ import { useRef, useEffect, useCallback } from 'react';
 import { EditorView, keymap, placeholder } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
+import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
 import { useStore } from '../store';
@@ -97,7 +98,9 @@ export function QueryEditor() {
       doc: queryMode === 'filter' ? '{}' : '[]',
       extensions: [
         javascript(),
-        ...(document.documentElement.classList.contains('dark') ? [oneDark] : []),
+        ...(document.documentElement.classList.contains('dark')
+          ? [oneDark]
+          : [syntaxHighlighting(defaultHighlightStyle)]),
         runKeymap,
         placeholder('Enter query...'),
         autocompleteConf.of(fieldCompletion(fieldNames)),
