@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  electron-builder-squirrel-windows: 26.8.1
-
 importers:
 
   .:
@@ -1424,7 +1421,7 @@ packages:
     engines: {node: '>=14.0.0'}
     peerDependencies:
       dmg-builder: 24.13.3
-      electron-builder-squirrel-windows: 26.8.1
+      electron-builder-squirrel-windows: 24.13.3
 
   app-builder-lib@26.8.1:
     resolution: {integrity: sha512-p0Im/Dx5C4tmz8QEE1Yn4MkuPC8PrnlRneMhWJj7BBXQfNTJUshM/bp3lusdEsDbvvfJZpXWnYesgSLvwtM2Zw==}
