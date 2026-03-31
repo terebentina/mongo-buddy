@@ -2,19 +2,28 @@ import * as React from 'react';
 import { ScrollArea as BaseScrollArea } from '@base-ui/react/scroll-area';
 import { cn } from '@renderer/lib/utils';
 
-const ScrollArea = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseScrollArea.Root>>(
-  ({ className, children, ...props }, ref) => (
+function ScrollArea({
+  className,
+  children,
+  ref,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof BaseScrollArea.Root> & { ref?: React.Ref<HTMLDivElement> }) {
+  return (
     <BaseScrollArea.Root ref={ref} className={cn('relative overflow-hidden', className)} {...props}>
       <BaseScrollArea.Viewport className="h-full w-full rounded-[inherit]">{children}</BaseScrollArea.Viewport>
       <ScrollBar orientation="vertical" />
       <BaseScrollArea.Corner />
     </BaseScrollArea.Root>
-  )
-);
-ScrollArea.displayName = 'ScrollArea';
+  );
+}
 
-const ScrollBar = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<typeof BaseScrollArea.Scrollbar>>(
-  ({ className, orientation = 'vertical', ...props }, ref) => (
+function ScrollBar({
+  className,
+  orientation = 'vertical',
+  ref,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof BaseScrollArea.Scrollbar> & { ref?: React.Ref<HTMLDivElement> }) {
+  return (
     <BaseScrollArea.Scrollbar
       ref={ref}
       orientation={orientation}
@@ -28,8 +37,7 @@ const ScrollBar = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRe
     >
       <BaseScrollArea.Thumb className="relative flex-1 rounded-full bg-border" />
     </BaseScrollArea.Scrollbar>
-  )
-);
-ScrollBar.displayName = 'ScrollBar';
+  );
+}
 
 export { ScrollArea, ScrollBar };
