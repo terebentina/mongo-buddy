@@ -20,7 +20,7 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
       />
 
       <PopoverContent className="w-80 max-h-64 overflow-auto" onClick={(e) => e.stopPropagation()}>
-        <pre className="text-xs whitespace-pre-wrap break-words">
+        <pre className="text-xs whitespace-pre-wrap wrap-break-word">
           {typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue, null, 2) : raw}
         </pre>
         <Button
