@@ -47,6 +47,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
   const insertDoc = useStore((s) => s.insertDoc);
   const updateDoc = useStore((s) => s.updateDoc);
   const deleteDoc = useStore((s) => s.deleteDoc);
+  const selectedCollection = useStore((s) => s.selectedCollection);
 
   const isEditing = !!editDoc;
 
@@ -157,7 +158,12 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
             <span className="sr-only">{maximized ? 'Minimize' : 'Maximize'}</span>
           </button>
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Edit Document' : 'Add Document'}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? 'Edit Document' : 'Add Document'}
+              {selectedCollection && (
+                <span className="text-muted-foreground font-normal"> in {selectedCollection}</span>
+              )}
+            </DialogTitle>
             <DialogDescription>
               {isEditing ? 'Modify the document JSON below' : 'Enter document JSON'}
             </DialogDescription>
