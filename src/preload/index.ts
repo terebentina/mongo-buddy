@@ -57,7 +57,7 @@ const api = {
   onExportProgress: (cb: (data: ExportProgress) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: ExportProgress): void => cb(data);
     ipcRenderer.on('export:progress', handler);
-    return () => ipcRenderer.removeListener('export:progress', handler);
+    return () => ipcRenderer.off('export:progress', handler);
   },
   pickImportFile: (): Promise<Result<PickedFile | null>> => ipcRenderer.invoke('mongo:pick-import-file'),
   importCollection: (
@@ -72,7 +72,7 @@ const api = {
   onImportProgress: (cb: (data: ImportProgress) => void): (() => void) => {
     const handler = (_event: Electron.IpcRendererEvent, data: ImportProgress): void => cb(data);
     ipcRenderer.on('import:progress', handler);
-    return () => ipcRenderer.removeListener('import:progress', handler);
+    return () => ipcRenderer.off('import:progress', handler);
   },
 };
 

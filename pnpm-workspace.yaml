@@ -1,0 +1,4 @@
+blockExoticSubdeps: true
+minimumReleaseAge: 7
+onlyBuiltDependencies:
+  - electron
