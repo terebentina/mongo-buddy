@@ -18,7 +18,8 @@
     "test:watch": "vitest --config vitest.config.renderer.ts",
     "postinstall": "electron-builder install-app-deps",
     "predist": "pnpm run build",
-    "dist": "electron-builder --win",
+    "dist": "xvfb-run electron-builder --win",
+    "dist:win": "electron-builder --win",
     "release": "node scripts/release.mjs"
   },
   "dependencies": {

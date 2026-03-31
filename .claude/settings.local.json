@@ -37,7 +37,8 @@
       "WebFetch(domain:registry.npmjs.org)",
       "WebFetch(domain:vite.dev)",
       "WebFetch(domain:vitest.dev)",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "Bash(wine --version)"
     ]
   },
   "enableAllProjectMcpServers": true,
