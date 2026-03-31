@@ -40,6 +40,8 @@ const api = {
   ): Promise<Result<Record<string, unknown>>> => ipcRenderer.invoke('mongo:update-one', db, collection, id, doc),
   deleteOne: (db: string, collection: string, id: unknown): Promise<Result<undefined>> =>
     ipcRenderer.invoke('mongo:delete-one', db, collection, id),
+  dropCollection: (db: string, collection: string): Promise<Result<undefined>> =>
+    ipcRenderer.invoke('mongo:drop-collection', db, collection),
   listConnections: (): Promise<SavedConnection[]> => ipcRenderer.invoke('connections:list'),
   saveConnection: (conn: SavedConnection): Promise<void> => ipcRenderer.invoke('connections:save', conn),
   deleteConnection: (name: string): Promise<void> => ipcRenderer.invoke('connections:delete', name),
