@@ -28,7 +28,16 @@
       "Bash(npx eslint:*)",
       "Bash(grep -r \"createCollection\\\\|createDatabase\\\\|create.*db\\\\|create.*collection\" /home/dan/www/personal/mongo-buddy/src --include=*.ts --include=*.tsx)",
       "mcp__plugin_context7_context7__resolve-library-id",
-      "mcp__plugin_context7_context7__query-docs"
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(pnpm ls:*)",
+      "Bash(pnpm info:*)",
+      "Bash(pnpm why:*)",
+      "Bash(pnpm outdated:*)",
+      "Bash(grep -r \"VITE_\\\\|process.env\\\\|import.meta.env\" /home/dan/www/personal/mongo-buddy/src --include=*.ts --include=*.tsx)",
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:vite.dev)",
+      "WebFetch(domain:vitest.dev)",
+      "Bash(pnpm install:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
