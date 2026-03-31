@@ -325,6 +325,16 @@ export class MongoService {
     }
   }
 
+  async dropCollection(dbName: string, collName: string): Promise<Result<undefined>> {
+    if (!this.client) return { ok: false, error: 'Not connected' };
+    try {
+      await this.client.db(dbName).dropCollection(collName);
+      return { ok: true, data: undefined };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
   async deleteOne(dbName: string, collName: string, id: unknown): Promise<Result<undefined>> {
     if (!this.client) return { ok: false, error: 'Not connected' };
     try {

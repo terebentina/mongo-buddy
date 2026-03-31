@@ -93,6 +93,10 @@ export function registerIpcHandlers(
     'mongo:delete-one',
     wrap((db: unknown, coll: unknown, id: unknown) => service.deleteOne(db as string, coll as string, id))
   );
+  ipcMain.handle(
+    'mongo:drop-collection',
+    wrap((db: unknown, coll: unknown) => service.dropCollection(db as string, coll as string))
+  );
 
   ipcMain.handle(
     'connections:list',
