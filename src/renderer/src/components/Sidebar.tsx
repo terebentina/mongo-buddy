@@ -4,7 +4,8 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, Upload, X } from 'lucide-react';
+import { Unplug, Download, EllipsisVertical, Upload, X } from 'lucide-react';
+import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
 import type { ExportProgress, ImportOptions, ImportProgress, PickedFile } from '../../../shared/types';
@@ -56,10 +57,10 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   };
 
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className={`group/coll w-full justify-between text-xs relative overflow-hidden ${isSelected ? 'bg-accent' : ''}`}
+    <div
+      role="button"
+      tabIndex={0}
+      className={`group/coll w-full flex items-center justify-between text-xs rounded-md px-3 h-9 cursor-pointer relative overflow-hidden hover:bg-accent hover:text-accent-foreground ${isSelected ? 'bg-accent' : ''}`}
       style={
         exporting
           ? {
@@ -68,6 +69,12 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
           : undefined
       }
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
       <span className="truncate">{coll.name}</span>
       <span className="flex items-center gap-1">
@@ -85,15 +92,33 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
             <X className="h-3 w-3" />
           </button>
         ) : (
-          <button
-            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/coll:opacity-100 transition-opacity"
-            onClick={handleExport}
-          >
-            <Download className="h-3 w-3" />
-          </button>
+          <Menu.Root>
+            <Menu.Trigger
+              className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/coll:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <EllipsisVertical className="h-3 w-3" />
+            </Menu.Trigger>
+            <Menu.Portal>
+              <Menu.Positioner sideOffset={4} align="start" className="z-50">
+                <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                  <Menu.Item
+                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-none hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExport(e);
+                    }}
+                  >
+                    <Download className="h-3 w-3" />
+                    Export
+                  </Menu.Item>
+                </Menu.Popup>
+              </Menu.Positioner>
+            </Menu.Portal>
+          </Menu.Root>
         )}
       </span>
-    </Button>
+    </div>
   );
 }
 
