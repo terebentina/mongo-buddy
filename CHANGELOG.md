@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.15.0](https://github.com/terebentina/mongo-buddy/compare/v1.14.3...v1.15.0) (2026-03-31)
+
+
+### Features
+
+* **editor:** persist maximize/minimize state across edits ([44aa689](https://github.com/terebentina/mongo-buddy/commit/44aa68939e46c22324eeec03bfe844c2a63f2b08))
+* **editor:** show collection name in document editor dialog title ([b281a2a](https://github.com/terebentina/mongo-buddy/commit/b281a2a45364ef3b4bed7e3dc60027b79f7cd5e7))
+
 ## [1.14.3](https://github.com/terebentina/mongo-buddy/compare/v1.14.2...v1.14.3) (2026-03-31)
 
 ## [1.14.2](https://github.com/terebentina/mongo-buddy/compare/v1.14.1...v1.14.2) (2026-03-30)
