@@ -25,7 +25,7 @@ interface CollectionRowProps {
   onSelect: () => void;
 }
 
-function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps): JSX.Element {
+function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps) {
   const [exportCount, setExportCount] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
@@ -210,7 +210,7 @@ function DatabaseRow({
   loading,
   onSelectDb,
   onSelectCollection,
-}: DatabaseRowProps): JSX.Element {
+}: DatabaseRowProps) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pickedFile, setPickedFile] = useState<PickedFile | null>(null);
   const [importingCollection, setImportingCollection] = useState<string | null>(null);
@@ -291,20 +291,36 @@ function DatabaseRow({
               <span className="flex items-center gap-1">
                 {importing && <span className="text-[10px] text-muted-foreground">{importCount.toLocaleString()}</span>}
                 {importing ? (
-                  <button
-                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
                     onClick={handleCancelImport}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleCancelImport(e as unknown as React.MouseEvent);
+                      }
+                    }}
                   >
                     <X className="h-3 w-3" />
-                  </button>
+                  </span>
                 ) : (
-                  <button
-                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity cursor-pointer"
                     onClick={handleUploadClick}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleUploadClick(e as unknown as React.MouseEvent);
+                      }
+                    }}
                     title="Import collection"
                   >
                     <Upload className="h-3 w-3" />
-                  </button>
+                  </span>
                 )}
               </span>
             </Button>
@@ -347,7 +363,7 @@ function DatabaseRow({
   );
 }
 
-export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps): JSX.Element {
+export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
   const databases = useStore((s) => s.databases);
   const collections = useStore((s) => s.collections);
   const selectedDb = useStore((s) => s.selectedDb);

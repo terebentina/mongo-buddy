@@ -39,7 +39,7 @@ const editorTheme = EditorView.theme({
   },
 });
 
-export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.Element {
+export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
   const [open, setOpen] = useState(!!editDoc);
   const viewRef = useRef<EditorView | null>(null);
   const [confirming, setConfirming] = useState(false);

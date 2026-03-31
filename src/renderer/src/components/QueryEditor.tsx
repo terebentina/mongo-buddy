@@ -37,7 +37,7 @@ function fieldCompletion(fieldNames: string[]) {
   });
 }
 
-export function QueryEditor(): JSX.Element {
+export function QueryEditor() {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const queryMode = useStore((s) => s.queryMode);

@@ -26,7 +26,7 @@ export function ImportDialog({
   filePath,
   defaultCollection,
   onConfirm,
-}: ImportDialogProps): JSX.Element {
+}: ImportDialogProps) {
   const [collection, setCollection] = useState(defaultCollection);
   const [onDuplicate, setOnDuplicate] = useState<ImportOptions['onDuplicate']>('skip');
   const [clearFirst, setClearFirst] = useState(false);
