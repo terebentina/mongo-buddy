@@ -22,7 +22,7 @@ if (status) {
 }
 
 // Bump version, update CHANGELOG, commit, tag
-const bumpArgs = ['npx commit-and-tag-version']
+const bumpArgs = ['pnpm exec commit-and-tag-version']
 if (dryRun) bumpArgs.push('--dry-run')
 if (firstRelease) bumpArgs.push('--first-release')
 run(bumpArgs.join(' '))
