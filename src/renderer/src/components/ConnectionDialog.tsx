@@ -26,7 +26,7 @@ function injectCredentials(uri: string, username: string, password: string): str
   return stripped.replace(/^(mongodb(?:\+srv)?:\/\/)/, `$1${encodedUser}:${encodedPass}@`);
 }
 
-export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps): JSX.Element {
+export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) {
   const [uri, setUri] = useState('');
   const [name, setName] = useState('');
   const [editing, setEditing] = useState(false);

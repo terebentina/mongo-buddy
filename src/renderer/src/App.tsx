@@ -8,7 +8,7 @@ import { DocumentEditor } from './components/DocumentEditor';
 import { QueryHistory } from './components/QueryHistory';
 import { Toaster } from './components/ui/sonner';
 
-function App(): JSX.Element {
+function App() {
   const connected = useStore((s) => s.connected);
   const selectedCollection = useStore((s) => s.selectedCollection);
   const [dialogOpen, setDialogOpen] = useState(!connected);

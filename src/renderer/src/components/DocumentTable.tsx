@@ -7,7 +7,7 @@ import { Loader } from './Loader';
 import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter } from 'lucide-react';
 import { toast } from 'sonner';
 
-function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }): JSX.Element {
+function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -57,7 +57,7 @@ interface DocumentTableProps {
   onRowClick?: (doc: Record<string, unknown>) => void;
 }
 
-export function DocumentTable({ className, onRowClick }: DocumentTableProps): JSX.Element {
+export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const docs = useStore((s) => s.docs);
   const totalCount = useStore((s) => s.totalCount);
   const skip = useStore((s) => s.skip);

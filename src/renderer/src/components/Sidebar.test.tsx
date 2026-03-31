@@ -16,6 +16,11 @@ const mockApi = {
   exportCollection: vi.fn().mockResolvedValue({ ok: true, data: 10 }),
   cancelExport: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   onExportProgress: vi.fn().mockReturnValue(() => {}),
+  onImportProgress: vi.fn().mockReturnValue(() => {}),
+  pickImportFile: vi.fn().mockResolvedValue({ ok: true, data: null }),
+  importCollection: vi.fn().mockResolvedValue({ ok: true, data: 0 }),
+  cancelImport: vi.fn().mockResolvedValue({ ok: true }),
+  dropCollection: vi.fn().mockResolvedValue({ ok: true }),
 };
 
 beforeEach(() => {
@@ -128,7 +133,7 @@ describe('Sidebar', () => {
     render(<Sidebar width={240} onResize={() => {}} />);
 
     // Collapsible is controlled by selectedDb === db.name, so it should be open
-    const usersItem = screen.getByText('users').closest('button');
+    const usersItem = screen.getByText('users').closest('[role="button"]');
     expect(usersItem).toHaveClass('bg-accent');
   });
 });

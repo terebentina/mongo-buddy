@@ -22,7 +22,7 @@ function truncate(str: string, max: number): string {
   return oneLine.length <= max ? oneLine : oneLine.slice(0, max) + '…';
 }
 
-export function QueryHistory(): JSX.Element {
+export function QueryHistory() {
   const [open, setOpen] = useState(false);
   const queryHistory = useStore((s) => s.queryHistory);
   const restoreFromHistory = useStore((s) => s.restoreFromHistory);
