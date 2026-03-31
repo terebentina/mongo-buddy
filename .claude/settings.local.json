@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git push:*)",
+      "Bash(npm view:*)",
+      "Bash(find /home/dan/www/personal/mongo-buddy -maxdepth 2 -name *.config.* -o -name forge.config.*)",
+      "Bash(find /home/dan/www/personal/mongo-buddy/dist -name *connection*)",
+      "Bash(find /home/dan/www/personal/mongo-buddy/dist -type f -name *.asar -o -name index.js)",
+      "Bash(ls:*)",
+      "Bash(git:*)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm format:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm run:*)",
+      "Bash(pnpm test:*)",
+      "Bash(npx vitest:*)",
+      "Bash(find /home/dan/www/personal/mongo-buddy/src -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.css \\\\\\))",
+      "Bash(xargs cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(sqlite3 ~/.pro-workflow/data.db \"SELECT id, category, rule, times_applied, created_at FROM learnings ORDER BY created_at DESC;\")",
+      "Bash(mkdir -p ~/.pro-workflow)",
+      "Bash(sqlite3 ~/.pro-workflow/data.db \"CREATE TABLE IF NOT EXISTS learnings \\(id INTEGER PRIMARY KEY AUTOINCREMENT, project TEXT, category TEXT, rule TEXT, mistake TEXT, correction TEXT, times_applied INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP\\);\")",
+      "Bash(pnpm exec:*)",
+      "Bash(pnpm vitest:*)",
+      "WebSearch",
+      "Bash(pnpm typecheck:*)",
+      "Bash(npx eslint:*)",
+      "Bash(grep -r \"createCollection\\\\|createDatabase\\\\|create.*db\\\\|create.*collection\" /home/dan/www/personal/mongo-buddy/src --include=*.ts --include=*.tsx)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ]
+}
