@@ -4,10 +4,12 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, EllipsisVertical, Upload, X } from 'lucide-react';
+import { Unplug, Download, EllipsisVertical, Upload, X, Trash2 } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
+import { Input } from './ui/input';
 import type { ExportProgress, ImportOptions, ImportProgress, PickedFile } from '../../../shared/types';
 
 interface SidebarProps {
@@ -25,6 +27,11 @@ interface CollectionRowProps {
 
 function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps): JSX.Element {
   const [exportCount, setExportCount] = useState<number | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const selectDb = useStore((s) => s.selectDb);
+  const selectedCollection = useStore((s) => s.selectedCollection);
 
   useEffect(() => {
     const cleanup = window.api.onExportProgress((data: ExportProgress) => {
@@ -56,69 +63,132 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
     await window.api.cancelExport(dbName, coll.name);
   };
 
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className={`group/coll w-full flex items-center justify-between text-xs rounded-md px-3 h-9 cursor-pointer relative overflow-hidden hover:bg-accent hover:text-accent-foreground ${isSelected ? 'bg-accent' : ''}`}
-      style={
-        exporting
-          ? {
-              background: `linear-gradient(to right, hsl(var(--accent)) ${progress}%, transparent ${progress}%)`,
-            }
-          : undefined
+  const handleDelete = async (): Promise<void> => {
+    const result = await window.api.dropCollection(dbName, coll.name);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`Dropped collection "${coll.name}"`);
+    setDeleteDialogOpen(false);
+    setConfirmText('');
+
+    if (selectedCollection === coll.name) {
+      await selectDb(dbName);
+    } else {
+      const listResult = await window.api.listCollections(dbName);
+      if (listResult.ok) {
+        useStore.setState({ collections: listResult.data });
       }
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
+    }
+  };
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        className={`group/coll w-full flex items-center justify-between text-xs rounded-md px-3 h-9 cursor-pointer relative overflow-hidden hover:bg-accent hover:text-accent-foreground ${isSelected ? 'bg-accent' : ''}`}
+        style={
+          exporting
+            ? {
+                background: `linear-gradient(to right, hsl(var(--accent)) ${progress}%, transparent ${progress}%)`,
+              }
+            : undefined
         }
-      }}
-    >
-      <span className="truncate">{coll.name}</span>
-      <span className="flex items-center gap-1">
-        {coll.count !== undefined && !exporting && (
-          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-            {coll.count.toLocaleString()}
-          </span>
-        )}
-        {exporting && <span className="text-[10px] text-muted-foreground">{exportCount.toLocaleString()}</span>}
-        {exporting ? (
-          <button
-            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            onClick={handleCancel}
-          >
-            <X className="h-3 w-3" />
-          </button>
-        ) : (
-          <Menu.Root>
-            <Menu.Trigger
-              className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/coll:opacity-100 transition-opacity"
-              onClick={(e) => e.stopPropagation()}
+        onClick={onSelect}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
+      >
+        <span className="truncate">{coll.name}</span>
+        <span className="flex items-center gap-1">
+          {coll.count !== undefined && !exporting && (
+            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+              {coll.count.toLocaleString()}
+            </span>
+          )}
+          {exporting && <span className="text-[10px] text-muted-foreground">{exportCount.toLocaleString()}</span>}
+          {exporting ? (
+            <button
+              className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+              onClick={handleCancel}
             >
-              <EllipsisVertical className="h-3 w-3" />
-            </Menu.Trigger>
-            <Menu.Portal>
-              <Menu.Positioner sideOffset={4} align="start" className="z-50">
-                <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-                  <Menu.Item
-                    className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-none hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExport(e);
-                    }}
-                  >
-                    <Download className="h-3 w-3" />
-                    Export
-                  </Menu.Item>
-                </Menu.Popup>
-              </Menu.Positioner>
-            </Menu.Portal>
-          </Menu.Root>
-        )}
-      </span>
-    </div>
+              <X className="h-3 w-3" />
+            </button>
+          ) : (
+            <Menu.Root>
+              <Menu.Trigger
+                className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/coll:opacity-100 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <EllipsisVertical className="h-3 w-3" />
+              </Menu.Trigger>
+              <Menu.Portal>
+                <Menu.Positioner sideOffset={4} align="start" className="z-50">
+                  <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                    <Menu.Item
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-none hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleExport(e);
+                      }}
+                    >
+                      <Download className="h-3 w-3" />
+                      Export
+                    </Menu.Item>
+                    <Menu.Item
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-none text-destructive hover:bg-destructive/10 data-[highlighted]:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </Menu.Item>
+                  </Menu.Popup>
+                </Menu.Positioner>
+              </Menu.Portal>
+            </Menu.Root>
+          )}
+        </span>
+      </div>
+      <Dialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setConfirmText('');
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete collection</DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>{coll.name}</strong> and all its documents. Type the collection name
+              to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder={coll.name}
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={confirmText !== coll.name} onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
