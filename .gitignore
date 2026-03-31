@@ -6,3 +6,4 @@ dist
 .idea
 prds/progress.txt
 prds/prd.json
+/.claude/settings.local.json
