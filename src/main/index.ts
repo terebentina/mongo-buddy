@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, Menu } from 'electron';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 
@@ -19,6 +19,7 @@ function createWindow(): void {
     width: 1200,
     height: 800,
     show: false,
+    icon: resolve(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,
