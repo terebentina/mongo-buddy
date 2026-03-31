@@ -36,11 +36,11 @@ importers:
         specifier: ^6.40.0
         version: 6.40.0
       '@electron-toolkit/preload':
-        specifier: ^3.0.0
+        specifier: 3.0.2
         version: 3.0.2(electron@41.1.0)
       '@electron-toolkit/utils':
-        specifier: ^3.0.0
-        version: 3.0.0(electron@41.1.0)
+        specifier: 4.0.0
+        version: 4.0.0(electron@41.1.0)
       bson:
         specifier: 7.2.0
         version: 7.2.0
@@ -82,8 +82,8 @@ importers:
         version: 5.0.12(@types/react@19.2.14)(react@19.2.4)(use-sync-external-store@1.6.0(react@19.2.4))
     devDependencies:
       '@electron-toolkit/tsconfig':
-        specifier: ^1.0.1
-        version: 1.0.1(@types/node@20.19.37)
+        specifier: 2.0.0
+        version: 2.0.0(@types/node@20.19.37)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.1.0(jiti@2.6.1))
@@ -359,13 +359,13 @@ packages:
     peerDependencies:
       electron: '>=13.0.0'
 
-  '@electron-toolkit/tsconfig@1.0.1':
-    resolution: {integrity: sha512-M0Mol3odspvtCuheyujLNAW7bXq7KFNYVMRtpjFa4ZfES4MuklXBC7Nli/omvc+PRKlrklgAGx3l4VakjNo8jg==}
+  '@electron-toolkit/tsconfig@2.0.0':
+    resolution: {integrity: sha512-AdPsP770WhW7b260h13SHMdmjEEHJL6xFtgi3jwgdsSQbJOkJLeNnnpZW9qxTPCvmRI6vmdzWz5K3gibFS6SNg==}
     peerDependencies:
       '@types/node': '*'
 
-  '@electron-toolkit/utils@3.0.0':
-    resolution: {integrity: sha512-GaXHDhiT7KCvMJjXdp/QqpYinq69T/Pdl49Z1XLf8mKGf63dnsODMWyrmIjEQ0z/vG7dO8qF3fvmI6Eb2lUNZA==}
+  '@electron-toolkit/utils@4.0.0':
+    resolution: {integrity: sha512-qXSntwEzluSzKl4z5yFNBknmPGjPa3zFhE4mp9+h0cgokY5ornAeP+CJQDBhKsL1S58aOQfcwkD3NwLZCl+64g==}
     peerDependencies:
       electron: '>=13.0.0'
 
@@ -4182,11 +4182,11 @@ snapshots:
     dependencies:
       electron: 41.1.0
 
-  '@electron-toolkit/tsconfig@1.0.1(@types/node@20.19.37)':
+  '@electron-toolkit/tsconfig@2.0.0(@types/node@20.19.37)':
     dependencies:
       '@types/node': 20.19.37
 
-  '@electron-toolkit/utils@3.0.0(electron@41.1.0)':
+  '@electron-toolkit/utils@4.0.0(electron@41.1.0)':
     dependencies:
       electron: 41.1.0
 
