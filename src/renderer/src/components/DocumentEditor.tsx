@@ -43,10 +43,11 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
   const [open, setOpen] = useState(!!editDoc);
   const viewRef = useRef<EditorView | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [maximized, setMaximized] = useState(false);
+  const [maximized, setMaximized] = useState(() => localStorage.getItem('editor-maximized') === 'true');
   const insertDoc = useStore((s) => s.insertDoc);
   const updateDoc = useStore((s) => s.updateDoc);
   const deleteDoc = useStore((s) => s.deleteDoc);
+  const selectedCollection = useStore((s) => s.selectedCollection);
 
   const isEditing = !!editDoc;
 
@@ -151,13 +152,24 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps): JSX.E
         <DialogContent className={maximized ? 'max-w-[90vw] w-[90vw] h-[90vh] flex flex-col' : ''}>
           <button
             className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            onClick={() => setMaximized((m) => !m)}
+            onClick={() =>
+              setMaximized((m) => {
+                const next = !m;
+                localStorage.setItem('editor-maximized', String(next));
+                return next;
+              })
+            }
           >
             {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             <span className="sr-only">{maximized ? 'Minimize' : 'Maximize'}</span>
           </button>
           <DialogHeader>
-            <DialogTitle>{isEditing ? 'Edit Document' : 'Add Document'}</DialogTitle>
+            <DialogTitle>
+              {isEditing ? 'Edit Document' : 'Add Document'}
+              {selectedCollection && (
+                <span className="text-muted-foreground font-normal"> in {selectedCollection}</span>
+              )}
+            </DialogTitle>
             <DialogDescription>
               {isEditing ? 'Modify the document JSON below' : 'Enter document JSON'}
             </DialogDescription>
