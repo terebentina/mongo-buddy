@@ -13,7 +13,7 @@ vi.mock('electron', () => ({
 
 vi.mock('electron-store', () => {
   return {
-    default: vi.fn().mockImplementation(() => {
+    default: vi.fn().mockImplementation(function () {
       const data: Record<string, unknown> = {};
       return {
         get: vi.fn((key: string, defaultValue?: unknown) => (key in data ? data[key] : defaultValue)),
