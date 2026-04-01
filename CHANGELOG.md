@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.16.0](https://github.com/terebentina/mongo-buddy/compare/v1.15.6...v1.16.0) (2026-04-01)
+
+
+### Features
+
+* **sidebar:** auto-expand single database on connect ([ee3a7a8](https://github.com/terebentina/mongo-buddy/commit/ee3a7a8635108d4f70c6c6ddc13b7578e0acbb0d))
+
 ## [1.15.6](https://github.com/terebentina/mongo-buddy/compare/v1.15.5...v1.15.6) (2026-03-31)
 
 
