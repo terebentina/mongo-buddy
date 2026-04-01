@@ -87,7 +87,24 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
     await window.api.setLastUsed(uri);
     const history = await window.api.loadHistory();
-    set({ loading: false, connected: true, uri, databases: dbResult.data, queryHistory: history });
+    let autoSelectedDb: string | null = null;
+    let collections: CollectionInfo[] = [];
+    if (dbResult.data.length === 1) {
+      autoSelectedDb = dbResult.data[0].name;
+      const collResult = await window.api.listCollections(autoSelectedDb);
+      if (collResult.ok) {
+        collections = collResult.data;
+      }
+    }
+    set({
+      loading: false,
+      connected: true,
+      uri,
+      databases: dbResult.data,
+      queryHistory: history,
+      selectedDb: autoSelectedDb,
+      collections,
+    });
   },
 
   disconnect: async () => {

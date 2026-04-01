@@ -59,6 +59,10 @@ describe('store', () => {
       ok: true,
       data: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
     });
+    mockApi.listCollections.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'users', type: 'collection' }],
+    });
     mockApi.loadHistory.mockResolvedValue(historyEntries);
 
     await useStore.getState().connect('mongodb://localhost');
@@ -68,9 +72,47 @@ describe('store', () => {
     expect(state.uri).toBe('mongodb://localhost');
     expect(state.databases).toEqual([{ name: 'testdb', sizeOnDisk: 1024, empty: false }]);
     expect(state.queryHistory).toEqual(historyEntries);
+    expect(state.selectedDb).toBe('testdb');
+    expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
     expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost');
     expect(mockApi.listDatabases).toHaveBeenCalled();
+    expect(mockApi.listCollections).toHaveBeenCalledWith('testdb');
     expect(mockApi.loadHistory).toHaveBeenCalled();
+  });
+
+  it('connect() does not auto-select when multiple databases exist', async () => {
+    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
+    mockApi.listDatabases.mockResolvedValue({
+      ok: true,
+      data: [
+        { name: 'db1', sizeOnDisk: 1024, empty: false },
+        { name: 'db2', sizeOnDisk: 2048, empty: false },
+      ],
+    });
+
+    await useStore.getState().connect('mongodb://localhost');
+
+    const state = useStore.getState();
+    expect(state.connected).toBe(true);
+    expect(state.selectedDb).toBeNull();
+    expect(state.collections).toEqual([]);
+    expect(mockApi.listCollections).not.toHaveBeenCalled();
+  });
+
+  it('connect() auto-select handles listCollections failure gracefully', async () => {
+    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
+    mockApi.listDatabases.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
+    mockApi.listCollections.mockResolvedValue({ ok: false, error: 'Not authorized' });
+
+    await useStore.getState().connect('mongodb://localhost');
+
+    const state = useStore.getState();
+    expect(state.connected).toBe(true);
+    expect(state.selectedDb).toBe('testdb');
+    expect(state.collections).toEqual([]);
   });
 
   it('connect failure sets error, connected=false', async () => {
