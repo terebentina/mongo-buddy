@@ -46,7 +46,7 @@ interface MongoApi {
   exportCollection(db: string, collection: string): Promise<Result<number | null>>;
   cancelExport(db: string, collection: string): Promise<Result<undefined>>;
   onExportProgress(cb: (data: ExportProgress) => void): () => void;
-  pickImportFile(): Promise<Result<PickedFile | null>>;
+  pickImportFile(): Promise<Result<PickedFile[] | null>>;
   importCollection(
     db: string,
     collection: string,

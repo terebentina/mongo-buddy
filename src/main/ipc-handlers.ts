@@ -209,20 +209,22 @@ export function registerIpcHandlers(
     return { ok: true, data: undefined };
   });
 
-  ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile | null>> => {
+  ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile[] | null>> => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       filters: [{ name: 'BSON Gzip', extensions: ['bson.gz'] }],
-      properties: ['openFile'],
+      properties: ['openFile', 'multiSelections'],
     });
 
     if (canceled || filePaths.length === 0) {
       return { ok: true, data: null };
     }
 
-    const filePath = filePaths[0];
-    const suggestedName = path.basename(filePath, '.bson.gz');
+    const files = filePaths.map((fp) => ({
+      filePath: fp,
+      suggestedName: path.basename(fp, '.bson.gz'),
+    }));
 
-    return { ok: true, data: { filePath, suggestedName } };
+    return { ok: true, data: files };
   });
 
   const activeImports = new Map<string, AbortController>();

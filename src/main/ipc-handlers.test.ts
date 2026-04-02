@@ -6,6 +6,7 @@ import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
 
 const mockShowSaveDialog = vi.fn();
+const mockShowOpenDialog = vi.fn();
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -13,6 +14,7 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showSaveDialog: (...args: unknown[]) => mockShowSaveDialog(...args),
+    showOpenDialog: (...args: unknown[]) => mockShowOpenDialog(...args),
   },
 }));
 
@@ -421,6 +423,41 @@ describe('IPC Handlers', () => {
     it('returns error when no active export', () => {
       const result = handlers['mongo:cancel-export']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
       expect(result).toEqual({ ok: false, error: 'No active export for this collection' });
+    });
+  });
+
+  describe('mongo:pick-import-file', () => {
+    it('returns null when dialog is cancelled', async () => {
+      mockShowOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
+      const result = await handlers['mongo:pick-import-file']();
+      expect(result).toEqual({ ok: true, data: null });
+    });
+
+    it('returns array of PickedFile for multiple selections', async () => {
+      mockShowOpenDialog.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/tmp/users.bson.gz', '/tmp/orders.bson.gz'],
+      });
+      const result = await handlers['mongo:pick-import-file']();
+      expect(result).toEqual({
+        ok: true,
+        data: [
+          { filePath: '/tmp/users.bson.gz', suggestedName: 'users' },
+          { filePath: '/tmp/orders.bson.gz', suggestedName: 'orders' },
+        ],
+      });
+    });
+
+    it('strips .bson.gz correctly from dotted filenames', async () => {
+      mockShowOpenDialog.mockResolvedValue({
+        canceled: false,
+        filePaths: ['/tmp/my.collection.bson.gz'],
+      });
+      const result = await handlers['mongo:pick-import-file']();
+      expect(result).toEqual({
+        ok: true,
+        data: [{ filePath: '/tmp/my.collection.bson.gz', suggestedName: 'my.collection' }],
+      });
     });
   });
 });

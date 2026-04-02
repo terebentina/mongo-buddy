@@ -213,9 +213,12 @@ function DatabaseRow({
   onSelectCollection,
 }: DatabaseRowProps) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [pickedFile, setPickedFile] = useState<PickedFile | null>(null);
+  const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
   const [importingCollection, setImportingCollection] = useState<string | null>(null);
   const [importCount, setImportCount] = useState(0);
+  const [importIndex, setImportIndex] = useState(0);
+  const [importTotal, setImportTotal] = useState(0);
+  const cancelledRef = useRef(false);
   const refreshDocs = useStore((s) => s.refreshDocs);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
@@ -238,35 +241,60 @@ function DatabaseRow({
       toast.error(pickResult.error);
       return;
     }
-    if (!pickResult.data) return;
-    setPickedFile(pickResult.data);
+    if (!pickResult.data || pickResult.data.length === 0) return;
+    setPickedFiles(pickResult.data);
     setImportDialogOpen(true);
   };
 
-  const handleImportConfirm = async (collection: string, options: ImportOptions): Promise<void> => {
-    if (!pickedFile) return;
-    const filePath = pickedFile.filePath;
+  const handleImportConfirm = async (options: ImportOptions): Promise<void> => {
+    if (pickedFiles.length === 0) return;
+    const files = [...pickedFiles];
     setImportDialogOpen(false);
-    setPickedFile(null);
-    setImportingCollection(collection);
-    setImportCount(0);
-    const importResult = await window.api.importCollection(dbName, collection, filePath, options);
+    setPickedFiles([]);
+    setImportTotal(files.length);
+    cancelledRef.current = false;
+
+    let totalInserted = 0;
+    let totalSkipped = 0;
+    let failed = false;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setImportIndex(i);
+      setImportingCollection(file.suggestedName);
+      setImportCount(0);
+
+      const result = await window.api.importCollection(dbName, file.suggestedName, file.filePath, options);
+
+      if (!result.ok) {
+        if (!cancelledRef.current) {
+          toast.error(`Failed importing ${file.suggestedName}: ${result.error}`);
+        }
+        failed = true;
+        break;
+      }
+      if (result.data) {
+        totalInserted += result.data.inserted;
+        totalSkipped += result.data.skipped;
+      }
+    }
+
     setImportingCollection(null);
     setImportCount(0);
-    if (!importResult.ok) {
-      toast.error(importResult.error);
-      return;
-    }
-    if (importResult.data) {
-      const { inserted, skipped } = importResult.data;
+    setImportTotal(0);
+    setImportIndex(0);
+
+    if (!failed) {
+      const collLabel = files.length === 1 ? 'collection' : `${files.length} collections`;
       const msg =
-        skipped > 0
-          ? `Imported ${inserted.toLocaleString()} documents (${skipped.toLocaleString()} duplicates skipped)`
-          : `Imported ${inserted.toLocaleString()} documents`;
+        totalSkipped > 0
+          ? `Imported ${totalInserted.toLocaleString()} documents into ${collLabel} (${totalSkipped.toLocaleString()} duplicates skipped)`
+          : `Imported ${totalInserted.toLocaleString()} documents into ${collLabel}`;
       toast.success(msg);
     }
+
     onSelectDb();
-    if (storeSelectedDb === dbName && storeSelectedCollection === collection) {
+    if (storeSelectedDb === dbName && files.some((f) => f.suggestedName === storeSelectedCollection)) {
       refreshDocs();
     }
   };
@@ -274,6 +302,7 @@ function DatabaseRow({
   const handleCancelImport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (!importingCollection) return;
+    cancelledRef.current = true;
     await window.api.cancelImport(dbName, importingCollection);
     toast('Import cancelled');
   };
@@ -290,7 +319,12 @@ function DatabaseRow({
             >
               <span className="truncate">{dbName}</span>
               <span className="flex items-center gap-1">
-                {importing && <span className="text-[10px] text-muted-foreground">{importCount.toLocaleString()}</span>}
+                {importing && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {importTotal > 1 && `(${importIndex + 1}/${importTotal}) `}
+                    {importCount.toLocaleString()}
+                  </span>
+                )}
                 {importing ? (
                   <span
                     role="button"
@@ -347,16 +381,15 @@ function DatabaseRow({
           </div>
         </CollapsibleContent>
       </Collapsible>
-      {pickedFile && (
+      {pickedFiles.length > 0 && (
         <ImportDialog
           open={importDialogOpen}
           onOpenChange={(open) => {
             setImportDialogOpen(open);
-            if (!open) setPickedFile(null);
+            if (!open) setPickedFiles([]);
           }}
           dbName={dbName}
-          filePath={pickedFile.filePath}
-          defaultCollection={pickedFile.suggestedName}
+          files={pickedFiles}
           onConfirm={handleImportConfirm}
         />
       )}

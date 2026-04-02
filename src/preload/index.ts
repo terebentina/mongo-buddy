@@ -59,7 +59,7 @@ const api = {
     ipcRenderer.on('export:progress', handler);
     return () => ipcRenderer.off('export:progress', handler);
   },
-  pickImportFile: (): Promise<Result<PickedFile | null>> => ipcRenderer.invoke('mongo:pick-import-file'),
+  pickImportFile: (): Promise<Result<PickedFile[] | null>> => ipcRenderer.invoke('mongo:pick-import-file'),
   importCollection: (
     db: string,
     collection: string,

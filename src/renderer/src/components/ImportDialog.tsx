@@ -1,16 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import type { ImportOptions } from '../../../shared/types';
+import type { ImportOptions, PickedFile } from '../../../shared/types';
 
 interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dbName: string;
-  filePath: string;
-  defaultCollection: string;
-  onConfirm: (collection: string, options: ImportOptions) => void;
+  files: PickedFile[];
+  onConfirm: (options: ImportOptions) => void;
 }
 
 const DUPLICATE_OPTIONS: { value: ImportOptions['onDuplicate']; label: string; desc: string }[] = [
@@ -19,28 +17,24 @@ const DUPLICATE_OPTIONS: { value: ImportOptions['onDuplicate']; label: string; d
   { value: 'upsert', label: 'Upsert', desc: 'Replace existing documents' },
 ];
 
-export function ImportDialog({
-  open,
-  onOpenChange,
-  dbName,
-  filePath,
-  defaultCollection,
-  onConfirm,
-}: ImportDialogProps) {
-  const [collection, setCollection] = useState(defaultCollection);
+export function ImportDialog({ open, onOpenChange, dbName, files, onConfirm }: ImportDialogProps) {
   const [onDuplicate, setOnDuplicate] = useState<ImportOptions['onDuplicate']>('skip');
   const [clearFirst, setClearFirst] = useState(false);
 
+  const hasDuplicates = useMemo(() => {
+    const names = files.map((f) => f.suggestedName);
+    return new Set(names).size !== names.length;
+  }, [files]);
+
   const handleConfirm = (): void => {
-    if (!collection.trim()) return;
-    onConfirm(collection.trim(), { onDuplicate, clearFirst });
+    onConfirm({ onDuplicate, clearFirst });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Import Collection</DialogTitle>
+          <DialogTitle>Import {files.length === 1 ? 'Collection' : `${files.length} Collections`}</DialogTitle>
           <DialogDescription>
             Import into <span className="font-medium text-foreground">{dbName}</span>
           </DialogDescription>
@@ -48,14 +42,22 @@ export function ImportDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">File</label>
-            <Input value={filePath} readOnly className="text-xs text-muted-foreground" />
+            <label className="text-sm font-medium">{files.length === 1 ? 'Collection' : 'Collections'}</label>
+            <div className="max-h-60 overflow-y-auto rounded-md border border-input">
+              {files.map((file, i) => (
+                <div key={file.filePath} className={`px-3 py-2 ${i > 0 ? 'border-t border-input' : ''}`}>
+                  <div className="text-sm font-medium">{file.suggestedName}</div>
+                  <div className="text-xs text-muted-foreground truncate">{file.filePath}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Collection name</label>
-            <Input value={collection} onChange={(e) => setCollection(e.target.value)} autoFocus />
-          </div>
+          {hasDuplicates && (
+            <p className="text-xs text-destructive">
+              Multiple files resolve to the same collection name. Remove duplicates before importing.
+            </p>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Duplicate handling</label>
@@ -90,7 +92,8 @@ export function ImportDialog({
             </label>
             {clearFirst && (
               <p className="text-xs text-destructive ml-6">
-                All existing documents in this collection will be deleted before import.
+                All existing documents in {files.length === 1 ? 'this collection' : 'these collections'} will be deleted
+                before import.
               </p>
             )}
           </div>
@@ -100,7 +103,7 @@ export function ImportDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm} disabled={!collection.trim()}>
+          <Button onClick={handleConfirm} disabled={hasDuplicates}>
             Import
           </Button>
         </DialogFooter>
