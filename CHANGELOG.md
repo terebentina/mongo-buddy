@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.16.1](https://github.com/terebentina/mongo-buddy/compare/v1.16.0...v1.16.1) (2026-04-02)
+
+
+### Bug Fixes
+
+* **table:** preserve other column widths when resizing a column ([fe44052](https://github.com/terebentina/mongo-buddy/commit/fe440529f79e62b6bee5ad72cb675ae87448c791))
+
 ## [1.16.0](https://github.com/terebentina/mongo-buddy/compare/v1.15.6...v1.16.0) (2026-04-01)
 
 
