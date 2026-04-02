@@ -341,21 +341,39 @@ function DatabaseRow({
                     <X className="h-3 w-3" />
                   </span>
                 ) : (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity cursor-pointer"
-                    onClick={handleUploadClick}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleUploadClick(e as unknown as React.MouseEvent);
-                      }
-                    }}
-                    title="Import collection"
-                  >
-                    <Upload className="h-3 w-3" />
-                  </span>
+                  <Menu.Root>
+                    <Menu.Trigger
+                      className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/db:opacity-100 transition-opacity"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <EllipsisVertical className="h-3 w-3" />
+                    </Menu.Trigger>
+                    <Menu.Portal>
+                      <Menu.Positioner sideOffset={4} align="start" className="z-50">
+                        <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                          <Menu.Item
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUploadClick(e);
+                            }}
+                          >
+                            <Upload className="h-3 w-3" />
+                            Import
+                          </Menu.Item>
+                          <Menu.Item
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <Download className="h-3 w-3" />
+                            Export
+                          </Menu.Item>
+                        </Menu.Popup>
+                      </Menu.Positioner>
+                    </Menu.Portal>
+                  </Menu.Root>
                 )}
               </span>
             </Button>
