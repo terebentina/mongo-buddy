@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
+import { getConnectionDisplayName } from '../lib/connection-name';
 import type { ExportProgress, ImportOptions, ImportProgress, PickedFile } from '../../../shared/types';
 
 interface SidebarProps {
@@ -371,6 +372,10 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
   const selectDb = useStore((s) => s.selectDb);
   const selectCollection = useStore((s) => s.selectCollection);
   const loading = useStore((s) => s.loading);
+  const uri = useStore((s) => s.uri);
+  const savedConnections = useStore((s) => s.savedConnections);
+
+  const displayName = getConnectionDisplayName(uri, savedConnections);
 
   const dragging = useRef(false);
 
@@ -399,7 +404,9 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
   return (
     <div className="border-r bg-muted/30 flex flex-col relative" style={{ width }}>
       <div className="p-3 font-semibold text-sm border-b flex items-center justify-between">
-        Databases
+        <span className="truncate" title={displayName}>
+          {displayName}
+        </span>
         {onChangeConnection && (
           <button
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
