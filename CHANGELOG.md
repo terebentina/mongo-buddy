@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.18.0](https://github.com/terebentina/mongo-buddy/compare/v1.17.0...v1.18.0) (2026-04-02)
+
+
+### Features
+
+* **import:** allow importing multiple collections at once ([5ea6c76](https://github.com/terebentina/mongo-buddy/commit/5ea6c76998d9f5f58b6faf09a622c683fe31df11))
+
 ## [1.17.0](https://github.com/terebentina/mongo-buddy/compare/v1.16.1...v1.17.0) (2026-04-02)
 
 
