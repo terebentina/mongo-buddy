@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.19.0](https://github.com/terebentina/mongo-buddy/compare/v1.18.0...v1.19.0) (2026-04-02)
+
+
+### Features
+
+* **sidebar:** add context menu to database rows with import/export items ([ac5b4d5](https://github.com/terebentina/mongo-buddy/commit/ac5b4d5041bfe229f4e53623deb6fd3333ca9971))
+
 ## [1.18.0](https://github.com/terebentina/mongo-buddy/compare/v1.17.0...v1.18.0) (2026-04-02)
 
 
