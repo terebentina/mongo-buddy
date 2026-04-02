@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { Button } from './ui/button';
@@ -41,6 +41,20 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
   );
 }
 
+function snapshotColumnWidths(
+  tableRef: React.RefObject<HTMLTableElement | null>,
+  columns: string[]
+): Record<string, number> {
+  const table = tableRef.current;
+  if (!table) return {};
+  const ths = table.querySelectorAll('thead th');
+  const widths: Record<string, number> = {};
+  columns.forEach((col, i) => {
+    if (ths[i]) widths[col] = Math.max(40, (ths[i] as HTMLElement).offsetWidth);
+  });
+  return widths;
+}
+
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'object' && value !== null) {
@@ -70,7 +84,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const setLimit = useStore((s) => s.setLimit);
   const addFilterValue = useStore((s) => s.addFilterValue);
 
-  const columns = getColumns(docs);
+  const columns = useMemo(() => getColumns(docs), [docs]);
   const currentPage = Math.floor(skip / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
   const tableRef = useRef<HTMLTableElement>(null);
@@ -115,28 +129,33 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
         maxWidth = Math.max(maxWidth, textWidth + cellPadding);
       }
 
-      setColumnWidths((prev) => ({ ...prev, [col]: Math.max(40, Math.ceil(maxWidth) + 2) }));
+      const snapshot = snapshotColumnWidths(tableRef, columns);
+      setColumnWidths({ ...snapshot, [col]: Math.max(40, Math.ceil(maxWidth) + 2) });
     },
-    [docs, queryMode]
+    [docs, queryMode, columns]
   );
 
-  const handleResizeStart = useCallback((col: string, startX: number, startWidth: number) => {
-    document.body.style.userSelect = 'none';
+  const handleResizeStart = useCallback(
+    (col: string, startX: number, startWidth: number) => {
+      const snapshot = snapshotColumnWidths(tableRef, columns);
+      document.body.style.userSelect = 'none';
 
-    const onMouseMove = (e: MouseEvent): void => {
-      const newWidth = Math.max(40, startWidth + e.clientX - startX);
-      setColumnWidths((prev) => ({ ...prev, [col]: newWidth }));
-    };
+      const onMouseMove = (e: MouseEvent): void => {
+        const newWidth = Math.max(40, startWidth + e.clientX - startX);
+        setColumnWidths({ ...snapshot, [col]: newWidth });
+      };
 
-    const onMouseUp = (): void => {
-      document.body.style.userSelect = '';
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
+      const onMouseUp = (): void => {
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
 
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, []);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [columns]
+  );
 
   if (loading) {
     return <Loader className="flex-1" />;
@@ -162,7 +181,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                   <TableHead
                     key={col}
                     className={`px-4 pr-6 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
-                    style={columnWidths[col] ? { width: columnWidths[col] } : undefined}
+                    style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
                     <span className="flex items-center gap-1 min-w-0">
