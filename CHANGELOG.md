@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.17.0](https://github.com/terebentina/mongo-buddy/compare/v1.16.1...v1.17.0) (2026-04-02)
+
+
+### Features
+
+* **sidebar:** show connection name in header instead of static "Databases" ([9c32f5c](https://github.com/terebentina/mongo-buddy/commit/9c32f5cf5d8a7c97d54e3af5459519e7ab9c94df))
+
 ## [1.16.1](https://github.com/terebentina/mongo-buddy/compare/v1.16.0...v1.16.1) (2026-04-02)
 
 
