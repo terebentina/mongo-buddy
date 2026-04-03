@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.20.0](https://github.com/terebentina/mongo-buddy/compare/v1.19.0...v1.20.0) (2026-04-03)
+
+
+### Features
+
+* **export:** implement database-level export with progress tracking ([1463914](https://github.com/terebentina/mongo-buddy/commit/1463914cc406704d55d5cc34c88649d53c5fb91a))
+
 ## [1.19.0](https://github.com/terebentina/mongo-buddy/compare/v1.18.0...v1.19.0) (2026-04-02)
 
 
