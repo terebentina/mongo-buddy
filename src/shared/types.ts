@@ -55,6 +55,14 @@ export interface ImportOptions {
   clearFirst: boolean;
 }
 
+export interface ExportDbProgress {
+  db: string;
+  collection: string;
+  index: number;
+  total: number;
+  count: number;
+}
+
 export interface PickedFile {
   filePath: string;
   suggestedName: string;

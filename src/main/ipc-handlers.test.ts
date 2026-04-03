@@ -148,6 +148,8 @@ describe('IPC Handlers', () => {
     expect(handlers['history:clear']).toBeDefined();
     expect(handlers['mongo:export-collection']).toBeDefined();
     expect(handlers['mongo:cancel-export']).toBeDefined();
+    expect(handlers['mongo:export-database']).toBeDefined();
+    expect(handlers['mongo:cancel-export-database']).toBeDefined();
   });
 
   describe('mongo:connect', () => {
@@ -423,6 +425,131 @@ describe('IPC Handlers', () => {
     it('returns error when no active export', () => {
       const result = handlers['mongo:cancel-export']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
       expect(result).toEqual({ ok: false, error: 'No active export for this collection' });
+    });
+  });
+
+  describe('mongo:export-database', () => {
+    const mockEvent = {
+      sender: { send: vi.fn() },
+    } as unknown as Electron.IpcMainInvokeEvent;
+
+    it('returns { ok: true, data: null } when dialog is cancelled', async () => {
+      mockShowOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
+      const result = await handlers['mongo:export-database'](mockEvent, 'testdb');
+      expect(result).toEqual({ ok: true, data: null });
+    });
+
+    it('rejects if export already in progress for same database', async () => {
+      let resolveListCollections: (v: { ok: true; data: { name: string; type: string }[] }) => void;
+      mockShowOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/export'] });
+      mockService.listCollections.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveListCollections = resolve;
+          })
+      );
+
+      const first = handlers['mongo:export-database'](mockEvent, 'testdb') as Promise<unknown>;
+      await new Promise((r) => setTimeout(r, 10));
+
+      const result = await handlers['mongo:export-database'](mockEvent, 'testdb');
+      expect(result).toEqual({ ok: false, error: 'Export already in progress for this database' });
+
+      resolveListCollections!({ ok: true, data: [] });
+      await first;
+    });
+
+    it('returns 0 when database has no collections', async () => {
+      mockShowOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/export'] });
+      mockService.listCollections.mockResolvedValue({ ok: true, data: [] });
+
+      const result = await handlers['mongo:export-database'](mockEvent, 'testdb');
+      expect(result).toEqual({ ok: true, data: 0 });
+    });
+
+    it('filters out views and only exports collections', async () => {
+      mockShowOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/export'] });
+      mockService.listCollections.mockResolvedValue({
+        ok: true,
+        data: [
+          { name: 'users', type: 'collection' },
+          { name: 'user_view', type: 'view' },
+        ],
+      });
+      mockEnd.mockImplementation((cb: () => void) => cb());
+      mockOn.mockImplementation((evt: string, cb: () => void) => {
+        if (evt === 'finish') cb();
+      });
+      mockService.exportCollection.mockResolvedValue({ ok: true, data: 10 });
+
+      await handlers['mongo:export-database'](mockEvent, 'testdb');
+      expect(mockService.exportCollection).toHaveBeenCalledTimes(1);
+      expect(mockService.exportCollection.mock.calls[0][1]).toBe('users');
+    });
+
+    it('sends export-db:progress events with correct index/total/count', async () => {
+      mockShowOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/export'] });
+      mockService.listCollections.mockResolvedValue({
+        ok: true,
+        data: [
+          { name: 'users', type: 'collection' },
+          { name: 'orders', type: 'collection' },
+        ],
+      });
+      mockEnd.mockImplementation((cb: () => void) => cb());
+      mockOn.mockImplementation((evt: string, cb: () => void) => {
+        if (evt === 'finish') cb();
+      });
+      mockService.exportCollection.mockImplementation(
+        async (_db: string, _coll: string, _output: unknown, onProgress: (n: number) => void) => {
+          onProgress(50);
+          return { ok: true, data: 50 };
+        }
+      );
+
+      await handlers['mongo:export-database'](mockEvent, 'testdb');
+      expect(mockEvent.sender.send).toHaveBeenCalledWith('export-db:progress', {
+        db: 'testdb',
+        collection: 'users',
+        index: 0,
+        total: 2,
+        count: 50,
+      });
+      expect(mockEvent.sender.send).toHaveBeenCalledWith('export-db:progress', {
+        db: 'testdb',
+        collection: 'orders',
+        index: 1,
+        total: 2,
+        count: 50,
+      });
+    });
+
+    it('returns total doc count across all collections', async () => {
+      mockShowOpenDialog.mockResolvedValue({ canceled: false, filePaths: ['/tmp/export'] });
+      mockService.listCollections.mockResolvedValue({
+        ok: true,
+        data: [
+          { name: 'users', type: 'collection' },
+          { name: 'orders', type: 'collection' },
+        ],
+      });
+      mockEnd.mockImplementation((cb: () => void) => cb());
+      mockOn.mockImplementation((evt: string, cb: () => void) => {
+        if (evt === 'finish') cb();
+      });
+      mockService.exportCollection
+        .mockResolvedValueOnce({ ok: true, data: 10 })
+        .mockResolvedValueOnce({ ok: true, data: 20 });
+
+      const result = await handlers['mongo:export-database'](mockEvent, 'testdb');
+      expect(result).toEqual({ ok: true, data: 30 });
+    });
+  });
+
+  describe('mongo:cancel-export-database', () => {
+    it('returns error when no active export', () => {
+      const result = handlers['mongo:cancel-export-database']({} as Electron.IpcMainInvokeEvent, 'testdb');
+      expect(result).toEqual({ ok: false, error: 'No active database export for this database' });
     });
   });
 

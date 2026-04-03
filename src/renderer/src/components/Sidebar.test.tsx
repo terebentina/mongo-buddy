@@ -20,6 +20,9 @@ const mockApi = {
   pickImportFile: vi.fn().mockResolvedValue({ ok: true, data: null }),
   importCollection: vi.fn().mockResolvedValue({ ok: true, data: 0 }),
   cancelImport: vi.fn().mockResolvedValue({ ok: true }),
+  exportDatabase: vi.fn().mockResolvedValue({ ok: true, data: 10 }),
+  cancelExportDatabase: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+  onExportDbProgress: vi.fn().mockReturnValue(() => {}),
   dropCollection: vi.fn().mockResolvedValue({ ok: true }),
 };
 

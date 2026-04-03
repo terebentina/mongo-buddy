@@ -11,7 +11,13 @@ import { ImportDialog } from './ImportDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
-import type { ExportProgress, ImportOptions, ImportProgress, PickedFile } from '../../../shared/types';
+import type {
+  ExportDbProgress,
+  ExportProgress,
+  ImportOptions,
+  ImportProgress,
+  PickedFile,
+} from '../../../shared/types';
 
 interface SidebarProps {
   width: number;
@@ -219,6 +225,11 @@ function DatabaseRow({
   const [importIndex, setImportIndex] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
   const cancelledRef = useRef(false);
+  const [exportingCollection, setExportingCollection] = useState<string | null>(null);
+  const [exportCount, setExportCount] = useState(0);
+  const [exportIndex, setExportIndex] = useState(0);
+  const [exportTotal, setExportTotal] = useState(0);
+  const exportCancelledRef = useRef(false);
   const refreshDocs = useStore((s) => s.refreshDocs);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
@@ -232,7 +243,21 @@ function DatabaseRow({
     return cleanup;
   }, [dbName, importingCollection]);
 
+  useEffect(() => {
+    const cleanup = window.api.onExportDbProgress((data: ExportDbProgress) => {
+      if (data.db === dbName) {
+        setExportingCollection(data.collection);
+        setExportCount(data.count);
+        setExportIndex(data.index);
+        setExportTotal(data.total);
+      }
+    });
+    return cleanup;
+  }, [dbName]);
+
   const importing = importingCollection !== null;
+  const exporting = exportingCollection !== null;
+  const busy = importing || exporting;
 
   const handleUploadClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
@@ -307,6 +332,35 @@ function DatabaseRow({
     toast('Import cancelled');
   };
 
+  const handleExportClick = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    if (busy) return;
+    exportCancelledRef.current = false;
+    setExportingCollection('');
+    setExportCount(0);
+    setExportIndex(0);
+    setExportTotal(0);
+    const result = await window.api.exportDatabase(dbName);
+    setExportingCollection(null);
+    setExportCount(0);
+    setExportIndex(0);
+    setExportTotal(0);
+    if (!result.ok) {
+      if (!exportCancelledRef.current) {
+        toast.error(result.error);
+      }
+    } else if (result.data !== null && result.data > 0) {
+      toast.success(`Exported ${result.data.toLocaleString()} documents`);
+    }
+  };
+
+  const handleCancelExport = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    exportCancelledRef.current = true;
+    await window.api.cancelExportDatabase(dbName);
+    toast('Export cancelled');
+  };
+
   return (
     <>
       <Collapsible open={isOpen}>
@@ -314,7 +368,7 @@ function DatabaseRow({
           render={
             <Button
               variant="ghost"
-              className={`group/db w-full justify-between text-sm font-medium ${importing ? 'animate-pulse bg-accent/40' : ''}`}
+              className={`group/db w-full justify-between text-sm font-medium ${busy ? 'animate-pulse bg-accent/40' : ''}`}
               onClick={onSelectDb}
             >
               <span className="truncate">{dbName}</span>
@@ -325,16 +379,22 @@ function DatabaseRow({
                     {importCount.toLocaleString()}
                   </span>
                 )}
-                {importing ? (
+                {exporting && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {exportTotal > 1 && `(${exportIndex + 1}/${exportTotal}) `}
+                    {exportCount.toLocaleString()}
+                  </span>
+                )}
+                {busy ? (
                   <span
                     role="button"
                     tabIndex={0}
                     className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                    onClick={handleCancelImport}
+                    onClick={importing ? handleCancelImport : handleCancelExport}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        handleCancelImport(e as unknown as React.MouseEvent);
+                        (importing ? handleCancelImport : handleCancelExport)(e as unknown as React.MouseEvent);
                       }
                     }}
                   >
@@ -355,20 +415,21 @@ function DatabaseRow({
                             className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleUploadClick(e);
+                              handleExportClick(e);
                             }}
                           >
-                            <Upload className="h-3 w-3" />
-                            Import
+                            <Download className="h-3 w-3" />
+                            Export
                           </Menu.Item>
                           <Menu.Item
                             className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
+                              handleUploadClick(e);
                             }}
                           >
-                            <Download className="h-3 w-3" />
-                            Export
+                            <Upload className="h-3 w-3" />
+                            Import
                           </Menu.Item>
                         </Menu.Popup>
                       </Menu.Positioner>

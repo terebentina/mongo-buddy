@@ -209,6 +209,113 @@ export function registerIpcHandlers(
     return { ok: true, data: undefined };
   });
 
+  const activeDbExports = new Map<string, AbortController>();
+
+  ipcMain.handle('mongo:export-database', async (event, db: string): Promise<Result<number | null>> => {
+    if (activeDbExports.has(db)) {
+      return { ok: false, error: 'Export already in progress for this database' };
+    }
+
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+    });
+
+    if (canceled || filePaths.length === 0) {
+      return { ok: true, data: null };
+    }
+
+    const folderPath = filePaths[0];
+    const ac = new AbortController();
+    activeDbExports.set(db, ac);
+
+    try {
+      const listResult = await service.listCollections(db);
+      if (!listResult.ok) {
+        activeDbExports.delete(db);
+        return { ok: false, error: listResult.error };
+      }
+
+      const collections = listResult.data.filter((c) => c.type === 'collection');
+      if (collections.length === 0) {
+        activeDbExports.delete(db);
+        return { ok: true, data: 0 };
+      }
+
+      let totalCount = 0;
+
+      for (let i = 0; i < collections.length; i++) {
+        if (ac.signal.aborted) break;
+
+        const coll = collections[i];
+        const filePath = path.join(folderPath, `${coll.name}.bson.gz`);
+        const gzip = createGzip();
+        const file = createWriteStream(filePath);
+        gzip.pipe(file);
+
+        const cleanupStreams = async (removeFile: boolean): Promise<void> => {
+          gzip.destroy();
+          file.destroy();
+          if (removeFile) {
+            await unlink(filePath).catch(() => {});
+          }
+        };
+
+        try {
+          const result = await service.exportCollection(
+            db,
+            coll.name,
+            gzip,
+            (count) => {
+              event.sender.send('export-db:progress', {
+                db,
+                collection: coll.name,
+                index: i,
+                total: collections.length,
+                count,
+              });
+            },
+            ac.signal
+          );
+
+          if (result.ok) {
+            await new Promise<void>((resolve, reject) => {
+              gzip.end(() => {
+                file.on('finish', resolve);
+                file.on('error', reject);
+              });
+            });
+            await cleanupStreams(false);
+            totalCount += result.data;
+          } else {
+            await cleanupStreams(true);
+            if (ac.signal.aborted) break;
+            activeDbExports.delete(db);
+            return result;
+          }
+        } catch (err) {
+          await cleanupStreams(true);
+          activeDbExports.delete(db);
+          return { ok: false, error: (err as Error).message };
+        }
+      }
+
+      activeDbExports.delete(db);
+      return { ok: true, data: totalCount };
+    } catch (err) {
+      activeDbExports.delete(db);
+      return { ok: false, error: (err as Error).message };
+    }
+  });
+
+  ipcMain.handle('mongo:cancel-export-database', (_event, db: string): Result<undefined> => {
+    const ac = activeDbExports.get(db);
+    if (!ac) {
+      return { ok: false, error: 'No active database export for this database' };
+    }
+    ac.abort();
+    return { ok: true, data: undefined };
+  });
+
   ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile[] | null>> => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       filters: [{ name: 'BSON Gzip', extensions: ['bson.gz'] }],

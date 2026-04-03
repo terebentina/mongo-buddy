@@ -11,6 +11,7 @@ import type {
   ExportProgress,
   ImportProgress,
   ImportOptions,
+  ExportDbProgress,
   PickedFile,
 } from '../shared/types';
 
@@ -58,6 +59,14 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, data: ExportProgress): void => cb(data);
     ipcRenderer.on('export:progress', handler);
     return () => ipcRenderer.off('export:progress', handler);
+  },
+  exportDatabase: (db: string): Promise<Result<number | null>> => ipcRenderer.invoke('mongo:export-database', db),
+  cancelExportDatabase: (db: string): Promise<Result<undefined>> =>
+    ipcRenderer.invoke('mongo:cancel-export-database', db),
+  onExportDbProgress: (cb: (data: ExportDbProgress) => void): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: ExportDbProgress): void => cb(data);
+    ipcRenderer.on('export-db:progress', handler);
+    return () => ipcRenderer.off('export-db:progress', handler);
   },
   pickImportFile: (): Promise<Result<PickedFile[] | null>> => ipcRenderer.invoke('mongo:pick-import-file'),
   importCollection: (
