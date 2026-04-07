@@ -4,7 +4,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, EllipsisVertical, Upload, X, Trash2 } from 'lucide-react';
+import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
@@ -411,6 +411,23 @@ function DatabaseRow({
                     <Menu.Portal>
                       <Menu.Positioner sideOffset={4} align="start" className="z-50">
                         <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                          <Menu.Item
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (dbName === storeSelectedDb) {
+                                const result = await window.api.listCollections(dbName);
+                                if (result.ok) {
+                                  useStore.setState({ collections: result.data });
+                                }
+                              } else {
+                                onSelectDb();
+                              }
+                            }}
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            Refresh
+                          </Menu.Item>
                           <Menu.Item
                             className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                             onClick={(e) => {
