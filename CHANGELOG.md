@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.21.0](https://github.com/terebentina/mongo-buddy/compare/v1.20.0...v1.21.0) (2026-04-07)
+
+
+### Features
+
+* **sidebar:** add refresh option to database context menu ([62d817a](https://github.com/terebentina/mongo-buddy/commit/62d817a64c344111fb3e735a6fdab05c5437c731))
+
 ## [1.20.0](https://github.com/terebentina/mongo-buddy/compare/v1.19.0...v1.20.0) (2026-04-03)
 
 
