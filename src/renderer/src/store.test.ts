@@ -21,6 +21,7 @@ const mockApi = {
   loadHistory: vi.fn().mockResolvedValue([]),
   saveHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
+  distinct: vi.fn(),
 };
 
 beforeEach(() => {
@@ -543,5 +544,37 @@ describe('restoreFromHistory', () => {
     const state = useStore.getState();
     expect(state.pendingQueryMode).toBe('aggregate');
     expect(state.pendingFilterText).toBe('[{"$match":{}}]');
+  });
+});
+
+describe('fetchDistinct', () => {
+  it('calls window.api.distinct with current db, collection, and field', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    const apiResult = { ok: true as const, data: { values: ['active', 'inactive'], truncated: false } };
+    mockApi.distinct.mockResolvedValue(apiResult);
+
+    const result = await useStore.getState().fetchDistinct('status');
+
+    expect(mockApi.distinct).toHaveBeenCalledWith('testdb', 'users', 'status');
+    expect(result).toEqual(apiResult);
+  });
+
+  it('returns null when no collection selected', async () => {
+    useStore.setState({ selectedDb: null, selectedCollection: null });
+
+    const result = await useStore.getState().fetchDistinct('status');
+
+    expect(result).toBeNull();
+    expect(mockApi.distinct).not.toHaveBeenCalled();
+  });
+
+  it('returns the API result directly', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    const errorResult = { ok: false as const, error: 'Query failed' };
+    mockApi.distinct.mockResolvedValue(errorResult);
+
+    const result = await useStore.getState().fetchDistinct('status');
+
+    expect(result).toEqual(errorResult);
   });
 });

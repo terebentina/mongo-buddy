@@ -67,3 +67,8 @@ export interface PickedFile {
   filePath: string;
   suggestedName: string;
 }
+
+export interface DistinctResult {
+  values: unknown[];
+  truncated: boolean;
+}

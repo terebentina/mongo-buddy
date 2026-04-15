@@ -13,6 +13,7 @@ import type {
   ImportOptions,
   ExportDbProgress,
   PickedFile,
+  DistinctResult,
 } from '../shared/types';
 
 const api = {
@@ -31,6 +32,8 @@ const api = {
   ): Promise<Result<Record<string, unknown>[]>> => ipcRenderer.invoke('mongo:aggregate', db, collection, pipeline),
   sampleFields: (db: string, collection: string): Promise<Result<string[]>> =>
     ipcRenderer.invoke('mongo:sample-fields', db, collection),
+  distinct: (db: string, collection: string, field: string): Promise<Result<DistinctResult>> =>
+    ipcRenderer.invoke('mongo:distinct', db, collection, field),
   insertOne: (db: string, collection: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>> =>
     ipcRenderer.invoke('mongo:insert-one', db, collection, doc),
   updateOne: (

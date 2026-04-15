@@ -73,6 +73,12 @@ export function registerIpcHandlers(
   );
 
   ipcMain.handle(
+    'mongo:distinct',
+    wrap((db: unknown, coll: unknown, field: unknown) =>
+      service.distinct(db as string, coll as string, field as string)
+    )
+  );
+  ipcMain.handle(
     'mongo:sample-fields',
     wrap((db: unknown, coll: unknown) => service.sampleFields(db as string, coll as string))
   );

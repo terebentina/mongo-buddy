@@ -3,9 +3,12 @@ import { useStore } from '../store';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { Button } from './ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
+import { Popover as BasePopover } from '@base-ui/react/popover';
 import { Loader } from './Loader';
-import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter } from 'lucide-react';
+import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
 import { toast } from 'sonner';
+import { Menu } from '@base-ui/react/menu';
+import type { DistinctResult } from '../../../shared/types';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -38,6 +41,124 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
         </Button>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function ColumnMenu({ onShowDistinct }: { onShowDistinct: () => void }) {
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/header:opacity-100 transition-opacity"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <EllipsisVertical className="h-3.5 w-3.5" />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner sideOffset={4} align="start" className="z-50">
+          <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+            <Menu.Item
+              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowDistinct();
+              }}
+            >
+              <ListFilter className="h-3 w-3" />
+              Show Distinct
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
+
+function DistinctPopover({
+  column,
+  anchorEl,
+  onClose,
+}: {
+  column: string;
+  anchorEl: HTMLElement;
+  onClose: () => void;
+}) {
+  const fetchDistinct = useStore((s) => s.fetchDistinct);
+  const addFilterValue = useStore((s) => s.addFilterValue);
+  const [state, setState] = useState<
+    { status: 'loading' } | { status: 'error'; message: string } | { status: 'done'; data: DistinctResult }
+  >({ status: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchDistinct(column).then((result) => {
+      if (cancelled) return;
+      if (!result || !result.ok) {
+        setState({ status: 'error', message: result ? result.error : 'No collection selected' });
+        return;
+      }
+      setState({ status: 'done', data: result.data });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [column, fetchDistinct]);
+
+  return (
+    <BasePopover.Root open onOpenChange={(open) => !open && onClose()}>
+      <BasePopover.Portal>
+        <BasePopover.Positioner sideOffset={4} align="start" anchor={anchorEl} className="z-50">
+          <BasePopover.Popup
+            className="w-64 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-xs font-medium mb-2 text-muted-foreground truncate">Distinct: {column}</div>
+            {state.status === 'loading' && (
+              <div className="flex justify-center py-4">
+                <Loader />
+              </div>
+            )}
+            {state.status === 'error' && <div className="text-xs text-destructive py-2">{state.message}</div>}
+            {state.status === 'done' && (
+              <>
+                <div className="max-h-64 overflow-auto space-y-0.5">
+                  {state.data.values.map((value, i) => {
+                    const formatted = formatCell(value);
+                    const isPrimitive = typeof value !== 'object' || value === null;
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center justify-between gap-2 rounded px-1.5 py-1 hover:bg-muted text-xs"
+                      >
+                        <span className="truncate" title={formatted}>
+                          {formatted || <span className="text-muted-foreground italic">empty</span>}
+                        </span>
+                        {isPrimitive && (
+                          <button
+                            className="p-0.5 rounded hover:bg-accent shrink-0"
+                            onClick={() => {
+                              addFilterValue(column, value);
+                              onClose();
+                            }}
+                          >
+                            <ListFilter className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {state.data.values.length === 0 && (
+                    <div className="text-xs text-muted-foreground py-2 text-center">No values</div>
+                  )}
+                </div>
+                {state.data.truncated && (
+                  <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">Showing first 1000 values</div>
+                )}
+              </>
+            )}
+          </BasePopover.Popup>
+        </BasePopover.Positioner>
+      </BasePopover.Portal>
+    </BasePopover.Root>
   );
 }
 
@@ -91,6 +212,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
 
   const [pageInput, setPageInput] = useState(String(currentPage));
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [distinctState, setDistinctState] = useState<{ column: string; anchor: HTMLElement } | null>(null);
   const columnsKey = columns.join(',');
   const prevColumnsKey = useRef(columnsKey);
 
@@ -117,8 +239,9 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
       ctx.font = `500 ${style.fontSize} ${style.fontFamily}`;
       const headerTextWidth = ctx.measureText(col).width;
       const sortIconWidth = queryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
+      const menuIconWidth = queryMode === 'filter' && col !== '_id' ? 18 : 0; // 14px icon + 4px gap
       const headerPadding = 40; // px-4 (16px) + pr-6 (24px)
-      const headerWidth = headerTextWidth + sortIconWidth + headerPadding;
+      const headerWidth = headerTextWidth + sortIconWidth + menuIconWidth + headerPadding;
 
       // Measure body cells (normal weight)
       ctx.font = `400 ${style.fontSize} ${style.fontFamily}`;
@@ -177,10 +300,11 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                 const isAggregate = queryMode === 'aggregate';
                 const sortDir = sort && col in sort ? sort[col] : null;
                 const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown;
+                const showMenu = !isAggregate && col !== '_id';
                 return (
                   <TableHead
                     key={col}
-                    className={`px-4 pr-6 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
+                    className={`group/header px-4 pr-6 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
                     style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
@@ -189,6 +313,15 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                       {!isAggregate && (
                         <SortIcon
                           className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
+                        />
+                      )}
+                      {showMenu && (
+                        <ColumnMenu
+                          onShowDistinct={() => {
+                            const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
+                            const th = tableRef.current?.querySelector(selector);
+                            if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
+                          }}
                         />
                       )}
                     </span>
@@ -246,6 +379,13 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
             ))}
           </TableBody>
         </Table>
+        {distinctState && (
+          <DistinctPopover
+            column={distinctState.column}
+            anchorEl={distinctState.anchor}
+            onClose={() => setDistinctState(null)}
+          />
+        )}
       </div>
       <div className="flex items-center gap-4 px-4 py-2 border-t">
         <Button variant="outline" size="sm" disabled={skip === 0} onClick={() => fetchPage(Math.max(0, skip - limit))}>

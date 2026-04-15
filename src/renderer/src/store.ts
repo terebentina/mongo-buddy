@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import JSON5 from 'json5';
-import type { DbInfo, CollectionInfo, SavedConnection, QueryHistoryEntry } from '../../shared/types';
+import type {
+  DbInfo,
+  CollectionInfo,
+  SavedConnection,
+  QueryHistoryEntry,
+  DistinctResult,
+  Result,
+} from '../../shared/types';
 
 interface StoreState {
   connected: boolean;
@@ -46,6 +53,7 @@ interface StoreState {
   addFilterValue: (column: string, value: unknown) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
+  fetchDistinct: (field: string) => Promise<Result<DistinctResult> | null>;
 }
 
 export const useStore = create<StoreState>()((set, get) => ({
@@ -408,5 +416,11 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (lastUsed) {
       await get().connect(lastUsed);
     }
+  },
+
+  fetchDistinct: async (field: string) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return null;
+    return window.api.distinct(selectedDb, selectedCollection, field);
   },
 }));

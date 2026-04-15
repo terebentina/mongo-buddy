@@ -31,6 +31,7 @@ describe('MongoService', () => {
     findOne: ReturnType<typeof vi.fn>;
     replaceOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
+    distinct: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -42,6 +43,7 @@ describe('MongoService', () => {
       findOne: vi.fn(),
       replaceOne: vi.fn(),
       deleteOne: vi.fn(),
+      distinct: vi.fn(),
     };
     mockDb = {
       listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
@@ -298,6 +300,63 @@ describe('MongoService', () => {
     it('returns error when not connected', async () => {
       const result = await service.deleteOne('testdb', 'users', '507f1f77bcf86cd799439011');
       expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+  });
+
+  describe('distinct', () => {
+    it('returns EJSON-serialized distinct values', async () => {
+      const objectId = new ObjectId('507f1f77bcf86cd799439011');
+      mockCollection.distinct.mockResolvedValue([objectId, 'hello', 42]);
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.distinct('testdb', 'users', 'status');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.values).toEqual([{ $oid: '507f1f77bcf86cd799439011' }, 'hello', 42]);
+        expect(result.data.truncated).toBe(false);
+      }
+      expect(mockCollection.distinct).toHaveBeenCalledWith('status');
+    });
+
+    it('returns error when not connected', async () => {
+      const result = await service.distinct('testdb', 'users', 'status');
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+
+    it('truncates at maxValues and sets truncated to true', async () => {
+      const values = Array.from({ length: 15 }, (_, i) => `val${i}`);
+      mockCollection.distinct.mockResolvedValue(values);
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.distinct('testdb', 'users', 'status', 10);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.values).toHaveLength(10);
+        expect(result.data.truncated).toBe(true);
+      }
+    });
+
+    it('sets truncated to false when under limit', async () => {
+      mockCollection.distinct.mockResolvedValue(['a', 'b', 'c']);
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.distinct('testdb', 'users', 'status');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.truncated).toBe(false);
+      }
+    });
+
+    it('handles MongoDB errors gracefully', async () => {
+      mockCollection.distinct.mockRejectedValue(new Error('Query failed'));
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.distinct('testdb', 'users', 'status');
+
+      expect(result).toEqual({ ok: false, error: 'Query failed' });
     });
   });
 

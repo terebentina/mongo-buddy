@@ -1,7 +1,15 @@
 import { MongoClient, MongoBulkWriteError } from 'mongodb';
 import { BSON, EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
-import type { Result, DbInfo, CollectionInfo, FindOpts, FindResult, ImportOptions } from '../shared/types';
+import type {
+  Result,
+  DbInfo,
+  CollectionInfo,
+  FindOpts,
+  FindResult,
+  ImportOptions,
+  DistinctResult,
+} from '../shared/types';
 
 export class MongoService {
   private client: MongoClient | null = null;
@@ -320,6 +328,20 @@ export class MongoService {
       onProgress(inserted + skipped);
 
       return { ok: true, data: { inserted, skipped } };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async distinct(dbName: string, collName: string, field: string, maxValues = 1000): Promise<Result<DistinctResult>> {
+    if (!this.client) return { ok: false, error: 'Not connected' };
+    try {
+      const collection = this.client.db(dbName).collection(collName);
+      const rawValues = await collection.distinct(field);
+      const truncated = rawValues.length > maxValues;
+      const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
+      const values = sliced.map((v) => EJSON.serialize(v));
+      return { ok: true, data: { values, truncated } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

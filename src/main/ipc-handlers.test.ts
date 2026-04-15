@@ -67,6 +67,7 @@ describe('IPC Handlers', () => {
     updateOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
     exportCollection: ReturnType<typeof vi.fn>;
+    distinct: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>;
@@ -95,6 +96,7 @@ describe('IPC Handlers', () => {
       updateOne: vi.fn(),
       deleteOne: vi.fn(),
       exportCollection: vi.fn(),
+      distinct: vi.fn(),
     };
 
     mockConnStore = {
@@ -150,6 +152,7 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:cancel-export']).toBeDefined();
     expect(handlers['mongo:export-database']).toBeDefined();
     expect(handlers['mongo:cancel-export-database']).toBeDefined();
+    expect(handlers['mongo:distinct']).toBeDefined();
   });
 
   describe('mongo:connect', () => {
@@ -550,6 +553,22 @@ describe('IPC Handlers', () => {
     it('returns error when no active export', () => {
       const result = handlers['mongo:cancel-export-database']({} as Electron.IpcMainInvokeEvent, 'testdb');
       expect(result).toEqual({ ok: false, error: 'No active database export for this database' });
+    });
+  });
+
+  describe('mongo:distinct', () => {
+    it('calls MongoService.distinct with db, collection, and field', async () => {
+      const distinctResult = { values: ['active', 'inactive'], truncated: false };
+      mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
+      const result = await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status');
+      expect(mockService.distinct).toHaveBeenCalledWith('testdb', 'users', 'status');
+      expect(result).toEqual({ ok: true, data: distinctResult });
+    });
+
+    it('returns error result on service failure', async () => {
+      mockService.distinct.mockResolvedValue({ ok: false, error: 'Query failed' });
+      const result = await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status');
+      expect(result).toEqual({ ok: false, error: 'Query failed' });
     });
   });
 
