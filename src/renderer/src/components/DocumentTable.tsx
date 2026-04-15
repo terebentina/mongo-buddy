@@ -308,22 +308,24 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                     style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
-                    <span className="flex items-center gap-1 min-w-0">
+                    <span className="flex items-center gap-1 min-w-0 w-full">
                       <span className="truncate">{col}</span>
-                      {!isAggregate && (
-                        <SortIcon
-                          className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
-                        />
-                      )}
-                      {showMenu && (
-                        <ColumnMenu
-                          onShowDistinct={() => {
-                            const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
-                            const th = tableRef.current?.querySelector(selector);
-                            if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
-                          }}
-                        />
-                      )}
+                      <span className="ml-auto shrink-0 flex items-center gap-1">
+                        {!isAggregate && (
+                          <SortIcon
+                            className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
+                          />
+                        )}
+                        {showMenu && (
+                          <ColumnMenu
+                            onShowDistinct={() => {
+                              const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
+                              const th = tableRef.current?.querySelector(selector);
+                              if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
+                            }}
+                          />
+                        )}
+                      </span>
                     </span>
                     <div
                       className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
