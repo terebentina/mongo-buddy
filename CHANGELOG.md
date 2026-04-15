@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.23.1](https://github.com/terebentina/mongo-buddy/compare/v1.23.0...v1.23.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **store:** sync filter state when restoring from query history ([f61f630](https://github.com/terebentina/mongo-buddy/commit/f61f6300a8f3d25e63bf9fb5c6012abf82433c0c))
+
 ## [1.23.0](https://github.com/terebentina/mongo-buddy/compare/v1.22.0...v1.23.0) (2026-04-15)
 
 
