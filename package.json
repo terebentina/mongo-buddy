@@ -1,6 +1,6 @@
 {
   "name": "mongo-buddy",
-  "version": "1.22.0",
+  "version": "1.23.0",
   "description": "Lightweight MongoDB GUI client",
   "author": "Dan Caragea",
   "type": "module",

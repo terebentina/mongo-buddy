@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.23.0](https://github.com/terebentina/mongo-buddy/compare/v1.22.0...v1.23.0) (2026-04-15)
+
+
+### Features
+
+* **table:** right-align sort icon and column menu in headers ([b4d14ee](https://github.com/terebentina/mongo-buddy/commit/b4d14ee56716fffe0bbfca58d1754200280db814))
+
 ## [1.22.0](https://github.com/terebentina/mongo-buddy/compare/v1.21.0...v1.22.0) (2026-04-15)
 
 
