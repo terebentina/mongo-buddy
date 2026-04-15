@@ -513,6 +513,7 @@ describe('restoreFromHistory', () => {
 
   it('same collection sets pendingFilterText and pendingQueryMode without calling sampleFields', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ name: 'Alice' }], totalCount: 1 } });
 
     await useStore.getState().restoreFromHistory(makeEntry());
 
@@ -520,11 +521,15 @@ describe('restoreFromHistory', () => {
     expect(state.pendingFilterText).toBe('{"name":"Alice"}');
     expect(state.pendingQueryMode).toBe('filter');
     expect(mockApi.sampleFields).not.toHaveBeenCalled();
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: { name: 'Alice' }, skip: 0, limit: 20 });
+    expect(state.docs).toEqual([{ name: 'Alice' }]);
+    expect(state.totalCount).toBe(1);
   });
 
   it('different collection calls switchCollection (sampleFields) then sets pending state', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'orders' });
     mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ name: 'Alice' }], totalCount: 1 } });
 
     await useStore.getState().restoreFromHistory(makeEntry());
 
@@ -534,20 +539,26 @@ describe('restoreFromHistory', () => {
     expect(state.pendingFilterText).toBe('{"name":"Alice"}');
     expect(state.pendingQueryMode).toBe('filter');
     expect(mockApi.sampleFields).toHaveBeenCalledWith('testdb', 'users');
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: { name: 'Alice' }, skip: 0, limit: 20 });
   });
 
-  it('aggregate entry sets pendingQueryMode to aggregate', async () => {
+  it('aggregate entry sets pendingQueryMode to aggregate and executes', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    mockApi.aggregate.mockResolvedValue({ ok: true, data: [{ _id: 1 }] });
 
     await useStore.getState().restoreFromHistory(makeEntry({ type: 'aggregate', query: '[{"$match":{}}]' }));
 
     const state = useStore.getState();
     expect(state.pendingQueryMode).toBe('aggregate');
     expect(state.pendingFilterText).toBe('[{"$match":{}}]');
+    expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', [{ $match: {} }]);
+    expect(state.docs).toEqual([{ _id: 1 }]);
+    expect(state.totalCount).toBe(1);
   });
 
   it('filter entry syncs filter state to parsed query', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
 
     await useStore.getState().restoreFromHistory(makeEntry({ query: '{"name":"Alice"}' }));
 
@@ -556,6 +567,7 @@ describe('restoreFromHistory', () => {
 
   it('aggregate entry resets filter to empty object', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
+    mockApi.aggregate.mockResolvedValue({ ok: true, data: [] });
 
     await useStore.getState().restoreFromHistory(makeEntry({ type: 'aggregate', query: '[{"$match":{}}]' }));
 
