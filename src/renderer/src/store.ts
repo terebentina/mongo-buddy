@@ -354,7 +354,16 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (entry.db !== selectedDb || entry.collection !== selectedCollection) {
       await get().switchCollection(entry.db, entry.collection);
     }
+    let filter: Record<string, unknown> = {};
+    if (entry.type === 'filter') {
+      try {
+        filter = JSON5.parse(entry.query) as Record<string, unknown>;
+      } catch {
+        // leave as empty object
+      }
+    }
     set({
+      filter,
       pendingFilterText: entry.query,
       pendingQueryMode: entry.type,
     });

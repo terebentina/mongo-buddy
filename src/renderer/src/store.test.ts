@@ -545,6 +545,32 @@ describe('restoreFromHistory', () => {
     expect(state.pendingQueryMode).toBe('aggregate');
     expect(state.pendingFilterText).toBe('[{"$match":{}}]');
   });
+
+  it('filter entry syncs filter state to parsed query', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
+
+    await useStore.getState().restoreFromHistory(makeEntry({ query: '{"name":"Alice"}' }));
+
+    expect(useStore.getState().filter).toEqual({ name: 'Alice' });
+  });
+
+  it('aggregate entry resets filter to empty object', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
+
+    await useStore.getState().restoreFromHistory(makeEntry({ type: 'aggregate', query: '[{"$match":{}}]' }));
+
+    expect(useStore.getState().filter).toEqual({});
+  });
+
+  it('addFilterValue after restoring empty history produces correct filter', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { status: 'active' } });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().restoreFromHistory(makeEntry({ query: '{}' }));
+    useStore.getState().addFilterValue('name', 'Bob');
+
+    expect(useStore.getState().filter).toEqual({ name: 'Bob' });
+  });
 });
 
 describe('fetchDistinct', () => {
