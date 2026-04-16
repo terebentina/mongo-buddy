@@ -348,7 +348,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           <TableBody>
             {docs.map((doc, i) => (
               <TableRow
-                key={String(doc._id ?? i)}
+                key={doc._id != null ? formatCell(doc._id) || i : i}
                 className={`group/row even:bg-muted-row ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                 onClick={() => onRowClick?.(doc)}
               >
