@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.23.3](https://github.com/terebentina/mongo-buddy/compare/v1.23.2...v1.23.3) (2026-04-16)
+
+
+### Bug Fixes
+
+* **preload:** sync MongoApi type declaration with runtime API ([dd67cfa](https://github.com/terebentina/mongo-buddy/commit/dd67cfa573a4b38655b8e702c54e446ad30005e0))
+* **table:** use unique React keys for document rows ([566f334](https://github.com/terebentina/mongo-buddy/commit/566f334effedeb7d7e2f4e55e84c1a22dfc80624))
+
 ## [1.23.2](https://github.com/terebentina/mongo-buddy/compare/v1.23.1...v1.23.2) (2026-04-15)
 
 
