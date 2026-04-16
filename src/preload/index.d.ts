@@ -10,7 +10,9 @@ import type {
   ExportProgress,
   ImportProgress,
   ImportOptions,
+  ExportDbProgress,
   PickedFile,
+  DistinctResult,
 } from '../shared/types';
 
 interface MongoApi {
@@ -26,6 +28,7 @@ interface MongoApi {
     pipeline: Record<string, unknown>[]
   ): Promise<Result<Record<string, unknown>[]>>;
   sampleFields(db: string, collection: string): Promise<Result<string[]>>;
+  distinct(db: string, collection: string, field: string): Promise<Result<DistinctResult>>;
   insertOne(db: string, collection: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>>;
   updateOne(
     db: string,
@@ -46,6 +49,9 @@ interface MongoApi {
   exportCollection(db: string, collection: string): Promise<Result<number | null>>;
   cancelExport(db: string, collection: string): Promise<Result<undefined>>;
   onExportProgress(cb: (data: ExportProgress) => void): () => void;
+  exportDatabase(db: string): Promise<Result<number | null>>;
+  cancelExportDatabase(db: string): Promise<Result<undefined>>;
+  onExportDbProgress(cb: (data: ExportDbProgress) => void): () => void;
   pickImportFile(): Promise<Result<PickedFile[] | null>>;
   importCollection(
     db: string,
