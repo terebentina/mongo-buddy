@@ -14,10 +14,14 @@ import type {
   PickedFile,
   DistinctResult,
 } from '../shared/types';
+import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
+
+export type { ConnectionState, ConnectedSession, ConnectOptions };
 
 interface MongoApi {
-  connect(uri: string): Promise<Result<undefined>>;
+  connect(uri: string, opts?: ConnectOptions): Promise<Result<ConnectedSession>>;
   disconnect(): Promise<Result<undefined>>;
+  onConnectionState(cb: (state: ConnectionState) => void): () => void;
   listDatabases(): Promise<Result<DbInfo[]>>;
   listCollections(db: string): Promise<Result<CollectionInfo[]>>;
   find(db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>>;
