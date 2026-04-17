@@ -1,20 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MongoClient, ObjectId } from 'mongodb';
+import type { MongoClient } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { MongoService } from './mongo-service';
-
-// Mock mongodb driver
-vi.mock('mongodb', async () => {
-  const actual = await vi.importActual<typeof import('mongodb')>('mongodb');
-  return {
-    ...actual,
-    MongoClient: vi.fn(function () {}),
-  };
-});
 
 describe('MongoService', () => {
   let service: MongoService;
   let mockClient: {
-    connect: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
     db: ReturnType<typeof vi.fn>;
   };
@@ -22,6 +13,7 @@ describe('MongoService', () => {
     listCollections: ReturnType<typeof vi.fn>;
     collection: ReturnType<typeof vi.fn>;
     admin: ReturnType<typeof vi.fn>;
+    dropCollection: ReturnType<typeof vi.fn>;
   };
   let mockCollection: {
     find: ReturnType<typeof vi.fn>;
@@ -33,6 +25,7 @@ describe('MongoService', () => {
     deleteOne: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
   };
+  let requireClient: ReturnType<typeof vi.fn<() => MongoClient>>;
 
   beforeEach(() => {
     mockCollection = {
@@ -49,9 +42,9 @@ describe('MongoService', () => {
       listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
       collection: vi.fn().mockReturnValue(mockCollection),
       admin: vi.fn(),
+      dropCollection: vi.fn().mockResolvedValue(undefined),
     };
     mockClient = {
-      connect: vi.fn().mockResolvedValue(undefined),
       close: vi.fn().mockResolvedValue(undefined),
       db: vi.fn().mockReturnValue(mockDb),
     };
@@ -63,43 +56,16 @@ describe('MongoService', () => {
         ],
       }),
     });
-    vi.mocked(MongoClient).mockImplementation(function () {
-      return mockClient as unknown as MongoClient;
-    });
-    service = new MongoService();
+    requireClient = vi.fn().mockReturnValue(mockClient as unknown as MongoClient);
+    service = new MongoService({ conn: { requireClient: () => requireClient() } });
   });
 
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('connect', () => {
-    it('calls MongoClient.connect with URI', async () => {
-      const result = await service.connect('mongodb://localhost:27017');
-      expect(MongoClient).toHaveBeenCalledWith('mongodb://localhost:27017');
-      expect(mockClient.connect).toHaveBeenCalled();
-      expect(result).toEqual({ ok: true, data: undefined });
-    });
-
-    it('with bad URI returns error result', async () => {
-      mockClient.connect.mockRejectedValue(new Error('Invalid connection string'));
-      const result = await service.connect('bad-uri');
-      expect(result).toEqual({ ok: false, error: 'Invalid connection string' });
-    });
-  });
-
-  describe('disconnect', () => {
-    it('closes client', async () => {
-      await service.connect('mongodb://localhost:27017');
-      const result = await service.disconnect();
-      expect(mockClient.close).toHaveBeenCalled();
-      expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
   describe('listDatabases', () => {
     it('returns DbInfo[]', async () => {
-      await service.connect('mongodb://localhost:27017');
       const result = await service.listDatabases();
       expect(result).toEqual({
         ok: true,
@@ -110,7 +76,10 @@ describe('MongoService', () => {
       });
     });
 
-    it('when not connected throws', async () => {
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.listDatabases();
       expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
@@ -124,7 +93,6 @@ describe('MongoService', () => {
           { name: 'orders', type: 'collection' },
         ]),
       });
-      await service.connect('mongodb://localhost:27017');
       const result = await service.listCollections('testdb');
       expect(mockClient.db).toHaveBeenCalledWith('testdb');
       expect(result).toEqual({
@@ -154,7 +122,6 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(mockCursor);
       mockCollection.countDocuments.mockResolvedValue(2);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.find('testdb', 'users', {
         filter: { name: 'Alice' },
         sort: { name: 1 },
@@ -166,7 +133,6 @@ describe('MongoService', () => {
       if (result.ok) {
         expect(result.data.totalCount).toBe(2);
         expect(result.data.docs).toHaveLength(2);
-        // EJSON serialization: ObjectId and Date should be serialized
         const doc = result.data.docs[0];
         expect(doc._id).toBeDefined();
         expect(doc.name).toBe('Alice');
@@ -181,7 +147,6 @@ describe('MongoService', () => {
   describe('count', () => {
     it('returns number', async () => {
       mockCollection.countDocuments.mockResolvedValue(42);
-      await service.connect('mongodb://localhost:27017');
       const result = await service.count('testdb', 'users', { active: true });
       expect(result).toEqual({ ok: true, data: 42 });
       expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true });
@@ -197,7 +162,6 @@ describe('MongoService', () => {
       };
       mockCollection.aggregate.mockReturnValue(mockCursor);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.aggregate('testdb', 'users', [{ $group: { _id: null, total: { $sum: 1 } } }]);
 
       expect(result.ok).toBe(true);
@@ -209,7 +173,10 @@ describe('MongoService', () => {
       expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $group: { _id: null, total: { $sum: 1 } } }]);
     });
 
-    it('returns error when not connected', async () => {
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.aggregate('testdb', 'users', []);
       expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
@@ -221,7 +188,6 @@ describe('MongoService', () => {
       mockCollection.insertOne.mockResolvedValue({ insertedId });
       mockCollection.findOne.mockResolvedValue({ _id: insertedId, name: 'Alice' });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.insertOne('testdb', 'users', { name: 'Alice' });
 
       expect(result.ok).toBe(true);
@@ -232,7 +198,10 @@ describe('MongoService', () => {
       expect(mockCollection.insertOne).toHaveBeenCalled();
     });
 
-    it('returns error when not connected', async () => {
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.insertOne('testdb', 'users', { name: 'Alice' });
       expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
@@ -244,7 +213,6 @@ describe('MongoService', () => {
       mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
       mockCollection.findOne.mockResolvedValue({ _id: oid, name: 'Bob' });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.updateOne('testdb', 'users', { $oid: '507f1f77bcf86cd799439011' }, { name: 'Bob' });
 
       expect(result.ok).toBe(true);
@@ -259,7 +227,6 @@ describe('MongoService', () => {
       mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
       mockCollection.findOne.mockResolvedValue({ _id: 'my-string-id', name: 'Bob' });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.updateOne('testdb', 'users', 'my-string-id', { name: 'Bob' });
 
       expect(result.ok).toBe(true);
@@ -269,7 +236,10 @@ describe('MongoService', () => {
       expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: 'my-string-id' }, { name: 'Bob' });
     });
 
-    it('returns error when not connected', async () => {
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.updateOne('testdb', 'users', '507f1f77bcf86cd799439011', { name: 'Bob' });
       expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
@@ -280,7 +250,6 @@ describe('MongoService', () => {
       const oid = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.deleteOne('testdb', 'users', { $oid: '507f1f77bcf86cd799439011' });
 
       expect(result).toEqual({ ok: true, data: undefined });
@@ -290,14 +259,16 @@ describe('MongoService', () => {
     it('with string id queries with string, not ObjectId', async () => {
       mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.deleteOne('testdb', 'users', 'my-string-id');
 
       expect(result).toEqual({ ok: true, data: undefined });
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: 'my-string-id' });
     });
 
-    it('returns error when not connected', async () => {
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.deleteOne('testdb', 'users', '507f1f77bcf86cd799439011');
       expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
@@ -308,7 +279,6 @@ describe('MongoService', () => {
       const objectId = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.distinct.mockResolvedValue([objectId, 'hello', 42]);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.distinct('testdb', 'users', 'status');
 
       expect(result.ok).toBe(true);
@@ -319,7 +289,10 @@ describe('MongoService', () => {
       expect(mockCollection.distinct).toHaveBeenCalledWith('status');
     });
 
-    it('returns error when not connected', async () => {
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.distinct('testdb', 'users', 'status');
       expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
@@ -328,7 +301,6 @@ describe('MongoService', () => {
       const values = Array.from({ length: 15 }, (_, i) => `val${i}`);
       mockCollection.distinct.mockResolvedValue(values);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.distinct('testdb', 'users', 'status', 10);
 
       expect(result.ok).toBe(true);
@@ -341,7 +313,6 @@ describe('MongoService', () => {
     it('sets truncated to false when under limit', async () => {
       mockCollection.distinct.mockResolvedValue(['a', 'b', 'c']);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.distinct('testdb', 'users', 'status');
 
       expect(result.ok).toBe(true);
@@ -353,7 +324,6 @@ describe('MongoService', () => {
     it('handles MongoDB errors gracefully', async () => {
       mockCollection.distinct.mockRejectedValue(new Error('Query failed'));
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.distinct('testdb', 'users', 'status');
 
       expect(result).toEqual({ ok: false, error: 'Query failed' });
@@ -374,15 +344,12 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(mockCursor);
       mockCollection.countDocuments.mockResolvedValue(1);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.find('testdb', 'users', {});
 
       expect(result.ok).toBe(true);
       if (result.ok) {
         const doc = result.data.docs[0];
-        // EJSON serialized ObjectId should have $oid
         expect(doc._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
-        // EJSON serialized Date should have $date
         expect(doc.createdAt).toEqual({ $date: '2024-01-01T00:00:00Z' });
       }
     });
