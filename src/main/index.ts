@@ -10,6 +10,9 @@ import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore, connectionKeyFromUri } from './query-history-store';
 import { createConnectionManager } from './connection-manager';
 import { registerIpcHandlers } from './ipc-handlers';
+import { createOperationRegistry } from './operation-registry';
+import { createFsSinkAdapter } from './adapters/fs-sink';
+import { createDialogProviderAdapter } from './adapters/dialog-provider';
 
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
@@ -25,7 +28,20 @@ const broadcast = (channel: string, payload: unknown): void => {
     w.webContents.send(channel, payload);
   }
 };
-registerIpcHandlers(mongoService, connectionStore, queryHistoryStore, connectionManager, broadcast);
+const operationRegistry = createOperationRegistry({
+  mongo: mongoService,
+  fs: createFsSinkAdapter(),
+  dialog: createDialogProviderAdapter(),
+  emit: () => {},
+});
+registerIpcHandlers({
+  service: mongoService,
+  connStore: connectionStore,
+  historyStore: queryHistoryStore,
+  manager: connectionManager,
+  registry: operationRegistry,
+  broadcast,
+});
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
