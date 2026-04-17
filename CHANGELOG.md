@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.24.0](https://github.com/terebentina/mongo-buddy/compare/v1.23.2...v1.24.0) (2026-04-17)
+
+
+### Features
+
+* collapse 3 export/import IPC handlers behind operation:start/cancel/update (closes [#26](https://github.com/terebentina/mongo-buddy/issues/26)) ([e6b99dd](https://github.com/terebentina/mongo-buddy/commit/e6b99ddd9a80a6019ff4ccdf3d1882e92b120337)), closes [#29](https://github.com/terebentina/mongo-buddy/issues/29)
+* ConnectionManager module with TDD (closes [#17](https://github.com/terebentina/mongo-buddy/issues/17)) ([4db3bbb](https://github.com/terebentina/mongo-buddy/commit/4db3bbbf19d0c8e280dc7a27db4bb1551581d188)), closes [#14](https://github.com/terebentina/mongo-buddy/issues/14)
+* ipc-handlers route connect/disconnect + history through ConnectionManager (closes [#19](https://github.com/terebentina/mongo-buddy/issues/19)) ([e37ff04](https://github.com/terebentina/mongo-buddy/commit/e37ff04c4c5ce8655761ea924c997743d9267f99)), closes [#18](https://github.com/terebentina/mongo-buddy/issues/18) [#20](https://github.com/terebentina/mongo-buddy/issues/20)
+* MongoService streaming tests for export/import (closes [#25](https://github.com/terebentina/mongo-buddy/issues/25)) ([205abd1](https://github.com/terebentina/mongo-buddy/commit/205abd13b7b740a447769c0e76e26cbf6f5456df))
+* MongoService uses ConnectionManager.requireClient (closes [#18](https://github.com/terebentina/mongo-buddy/issues/18)) ([60cd13e](https://github.com/terebentina/mongo-buddy/commit/60cd13e639f20e156e095979d5d67a8223b1a651)), closes [#19](https://github.com/terebentina/mongo-buddy/issues/19) [#20](https://github.com/terebentina/mongo-buddy/issues/20) [#19](https://github.com/terebentina/mongo-buddy/issues/19) [#19](https://github.com/terebentina/mongo-buddy/issues/19) [#19](https://github.com/terebentina/mongo-buddy/issues/19)
+* OperationRegistry core + adapters with TDD (closes [#24](https://github.com/terebentina/mongo-buddy/issues/24)) ([a33aad4](https://github.com/terebentina/mongo-buddy/commit/a33aad44b424e80975d2874b124ac2febaf061af))
+* preload exposes Result<ConnectedSession> + onConnectionState (closes [#20](https://github.com/terebentina/mongo-buddy/issues/20)) ([0aeea88](https://github.com/terebentina/mongo-buddy/commit/0aeea88ab86533ca6bbe57d7007e3d404fea90cb)), closes [#19](https://github.com/terebentina/mongo-buddy/issues/19) [#21](https://github.com/terebentina/mongo-buddy/issues/21)
+* Preload: collapse 9 fns + 3 channels to 3 fns + 1 channel (closes [#27](https://github.com/terebentina/mongo-buddy/issues/27)) ([d7a2abc](https://github.com/terebentina/mongo-buddy/commit/d7a2abc174d73b3c9dcf2e43329fa7b3982cd480)), closes [#26](https://github.com/terebentina/mongo-buddy/issues/26) [#28](https://github.com/terebentina/mongo-buddy/issues/28) [#28](https://github.com/terebentina/mongo-buddy/issues/28)
+* Renderer store collapses connect, subscribes to connection:state (closes [#21](https://github.com/terebentina/mongo-buddy/issues/21)) ([f46b0d1](https://github.com/terebentina/mongo-buddy/commit/f46b0d1cfe4ce49ebdcb8a1687b47f52e26d6bc7))
+* useOperation hook + Sidebar refactor (closes [#28](https://github.com/terebentina/mongo-buddy/issues/28)) ([321cab8](https://github.com/terebentina/mongo-buddy/commit/321cab841a36bea03c00a55bb8636f19bd68ccb5))
+* Wire main/index.ts + final verification (closes [#29](https://github.com/terebentina/mongo-buddy/issues/29)) ([6d466f0](https://github.com/terebentina/mongo-buddy/commit/6d466f06ad11c0b766d176bf58d4b4853b5533c2)), closes [#15](https://github.com/terebentina/mongo-buddy/issues/15)
+
+
+### Bug Fixes
+
+* **preload:** sync MongoApi type declaration with runtime API ([dd67cfa](https://github.com/terebentina/mongo-buddy/commit/dd67cfa573a4b38655b8e702c54e446ad30005e0))
+* **table:** use unique React keys for document rows ([566f334](https://github.com/terebentina/mongo-buddy/commit/566f334effedeb7d7e2f4e55e84c1a22dfc80624))
+
 ## [1.23.4](https://github.com/terebentina/mongo-buddy/compare/v1.23.3...v1.23.4) (2026-04-17)
 
 ## [1.23.3](https://github.com/terebentina/mongo-buddy/compare/v1.23.2...v1.23.3) (2026-04-16)
