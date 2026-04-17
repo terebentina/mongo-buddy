@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ipcMain, BrowserWindow, app } from 'electron';
+import { ipcMain } from 'electron';
 import { registerIpcHandlers } from './ipc-handlers';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
 import type { ConnectionManager, ConnectedSession, ConnectionState } from './connection-manager';
 import type { OperationRegistry } from './operation-registry';
-import type { OperationParams, OperationRecord } from '../shared/types';
+import type { OperationParams } from '../shared/types';
 import type { Broadcast } from './ipc-handlers';
 
 const mockShowOpenDialog = vi.fn();
@@ -17,12 +17,6 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showOpenDialog: (...args: unknown[]) => mockShowOpenDialog(...args),
-  },
-  BrowserWindow: {
-    getAllWindows: vi.fn(() => []),
-  },
-  app: {
-    on: vi.fn(),
   },
 }));
 
@@ -74,8 +68,6 @@ describe('IPC Handlers', () => {
     list: ReturnType<typeof vi.fn>;
     subscribe: ReturnType<typeof vi.fn>;
   };
-  let subscribeCb: ((rec: OperationRecord) => void) | null;
-  let subscribeUnsub: ReturnType<typeof vi.fn>;
   let handlers: Record<string, (...args: unknown[]) => unknown>;
 
   beforeEach(() => {
@@ -121,17 +113,12 @@ describe('IPC Handlers', () => {
       clear: vi.fn(),
     };
 
-    subscribeCb = null;
-    subscribeUnsub = vi.fn();
     mockRegistry = {
       start: vi.fn(),
       cancel: vi.fn(),
       get: vi.fn(),
       list: vi.fn(),
-      subscribe: vi.fn((cb: (rec: OperationRecord) => void) => {
-        subscribeCb = cb;
-        return subscribeUnsub;
-      }),
+      subscribe: vi.fn(),
     };
 
     handlers = {};
@@ -511,41 +498,6 @@ describe('IPC Handlers', () => {
       mockRegistry.cancel.mockReturnValue({ ok: false, error: 'No active operation with that id' });
       const result = handlers['operation:cancel']({} as Electron.IpcMainInvokeEvent, 'bogus');
       expect(result).toEqual({ ok: false, error: 'No active operation with that id' });
-    });
-  });
-
-  describe('operation:update broadcast', () => {
-    it('subscribes to registry at registration time', () => {
-      expect(mockRegistry.subscribe).toHaveBeenCalledTimes(1);
-      expect(subscribeCb).toBeTypeOf('function');
-    });
-
-    it('fans out to all windows via webContents.send', () => {
-      const send1 = vi.fn();
-      const send2 = vi.fn();
-      vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([
-        { webContents: { send: send1 } },
-        { webContents: { send: send2 } },
-      ] as unknown as BrowserWindow[]);
-
-      const rec: OperationRecord = {
-        id: 'op-1',
-        params: { kind: 'export-collection', db: 'testdb', collection: 'users' },
-        status: 'running',
-        progress: { processed: 5 },
-      };
-      subscribeCb!(rec);
-
-      expect(send1).toHaveBeenCalledWith('operation:update', rec);
-      expect(send2).toHaveBeenCalledWith('operation:update', rec);
-    });
-
-    it('registers unsubscribe on app shutdown', () => {
-      expect(app.on).toHaveBeenCalledWith('will-quit', expect.any(Function));
-      const calls = (app.on as unknown as ReturnType<typeof vi.fn>).mock.calls as Array<[string, () => void]>;
-      const [, willQuitHandler] = calls.filter((c) => c[0] === 'will-quit')[0];
-      willQuitHandler();
-      expect(subscribeUnsub).toHaveBeenCalled();
     });
   });
 });

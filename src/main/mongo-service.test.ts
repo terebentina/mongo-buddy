@@ -367,7 +367,6 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(makeCursor(docs));
       const { writable, chunks } = collectingWritable();
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), new AbortController().signal);
 
       expect(result).toEqual({ ok: true, data: 3 });
@@ -396,7 +395,6 @@ describe('MongoService', () => {
       const onProgress = vi.fn();
 
       try {
-        await service.connect('mongodb://localhost:27017');
         const result = await service.exportCollection(
           'testdb',
           'users',
@@ -425,7 +423,6 @@ describe('MongoService', () => {
       const onProgress = vi.fn();
 
       try {
-        await service.connect('mongodb://localhost:27017');
         await service.exportCollection('testdb', 'users', writable, onProgress, new AbortController().signal);
       } finally {
         spy.mockRestore();
@@ -447,7 +444,6 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(cursor);
       const { writable } = collectingWritable();
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), controller.signal);
 
       expect(result).toEqual({ ok: false, error: 'Export cancelled' });
@@ -455,6 +451,9 @@ describe('MongoService', () => {
     });
 
     it('returns error when not connected', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const { writable } = collectingWritable();
       const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), new AbortController().signal);
       expect(result).toEqual({ ok: false, error: 'Not connected' });
@@ -472,7 +471,6 @@ describe('MongoService', () => {
       const docs = Array.from({ length: 1500 }, (_, i) => ({ n: i }));
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 1000 });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.importCollection(
         'testdb',
         'users',
@@ -494,7 +492,6 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 2 });
       const onProgress = vi.fn();
 
-      await service.connect('mongodb://localhost:27017');
       await service.importCollection(
         'testdb',
         'users',
@@ -517,7 +514,6 @@ describe('MongoService', () => {
       const stream = Readable.from(gen());
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 0 });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.importCollection(
         'testdb',
         'users',
@@ -538,7 +534,6 @@ describe('MongoService', () => {
       (err as unknown as { result: { insertedCount: number } }).result = { insertedCount: 2 };
       mockCollection.insertMany.mockRejectedValue(err);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.importCollection(
         'testdb',
         'users',
@@ -556,7 +551,6 @@ describe('MongoService', () => {
       const docs = [{ a: 1 }];
       mockCollection.insertMany.mockRejectedValue(new Error('duplicate key'));
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.importCollection(
         'testdb',
         'users',
@@ -576,7 +570,6 @@ describe('MongoService', () => {
       ];
       mockCollection.bulkWrite.mockResolvedValue({ upsertedCount: 1, modifiedCount: 1 });
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.importCollection(
         'testdb',
         'users',
@@ -593,7 +586,6 @@ describe('MongoService', () => {
     it('clearFirst=true calls deleteMany before streaming', async () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
 
-      await service.connect('mongodb://localhost:27017');
       await service.importCollection(
         'testdb',
         'users',
@@ -612,7 +604,6 @@ describe('MongoService', () => {
       badBuf.writeInt32LE(0x7fffffff, 0);
       const stream = Readable.from([badBuf]);
 
-      await service.connect('mongodb://localhost:27017');
       const result = await service.importCollection(
         'testdb',
         'users',
@@ -631,6 +622,9 @@ describe('MongoService', () => {
     });
 
     it('returns error when not connected', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
       const result = await service.importCollection(
         'testdb',
         'users',

@@ -32,7 +32,11 @@ const operationRegistry = createOperationRegistry({
   mongo: mongoService,
   fs: createFsSinkAdapter(),
   dialog: createDialogProviderAdapter(),
-  emit: () => {},
+  emit: (rec) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('operation:update', rec);
+    }
+  },
 });
 registerIpcHandlers({
   service: mongoService,

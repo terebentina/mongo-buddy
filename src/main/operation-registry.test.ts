@@ -7,7 +7,13 @@ import type { OperationRecord, OperationParams, Result, ImportOptions, Collectio
 
 // Compile-time check: existing MongoService structurally satisfies MongoServicePort
 // (no wrapper needed). If this breaks, the port interface drifted from the service.
-const _portCheck: MongoServicePort = new MongoService();
+const _portCheck: MongoServicePort = new MongoService({
+  conn: {
+    requireClient: () => {
+      throw new Error('port check only');
+    },
+  },
+});
 void _portCheck;
 
 type ExportCall = {
