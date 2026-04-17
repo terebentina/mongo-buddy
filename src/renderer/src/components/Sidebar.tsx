@@ -11,23 +11,8 @@ import { ImportDialog } from './ImportDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
-import type { ImportOptions, OperationRecord, OperationStatus, PickedFile } from '../../../shared/types';
-
-function isTerminal(status: OperationStatus): boolean {
-  return status !== 'pending' && status !== 'running';
-}
-
-function waitForTerminal(opId: string): Promise<OperationRecord> {
-  return new Promise((resolve) => {
-    const unsub = window.api.onOperationUpdate((rec) => {
-      if (rec.id !== opId) return;
-      if (isTerminal(rec.status)) {
-        unsub();
-        resolve(rec);
-      }
-    });
-  });
-}
+import { useOperation, waitForTerminal } from '../hooks/use-operation';
+import type { ImportOptions, PickedFile } from '../../../shared/types';
 
 interface SidebarProps {
   width: number;
@@ -43,54 +28,37 @@ interface CollectionRowProps {
 }
 
 function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps) {
-  const [exportCount, setExportCount] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
-  const opIdRef = useRef<string | null>(null);
+
+  const exp = useOperation('export-collection');
+  const exporting = exp.status === 'running' || exp.status === 'pending';
 
   const selectDb = useStore((s) => s.selectDb);
   const selectedCollection = useStore((s) => s.selectedCollection);
 
-  useEffect(() => {
-    return window.api.onOperationUpdate((rec) => {
-      if (rec.id !== opIdRef.current) return;
-      if (rec.status === 'running') {
-        setExportCount(rec.progress.processed);
-      } else if (isTerminal(rec.status)) {
-        opIdRef.current = null;
-        setExportCount(null);
-      }
-    });
-  }, []);
-
-  const exporting = exportCount !== null;
-  const progress = exporting && coll.count ? Math.min((exportCount / coll.count) * 100, 100) : 0;
+  const progress = exporting && coll.count ? Math.min((exp.progress.processed / coll.count) * 100, 100) : 0;
 
   const handleExport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (exporting) return;
-    const startRes = await window.api.operationStart({
-      kind: 'export-collection',
-      db: dbName,
-      collection: coll.name,
-    });
-    if (!startRes.ok) {
-      toast.error(startRes.error);
+    const id = await exp.start({ kind: 'export-collection', db: dbName, collection: coll.name });
+    if (id === null) {
+      toast.error(exp.error ?? 'Export failed');
       return;
     }
-    opIdRef.current = startRes.data;
-    setExportCount(0);
-    const rec = await waitForTerminal(startRes.data);
+    const rec = await waitForTerminal(id);
     if (rec.status === 'succeeded' && rec.result?.kind === 'export-collection' && rec.result.path !== null) {
       toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
     } else if (rec.status === 'failed' || rec.status === 'rejected') {
       toast.error(rec.error ?? 'Export failed');
     }
+    exp.reset();
   };
 
   const handleCancel = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
-    if (opIdRef.current) await window.api.operationCancel(opIdRef.current);
+    await exp.cancel();
   };
 
   const handleDelete = async (): Promise<void> => {
@@ -141,7 +109,9 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
               {coll.count.toLocaleString()}
             </span>
           )}
-          {exporting && <span className="text-[10px] text-muted-foreground">{exportCount.toLocaleString()}</span>}
+          {exporting && (
+            <span className="text-[10px] text-muted-foreground">{exp.progress.processed.toLocaleString()}</span>
+          )}
           {exporting ? (
             <button
               className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -250,49 +220,21 @@ function DatabaseRow({
 }: DatabaseRowProps) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
-  const [importingCollection, setImportingCollection] = useState<string | null>(null);
-  const [importCount, setImportCount] = useState(0);
   const [importIndex, setImportIndex] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
-  const importOpIdRef = useRef<string | null>(null);
-  const [exportingCollection, setExportingCollection] = useState<string | null>(null);
-  const [exportCount, setExportCount] = useState(0);
-  const [exportIndex, setExportIndex] = useState(0);
-  const [exportTotal, setExportTotal] = useState(0);
-  const exportOpIdRef = useRef<string | null>(null);
+
+  const exp = useOperation('export-database');
+  const imp = useOperation('import-collection');
+
   const refreshDocs = useStore((s) => s.refreshDocs);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
 
-  useEffect(() => {
-    return window.api.onOperationUpdate((rec) => {
-      if (rec.id === importOpIdRef.current) {
-        if (rec.status === 'running') {
-          setImportCount(rec.progress.processed);
-        }
-      } else if (rec.id === exportOpIdRef.current) {
-        if (rec.status === 'running') {
-          setExportingCollection(rec.progress.label ?? '');
-          setExportCount(rec.progress.processed);
-          const parsed = parseStage(rec.progress.stage);
-          if (parsed) {
-            setExportIndex(parsed.index);
-            setExportTotal(parsed.total);
-          }
-        } else if (isTerminal(rec.status)) {
-          exportOpIdRef.current = null;
-          setExportingCollection(null);
-          setExportCount(0);
-          setExportIndex(0);
-          setExportTotal(0);
-        }
-      }
-    });
-  }, []);
-
-  const importing = importingCollection !== null;
-  const exporting = exportingCollection !== null;
+  const importing = imp.status === 'running' || imp.status === 'pending';
+  const exporting = exp.status === 'running' || exp.status === 'pending';
   const busy = importing || exporting;
+
+  const exportStage = parseStage(exp.progress.stage);
 
   const handleUploadClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
@@ -321,24 +263,20 @@ function DatabaseRow({
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setImportIndex(i);
-      setImportingCollection(file.suggestedName);
-      setImportCount(0);
 
-      const startRes = await window.api.operationStart({
+      const id = await imp.start({
         kind: 'import-collection',
         db: dbName,
         collection: file.suggestedName,
         filePath: file.filePath,
         options,
       });
-      if (!startRes.ok) {
-        toast.error(`Failed importing ${file.suggestedName}: ${startRes.error}`);
+      if (id === null) {
+        toast.error(`Failed importing ${file.suggestedName}: ${imp.error ?? 'start rejected'}`);
         failed = true;
         break;
       }
-      importOpIdRef.current = startRes.data;
-      const rec = await waitForTerminal(startRes.data);
-      importOpIdRef.current = null;
+      const rec = await waitForTerminal(id);
 
       if (rec.status === 'cancelled') {
         cancelled = true;
@@ -353,8 +291,7 @@ function DatabaseRow({
       totalSkipped += rec.result.skipped;
     }
 
-    setImportingCollection(null);
-    setImportCount(0);
+    imp.reset();
     setImportTotal(0);
     setImportIndex(0);
 
@@ -377,24 +314,18 @@ function DatabaseRow({
 
   const handleCancelImport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
-    if (!importOpIdRef.current) return;
-    await window.api.operationCancel(importOpIdRef.current);
+    await imp.cancel();
   };
 
   const handleExportClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (busy) return;
-    const startRes = await window.api.operationStart({ kind: 'export-database', db: dbName });
-    if (!startRes.ok) {
-      toast.error(startRes.error);
+    const id = await exp.start({ kind: 'export-database', db: dbName });
+    if (id === null) {
+      toast.error(exp.error ?? 'Export failed');
       return;
     }
-    exportOpIdRef.current = startRes.data;
-    setExportingCollection('');
-    setExportCount(0);
-    setExportIndex(0);
-    setExportTotal(0);
-    const rec = await waitForTerminal(startRes.data);
+    const rec = await waitForTerminal(id);
     if (rec.status === 'succeeded' && rec.result?.kind === 'export-database' && rec.result.folder !== null) {
       if (rec.result.exported > 0) {
         toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
@@ -404,11 +335,12 @@ function DatabaseRow({
     } else if (rec.status === 'failed' || rec.status === 'rejected') {
       toast.error(rec.error ?? 'Export failed');
     }
+    exp.reset();
   };
 
   const handleCancelExport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
-    if (exportOpIdRef.current) await window.api.operationCancel(exportOpIdRef.current);
+    await exp.cancel();
   };
 
   return (
@@ -426,13 +358,13 @@ function DatabaseRow({
                 {importing && (
                   <span className="text-[10px] text-muted-foreground">
                     {importTotal > 1 && `(${importIndex + 1}/${importTotal}) `}
-                    {importCount.toLocaleString()}
+                    {imp.progress.processed.toLocaleString()}
                   </span>
                 )}
                 {exporting && (
                   <span className="text-[10px] text-muted-foreground">
-                    {exportTotal > 1 && `(${exportIndex + 1}/${exportTotal}) `}
-                    {exportCount.toLocaleString()}
+                    {exportStage && exportStage.total > 1 && `(${exportStage.index + 1}/${exportStage.total}) `}
+                    {exp.progress.processed.toLocaleString()}
                   </span>
                 )}
                 {busy ? (
