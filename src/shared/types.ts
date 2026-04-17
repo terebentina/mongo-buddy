@@ -93,3 +93,41 @@ export interface ConnectOptions {
   persistAsLastUsed?: boolean;
   loadHistory?: boolean;
 }
+
+export type OperationKind = 'export-collection' | 'export-database' | 'import-collection';
+
+export type OperationId = string;
+
+export type OperationStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'rejected';
+
+export interface OperationProgress {
+  processed: number;
+  total?: number;
+  label?: string;
+  stage?: string;
+}
+
+export type OperationParams =
+  | { kind: 'export-collection'; db: string; collection: string }
+  | { kind: 'export-database'; db: string }
+  | {
+      kind: 'import-collection';
+      db: string;
+      collection: string;
+      filePath: string;
+      options: ImportOptions;
+    };
+
+export type OperationResult =
+  | { kind: 'export-collection'; exported: number; path: string | null }
+  | { kind: 'export-database'; exported: number; folder: string | null }
+  | { kind: 'import-collection'; inserted: number; skipped: number };
+
+export interface OperationRecord {
+  id: OperationId;
+  params: OperationParams;
+  status: OperationStatus;
+  progress: OperationProgress;
+  result?: OperationResult;
+  error?: string;
+}
