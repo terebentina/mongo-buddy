@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.23.4](https://github.com/terebentina/mongo-buddy/compare/v1.23.3...v1.23.4) (2026-04-17)
+
 ## [1.23.3](https://github.com/terebentina/mongo-buddy/compare/v1.23.2...v1.23.3) (2026-04-16)
 
 
