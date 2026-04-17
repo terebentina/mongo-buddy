@@ -53,7 +53,7 @@ function setEditorText(value: string): void {
 beforeEach(() => {
   vi.clearAllMocks();
   useStore.setState({
-    connected: true,
+    status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
     uri: 'mongodb://localhost',
     databases: [],
     collections: [],

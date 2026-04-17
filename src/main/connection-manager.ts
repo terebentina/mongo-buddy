@@ -1,26 +1,15 @@
 import type { MongoClient } from 'mongodb';
-import type { Result, DbInfo, CollectionInfo, QueryHistoryEntry } from '../shared/types';
+import type {
+  Result,
+  DbInfo,
+  CollectionInfo,
+  QueryHistoryEntry,
+  ConnectionState,
+  ConnectedSession,
+  ConnectOptions,
+} from '../shared/types';
 
-export type ConnectionState =
-  | { status: 'disconnected' }
-  | { status: 'connecting'; uri: string }
-  | { status: 'connected'; uri: string; connectionKey: string }
-  | { status: 'error'; uri: string; error: string };
-
-export interface ConnectedSession {
-  uri: string;
-  connectionKey: string;
-  databases: DbInfo[];
-  queryHistory: QueryHistoryEntry[];
-  autoSelectedDb: string | null;
-  collections: CollectionInfo[];
-}
-
-export interface ConnectOptions {
-  autoSelectSingleDb?: boolean;
-  persistAsLastUsed?: boolean;
-  loadHistory?: boolean;
-}
+export type { ConnectionState, ConnectedSession, ConnectOptions };
 
 export interface ConnectionStorePort {
   setLastUsed(uri: string): void;

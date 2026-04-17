@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useLayoutEffect } from 'react';
-import { useStore } from './store';
+import { useStore, selectConnected } from './store';
 import { ConnectionDialog } from './components/ConnectionDialog';
 import { Sidebar } from './components/Sidebar';
 import { DocumentTable } from './components/DocumentTable';
@@ -9,7 +9,7 @@ import { QueryHistory } from './components/QueryHistory';
 import { Toaster } from './components/ui/sonner';
 
 function App() {
-  const connected = useStore((s) => s.connected);
+  const connected = useStore(selectConnected);
   const selectedCollection = useStore((s) => s.selectedCollection);
   const [dialogOpen, setDialogOpen] = useState(!connected);
   const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null);

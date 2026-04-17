@@ -66,7 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   (window as unknown as Record<string, unknown>).api = mockApi;
   useStore.setState({
-    connected: true,
+    status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
     selectedDb: 'testdb',
     selectedCollection: 'users',
     docs: [],

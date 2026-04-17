@@ -7,10 +7,11 @@ import type {
   QueryHistoryEntry,
   DistinctResult,
   Result,
+  ConnectionState,
 } from '../../shared/types';
 
-interface StoreState {
-  connected: boolean;
+export interface StoreState {
+  status: ConnectionState;
   uri: string;
   databases: DbInfo[];
   collections: CollectionInfo[];
@@ -33,6 +34,7 @@ interface StoreState {
 
   connect: (uri: string) => Promise<void>;
   disconnect: () => Promise<void>;
+  subscribeToConnectionState: () => () => void;
   selectDb: (db: string) => Promise<void>;
   selectCollection: (db: string, collection: string) => Promise<void>;
   fetchPage: (skip: number) => Promise<void>;
@@ -56,8 +58,10 @@ interface StoreState {
   fetchDistinct: (field: string) => Promise<Result<DistinctResult> | null>;
 }
 
+export const selectConnected = (s: StoreState): boolean => s.status.status === 'connected';
+
 export const useStore = create<StoreState>()((set, get) => ({
-  connected: false,
+  status: { status: 'disconnected' },
   uri: '',
   databases: [],
   collections: [],
@@ -79,46 +83,20 @@ export const useStore = create<StoreState>()((set, get) => ({
   pendingQueryMode: null,
 
   connect: async (uri: string) => {
-    if (get().connected) {
-      await get().disconnect();
-    }
+    if (selectConnected(get())) await get().disconnect();
     set({ loading: true, error: null });
     const result = await window.api.connect(uri);
     if (!result.ok) {
-      set({ loading: false, error: result.error, connected: false });
+      set({ loading: false, error: result.error });
       return;
     }
-    const dbResult = await window.api.listDatabases();
-    if (!dbResult.ok) {
-      set({ loading: false, error: dbResult.error, connected: true, uri });
-      return;
-    }
-    await window.api.setLastUsed(uri);
-    const history = await window.api.loadHistory();
-    let autoSelectedDb: string | null = null;
-    let collections: CollectionInfo[] = [];
-    if (dbResult.data.length === 1) {
-      autoSelectedDb = dbResult.data[0].name;
-      const collResult = await window.api.listCollections(autoSelectedDb);
-      if (collResult.ok) {
-        collections = collResult.data;
-      }
-    }
-    set({
-      loading: false,
-      connected: true,
-      uri,
-      databases: dbResult.data,
-      queryHistory: history,
-      selectedDb: autoSelectedDb,
-      collections,
-    });
+    const { databases, queryHistory, autoSelectedDb, collections } = result.data;
+    set({ loading: false, uri: result.data.uri, databases, queryHistory, selectedDb: autoSelectedDb, collections });
   },
 
   disconnect: async () => {
     await window.api.disconnect();
     set({
-      connected: false,
       uri: '',
       databases: [],
       collections: [],
@@ -132,6 +110,8 @@ export const useStore = create<StoreState>()((set, get) => ({
       fieldNames: [],
     });
   },
+
+  subscribeToConnectionState: () => window.api.onConnectionState((status) => set({ status })),
 
   selectDb: async (db: string) => {
     set({ loading: true, selectedDb: db, selectedCollection: null, docs: [], totalCount: 0, fieldNames: [] });

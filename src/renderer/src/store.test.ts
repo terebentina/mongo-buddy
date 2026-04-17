@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useStore } from './store';
+import { useStore, selectConnected } from './store';
+import type { ConnectionState, ConnectedSession } from '../../shared/types';
 
 const mockApi = {
   connect: vi.fn(),
   disconnect: vi.fn(),
+  onConnectionState: vi.fn<(cb: (s: ConnectionState) => void) => () => void>(() => () => {}),
   listDatabases: vi.fn(),
   listCollections: vi.fn(),
   find: vi.fn(),
@@ -24,10 +26,23 @@ const mockApi = {
   distinct: vi.fn(),
 };
 
+function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSession {
+  return {
+    uri: 'mongodb://localhost',
+    connectionKey: 'localhost:27017',
+    databases: [],
+    queryHistory: [],
+    autoSelectedDb: null,
+    collections: [],
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mockApi.onConnectionState.mockImplementation(() => () => {});
   useStore.setState({
-    connected: false,
+    status: { status: 'disconnected' } as ConnectionState,
     uri: '',
     databases: [],
     collections: [],
@@ -51,79 +66,67 @@ beforeEach(() => {
 });
 
 describe('store', () => {
-  it('connect(uri) sets connected=true and loads databases and history', async () => {
+  it('connect(uri) applies ConnectedSession atomically in one setState', async () => {
     const historyEntries = [
       { id: '1', type: 'filter' as const, query: '{}', db: 'test', collection: 'users', timestamp: 1000 },
     ];
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({
+    mockApi.connect.mockResolvedValue({
       ok: true,
-      data: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+      data: makeSession({
+        uri: 'mongodb://localhost',
+        connectionKey: 'localhost:27017',
+        databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+        queryHistory: historyEntries,
+        autoSelectedDb: 'testdb',
+        collections: [{ name: 'users', type: 'collection' }],
+      }),
     });
-    mockApi.listCollections.mockResolvedValue({
-      ok: true,
-      data: [{ name: 'users', type: 'collection' }],
-    });
-    mockApi.loadHistory.mockResolvedValue(historyEntries);
 
     await useStore.getState().connect('mongodb://localhost');
 
     const state = useStore.getState();
-    expect(state.connected).toBe(true);
     expect(state.uri).toBe('mongodb://localhost');
     expect(state.databases).toEqual([{ name: 'testdb', sizeOnDisk: 1024, empty: false }]);
     expect(state.queryHistory).toEqual(historyEntries);
     expect(state.selectedDb).toBe('testdb');
     expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
     expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost');
-    expect(mockApi.listDatabases).toHaveBeenCalled();
-    expect(mockApi.listCollections).toHaveBeenCalledWith('testdb');
-    expect(mockApi.loadHistory).toHaveBeenCalled();
+    expect(mockApi.listDatabases).not.toHaveBeenCalled();
+    expect(mockApi.listCollections).not.toHaveBeenCalled();
+    expect(mockApi.loadHistory).not.toHaveBeenCalled();
+    expect(mockApi.setLastUsed).not.toHaveBeenCalled();
   });
 
-  it('connect() does not auto-select when multiple databases exist', async () => {
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({
+  it('connect() multi-db session: autoSelectedDb null, collections empty, databases populated', async () => {
+    mockApi.connect.mockResolvedValue({
       ok: true,
-      data: [
-        { name: 'db1', sizeOnDisk: 1024, empty: false },
-        { name: 'db2', sizeOnDisk: 2048, empty: false },
-      ],
+      data: makeSession({
+        databases: [
+          { name: 'db1', sizeOnDisk: 1024, empty: false },
+          { name: 'db2', sizeOnDisk: 2048, empty: false },
+        ],
+        autoSelectedDb: null,
+        collections: [],
+      }),
     });
 
     await useStore.getState().connect('mongodb://localhost');
 
     const state = useStore.getState();
-    expect(state.connected).toBe(true);
+    expect(state.databases).toHaveLength(2);
     expect(state.selectedDb).toBeNull();
     expect(state.collections).toEqual([]);
-    expect(mockApi.listCollections).not.toHaveBeenCalled();
   });
 
-  it('connect() auto-select handles listCollections failure gracefully', async () => {
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({
-      ok: true,
-      data: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
-    });
-    mockApi.listCollections.mockResolvedValue({ ok: false, error: 'Not authorized' });
-
-    await useStore.getState().connect('mongodb://localhost');
-
-    const state = useStore.getState();
-    expect(state.connected).toBe(true);
-    expect(state.selectedDb).toBe('testdb');
-    expect(state.collections).toEqual([]);
-  });
-
-  it('connect failure sets error, connected=false', async () => {
+  it('connect failure sets error and leaves databases empty', async () => {
     mockApi.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
 
     await useStore.getState().connect('mongodb://badhost');
 
     const state = useStore.getState();
-    expect(state.connected).toBe(false);
+    expect(selectConnected(state)).toBe(false);
     expect(state.error).toBe('Connection refused');
+    expect(state.databases).toEqual([]);
   });
 
   it('selectDb(db) loads collections', async () => {
@@ -184,12 +187,12 @@ describe('store', () => {
     });
   });
 
-  it('disconnect() resets state', async () => {
+  it('disconnect() resets derived state fields', async () => {
     mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
 
     // Set some state first
     useStore.setState({
-      connected: true,
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
       uri: 'mongodb://localhost',
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
       selectedDb: 'testdb',
@@ -199,23 +202,12 @@ describe('store', () => {
     await useStore.getState().disconnect();
 
     const state = useStore.getState();
-    expect(state.connected).toBe(false);
     expect(state.uri).toBe('');
     expect(state.databases).toEqual([]);
     expect(state.selectedDb).toBeNull();
     expect(state.selectedCollection).toBeNull();
     expect(state.docs).toEqual([]);
     expect(mockApi.disconnect).toHaveBeenCalled();
-  });
-
-  it('connect(uri) calls setLastUsed on success', async () => {
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] });
-    mockApi.setLastUsed.mockResolvedValue(undefined);
-
-    await useStore.getState().connect('mongodb://localhost');
-
-    expect(mockApi.setLastUsed).toHaveBeenCalledWith('mongodb://localhost');
   });
 
   it('loadSavedConnections() fetches and sets savedConnections', async () => {
@@ -248,17 +240,22 @@ describe('store', () => {
     expect(useStore.getState().savedConnections).toEqual([]);
   });
 
-  it('autoReconnect() connects with last used URI', async () => {
+  it('autoReconnect() connects with last used URI and applies session', async () => {
     mockApi.getLastUsed.mockResolvedValue('mongodb://localhost:27017');
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] });
-    mockApi.setLastUsed.mockResolvedValue(undefined);
+    mockApi.connect.mockResolvedValue({
+      ok: true,
+      data: makeSession({
+        uri: 'mongodb://localhost:27017',
+        databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+      }),
+    });
 
     await useStore.getState().autoReconnect();
 
     expect(mockApi.getLastUsed).toHaveBeenCalled();
     expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
-    expect(useStore.getState().connected).toBe(true);
+    expect(useStore.getState().databases).toHaveLength(1);
+    expect(useStore.getState().uri).toBe('mongodb://localhost:27017');
   });
 
   it('autoReconnect() does nothing when no last used URI', async () => {
@@ -267,12 +264,11 @@ describe('store', () => {
     await useStore.getState().autoReconnect();
 
     expect(mockApi.connect).not.toHaveBeenCalled();
-    expect(useStore.getState().connected).toBe(false);
+    expect(selectConnected(useStore.getState())).toBe(false);
   });
 
   it('runQuery() in filter mode calls find with parsed filter', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
     });
@@ -296,7 +292,6 @@ describe('store', () => {
 
   it('runQuery() in aggregate mode calls aggregate with parsed pipeline', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
       queryMode: 'aggregate',
@@ -315,7 +310,6 @@ describe('store', () => {
 
   it('runQuery() adds entry to queryHistory after successful parse', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
     });
@@ -336,7 +330,6 @@ describe('store', () => {
 
   it('runQuery() returns error string for invalid JSON', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
     });
@@ -358,7 +351,6 @@ describe('store', () => {
 
   it('insertDoc() calls insertOne and refreshes docs', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
     });
@@ -378,7 +370,6 @@ describe('store', () => {
 
   it('insertDoc() returns error on failure', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
     });
@@ -391,7 +382,6 @@ describe('store', () => {
 
   it('updateDoc() calls updateOne and refreshes docs', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
     });
@@ -410,7 +400,6 @@ describe('store', () => {
 
   it('deleteDoc() calls deleteOne and refreshes docs', async () => {
     useStore.setState({
-      connected: true,
       selectedDb: 'testdb',
       selectedCollection: 'users',
       docs: [{ _id: '1', name: 'Alice' }],
@@ -614,5 +603,93 @@ describe('fetchDistinct', () => {
     const result = await useStore.getState().fetchDistinct('status');
 
     expect(result).toEqual(errorResult);
+  });
+});
+
+describe('subscribeToConnectionState', () => {
+  it('subscribes to window.api.onConnectionState and updates status on emit', () => {
+    let emit: (s: ConnectionState) => void = () => {};
+    mockApi.onConnectionState.mockImplementation((cb: (s: ConnectionState) => void) => {
+      emit = cb;
+      return () => {};
+    });
+
+    useStore.getState().subscribeToConnectionState();
+
+    expect(mockApi.onConnectionState).toHaveBeenCalledTimes(1);
+
+    emit({ status: 'connecting', uri: 'mongodb://localhost' });
+    expect(useStore.getState().status).toEqual({ status: 'connecting', uri: 'mongodb://localhost' });
+
+    emit({ status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' });
+    expect(selectConnected(useStore.getState())).toBe(true);
+
+    emit({ status: 'disconnected' });
+    expect(selectConnected(useStore.getState())).toBe(false);
+  });
+
+  it('returns an unsubscribe function that removes the listener', () => {
+    const unsubSpy = vi.fn();
+    mockApi.onConnectionState.mockImplementation(() => unsubSpy);
+
+    const unsub = useStore.getState().subscribeToConnectionState();
+    unsub();
+
+    expect(unsubSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('selectConnected', () => {
+  it('is true when status.status === connected', () => {
+    expect(
+      selectConnected({
+        status: { status: 'connected', uri: 'u', connectionKey: 'k' },
+      } as unknown as ReturnType<typeof useStore.getState>)
+    ).toBe(true);
+  });
+
+  it('is false for every other status', () => {
+    const states: ConnectionState[] = [
+      { status: 'disconnected' },
+      { status: 'connecting', uri: 'u' },
+      { status: 'error', uri: 'u', error: 'e' },
+    ];
+    for (const s of states) {
+      expect(selectConnected({ status: s } as unknown as ReturnType<typeof useStore.getState>)).toBe(false);
+    }
+  });
+});
+
+// Enforces atomicity: a "connected" assertion must be backed by a populated session
+describe('connect() atomicity invariant', () => {
+  it('populates databases together with status transitions when subscription is active', async () => {
+    let emit: (s: ConnectionState) => void = () => {};
+    mockApi.onConnectionState.mockImplementation((cb: (s: ConnectionState) => void) => {
+      emit = cb;
+      return () => {};
+    });
+    mockApi.connect.mockImplementation(async () => {
+      emit({ status: 'connecting', uri: 'mongodb://localhost' });
+      emit({ status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' });
+      return {
+        ok: true,
+        data: {
+          uri: 'mongodb://localhost',
+          connectionKey: 'localhost:27017',
+          databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+          queryHistory: [],
+          autoSelectedDb: 'testdb',
+          collections: [{ name: 'users', type: 'collection' }],
+        } as ConnectedSession,
+      };
+    });
+
+    useStore.getState().subscribeToConnectionState();
+    await useStore.getState().connect('mongodb://localhost');
+
+    const state = useStore.getState();
+    expect(selectConnected(state)).toBe(true);
+    expect(state.databases).toHaveLength(1);
+    expect(state.collections).toHaveLength(1);
   });
 });

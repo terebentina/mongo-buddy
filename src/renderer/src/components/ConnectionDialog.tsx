@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { useStore } from '../store';
+import { useStore, selectConnected } from '../store';
 import { toast } from 'sonner';
 import { Pencil, Trash2 } from 'lucide-react';
 
@@ -36,7 +36,7 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
   const [pendingUri, setPendingUri] = useState('');
   const [pendingName, setPendingName] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
-  const connected = useStore((s) => s.connected);
+  const connected = useStore(selectConnected);
   const connect = useStore((s) => s.connect);
   const savedConnections = useStore((s) => s.savedConnections);
   const loadSavedConnections = useStore((s) => s.loadSavedConnections);
