@@ -1,23 +1,35 @@
-import { ipcMain, dialog } from 'electron';
-import { createReadStream, createWriteStream } from 'fs';
-import { unlink } from 'fs/promises';
+import { ipcMain, dialog, BrowserWindow, app } from 'electron';
 import path from 'path';
-import { createGunzip, createGzip } from 'zlib';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
 import type { ConnectionManager, ConnectOptions } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
-import type { Result, FindOpts, SavedConnection, QueryHistoryEntry, PickedFile, ImportOptions } from '../shared/types';
+import type { OperationRegistry } from './operation-registry';
+import type {
+  Result,
+  FindOpts,
+  SavedConnection,
+  QueryHistoryEntry,
+  PickedFile,
+  OperationParams,
+  OperationId,
+  OperationRecord,
+} from '../shared/types';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
 
-export function registerIpcHandlers(
-  service: MongoService,
-  connStore: ConnectionStore,
-  historyStore: QueryHistoryStore,
-  manager: ConnectionManager,
-  broadcast: Broadcast = () => {}
-): void {
+export interface IpcDeps {
+  service: MongoService;
+  connStore: ConnectionStore;
+  historyStore: QueryHistoryStore;
+  manager: ConnectionManager;
+  registry: OperationRegistry;
+  broadcast?: Broadcast;
+}
+
+export function registerIpcHandlers(deps: IpcDeps): void {
+  const { service, connStore, historyStore, manager, registry, broadcast = () => {} } = deps;
+
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
       try {
@@ -143,190 +155,6 @@ export function registerIpcHandlers(
     wrapSync(() => historyStore.clear(requireConnectionKey()))
   );
 
-  const activeExports = new Map<string, AbortController>();
-
-  ipcMain.handle(
-    'mongo:export-collection',
-    async (event, db: string, collection: string): Promise<Result<number | null>> => {
-      const key = `${db}.${collection}`;
-
-      if (activeExports.has(key)) {
-        return { ok: false, error: 'Export already in progress for this collection' };
-      }
-
-      const { canceled, filePath } = await dialog.showSaveDialog({
-        defaultPath: `${collection}.bson.gz`,
-        filters: [{ name: 'BSON Gzip', extensions: ['bson.gz'] }],
-      });
-
-      if (canceled || !filePath) {
-        return { ok: true, data: null };
-      }
-
-      const ac = new AbortController();
-      activeExports.set(key, ac);
-
-      const gzip = createGzip();
-      const file = createWriteStream(filePath);
-      gzip.pipe(file);
-
-      const cleanup = async (removeFile: boolean): Promise<void> => {
-        activeExports.delete(key);
-        gzip.destroy();
-        file.destroy();
-        if (removeFile) {
-          await unlink(filePath).catch(() => {});
-        }
-      };
-
-      try {
-        const result = await service.exportCollection(
-          db,
-          collection,
-          gzip,
-          (count) => {
-            event.sender.send('export:progress', { db, collection, count });
-          },
-          ac.signal
-        );
-
-        if (result.ok) {
-          await new Promise<void>((resolve, reject) => {
-            gzip.end(() => {
-              file.on('finish', resolve);
-              file.on('error', reject);
-            });
-          });
-          await cleanup(false);
-          return result;
-        }
-
-        await cleanup(true);
-        return result;
-      } catch (err) {
-        await cleanup(true);
-        return { ok: false, error: (err as Error).message };
-      }
-    }
-  );
-
-  ipcMain.handle('mongo:cancel-export', (_event, db: string, collection: string): Result<undefined> => {
-    const key = `${db}.${collection}`;
-    const ac = activeExports.get(key);
-    if (!ac) {
-      return { ok: false, error: 'No active export for this collection' };
-    }
-    ac.abort();
-    return { ok: true, data: undefined };
-  });
-
-  const activeDbExports = new Map<string, AbortController>();
-
-  ipcMain.handle('mongo:export-database', async (event, db: string): Promise<Result<number | null>> => {
-    if (activeDbExports.has(db)) {
-      return { ok: false, error: 'Export already in progress for this database' };
-    }
-
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openDirectory'],
-    });
-
-    if (canceled || filePaths.length === 0) {
-      return { ok: true, data: null };
-    }
-
-    const folderPath = filePaths[0];
-    const ac = new AbortController();
-    activeDbExports.set(db, ac);
-
-    try {
-      const listResult = await service.listCollections(db);
-      if (!listResult.ok) {
-        activeDbExports.delete(db);
-        return { ok: false, error: listResult.error };
-      }
-
-      const collections = listResult.data.filter((c) => c.type === 'collection');
-      if (collections.length === 0) {
-        activeDbExports.delete(db);
-        return { ok: true, data: 0 };
-      }
-
-      let totalCount = 0;
-
-      for (let i = 0; i < collections.length; i++) {
-        if (ac.signal.aborted) break;
-
-        const coll = collections[i];
-        const filePath = path.join(folderPath, `${coll.name}.bson.gz`);
-        const gzip = createGzip();
-        const file = createWriteStream(filePath);
-        gzip.pipe(file);
-
-        const cleanupStreams = async (removeFile: boolean): Promise<void> => {
-          gzip.destroy();
-          file.destroy();
-          if (removeFile) {
-            await unlink(filePath).catch(() => {});
-          }
-        };
-
-        try {
-          const result = await service.exportCollection(
-            db,
-            coll.name,
-            gzip,
-            (count) => {
-              event.sender.send('export-db:progress', {
-                db,
-                collection: coll.name,
-                index: i,
-                total: collections.length,
-                count,
-              });
-            },
-            ac.signal
-          );
-
-          if (result.ok) {
-            await new Promise<void>((resolve, reject) => {
-              gzip.end(() => {
-                file.on('finish', resolve);
-                file.on('error', reject);
-              });
-            });
-            await cleanupStreams(false);
-            totalCount += result.data;
-          } else {
-            await cleanupStreams(true);
-            if (ac.signal.aborted) break;
-            activeDbExports.delete(db);
-            return result;
-          }
-        } catch (err) {
-          await cleanupStreams(true);
-          activeDbExports.delete(db);
-          return { ok: false, error: (err as Error).message };
-        }
-      }
-
-      activeDbExports.delete(db);
-      return { ok: true, data: totalCount };
-    } catch (err) {
-      activeDbExports.delete(db);
-      return { ok: false, error: (err as Error).message };
-    }
-  });
-
-  ipcMain.handle('mongo:cancel-export-database', (_event, db: string): Result<undefined> => {
-    const ac = activeDbExports.get(db);
-    if (!ac) {
-      return { ok: false, error: 'No active database export for this database' };
-    }
-    ac.abort();
-    return { ok: true, data: undefined };
-  });
-
   ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile[] | null>> => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       filters: [{ name: 'BSON Gzip', extensions: ['bson.gz'] }],
@@ -345,64 +173,19 @@ export function registerIpcHandlers(
     return { ok: true, data: files };
   });
 
-  const activeImports = new Map<string, AbortController>();
-
   ipcMain.handle(
-    'mongo:import-collection',
-    async (
-      event,
-      db: string,
-      collection: string,
-      filePath: string,
-      options: ImportOptions
-    ): Promise<Result<{ inserted: number; skipped: number } | null>> => {
-      const key = `${db}.${collection}`;
-
-      if (activeImports.has(key)) {
-        return { ok: false, error: 'Import already in progress for this collection' };
-      }
-
-      const ac = new AbortController();
-      activeImports.set(key, ac);
-
-      const fileStream = createReadStream(filePath);
-      const gunzip = createGunzip();
-      const input = fileStream.pipe(gunzip);
-
-      const cleanup = (): void => {
-        activeImports.delete(key);
-        fileStream.destroy();
-        gunzip.destroy();
-      };
-
-      try {
-        const result = await service.importCollection(
-          db,
-          collection,
-          input,
-          options,
-          (count) => {
-            event.sender.send('import:progress', { db, collection, count });
-          },
-          ac.signal
-        );
-
-        cleanup();
-        return result;
-      } catch (err) {
-        cleanup();
-        return { ok: false, error: (err as Error).message };
-      }
-    }
+    'operation:start',
+    wrapSync((params: unknown): Result<OperationId> => registry.start(params as OperationParams))
+  );
+  ipcMain.handle(
+    'operation:cancel',
+    wrapSync((id: unknown): Result<undefined> => registry.cancel(id as OperationId))
   );
 
-  ipcMain.handle('mongo:cancel-import', (_event, db: string, collection: string): Result<undefined> => {
-    const key = `${db}.${collection}`;
-    const ac = activeImports.get(key);
-    if (!ac) {
-      return { ok: false, error: 'No active import for this collection' };
+  const unsubscribe = registry.subscribe((rec: OperationRecord) => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('operation:update', rec);
     }
-    ac.abort();
-    return { ok: true, data: undefined };
   });
+  app.on('will-quit', unsubscribe);
 }
