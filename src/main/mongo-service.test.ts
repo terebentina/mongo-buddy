@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { MongoClient } from 'mongodb';
-import { ObjectId } from 'mongodb';
+import { MongoClient, MongoBulkWriteError, ObjectId } from 'mongodb';
+import { BSON } from 'bson';
+import { Readable, Writable } from 'stream';
 import { MongoService } from './mongo-service';
 
 describe('MongoService', () => {
@@ -20,6 +21,9 @@ describe('MongoService', () => {
     countDocuments: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     insertOne: ReturnType<typeof vi.fn>;
+    insertMany: ReturnType<typeof vi.fn>;
+    bulkWrite: ReturnType<typeof vi.fn>;
+    deleteMany: ReturnType<typeof vi.fn>;
     findOne: ReturnType<typeof vi.fn>;
     replaceOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
@@ -33,6 +37,9 @@ describe('MongoService', () => {
       countDocuments: vi.fn(),
       aggregate: vi.fn(),
       insertOne: vi.fn(),
+      insertMany: vi.fn(),
+      bulkWrite: vi.fn(),
+      deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0 }),
       findOne: vi.fn(),
       replaceOne: vi.fn(),
       deleteOne: vi.fn(),
@@ -327,6 +334,312 @@ describe('MongoService', () => {
       const result = await service.distinct('testdb', 'users', 'status');
 
       expect(result).toEqual({ ok: false, error: 'Query failed' });
+    });
+  });
+
+  describe('exportCollection', () => {
+    const makeCursor = (
+      docs: Record<string, unknown>[]
+    ): { close: ReturnType<typeof vi.fn>; [Symbol.asyncIterator]: () => AsyncGenerator<Record<string, unknown>> } => ({
+      close: vi.fn().mockResolvedValue(undefined),
+      [Symbol.asyncIterator]: async function* () {
+        for (const doc of docs) yield doc;
+      },
+    });
+
+    const collectingWritable = (): { writable: Writable; chunks: Buffer[] } => {
+      const chunks: Buffer[] = [];
+      const writable = new Writable({
+        write(chunk, _enc, cb) {
+          chunks.push(Buffer.from(chunk));
+          cb();
+        },
+      });
+      return { writable, chunks };
+    };
+
+    it('writes BSON-serialized docs to the provided Writable; count matches cursor size', async () => {
+      const docs = [
+        { _id: 'a', n: 1 },
+        { _id: 'b', n: 2 },
+        { _id: 'c', n: 3 },
+      ];
+      mockCollection.find.mockReturnValue(makeCursor(docs));
+      const { writable, chunks } = collectingWritable();
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), new AbortController().signal);
+
+      expect(result).toEqual({ ok: true, data: 3 });
+      expect(chunks).toHaveLength(3);
+      expect(BSON.deserialize(chunks[0])).toEqual(docs[0]);
+      expect(BSON.deserialize(chunks[1])).toEqual(docs[1]);
+      expect(BSON.deserialize(chunks[2])).toEqual(docs[2]);
+    });
+
+    it('fires onProgress at 200ms throttle cadence during streaming', async () => {
+      const docs = Array.from({ length: 5 }, (_, i) => ({ n: i }));
+      mockCollection.find.mockReturnValue(makeCursor(docs));
+      const { writable } = collectingWritable();
+
+      // lastProgressTime starts at 0. Check is: now - lastProgressTime >= 200.
+      // times: 0, 100, 250, 300, 500
+      // doc 1 (now=0): 0-0=0 → no
+      // doc 2 (now=100): 100-0=100 → no
+      // doc 3 (now=250): 250-0=250 → yes, progress(3), lastProgressTime=250
+      // doc 4 (now=300): 300-250=50 → no
+      // doc 5 (now=500): 500-250=250 → yes, progress(5), lastProgressTime=500
+      // final: progress(5)
+      const times = [0, 100, 250, 300, 500];
+      let idx = 0;
+      const spy = vi.spyOn(Date, 'now').mockImplementation(() => times[idx++] ?? 999);
+      const onProgress = vi.fn();
+
+      try {
+        await service.connect('mongodb://localhost:27017');
+        const result = await service.exportCollection(
+          'testdb',
+          'users',
+          writable,
+          onProgress,
+          new AbortController().signal
+        );
+        expect(result).toEqual({ ok: true, data: 5 });
+      } finally {
+        spy.mockRestore();
+      }
+
+      // Throttled: exactly 2 mid-stream + 1 final = 3 calls
+      expect(onProgress).toHaveBeenCalledTimes(3);
+      expect(onProgress).toHaveBeenNthCalledWith(1, 3);
+      expect(onProgress).toHaveBeenNthCalledWith(2, 5);
+      expect(onProgress).toHaveBeenNthCalledWith(3, 5);
+    });
+
+    it('fires a final onProgress(count) after the loop exits', async () => {
+      const docs = [{ a: 1 }, { b: 2 }];
+      mockCollection.find.mockReturnValue(makeCursor(docs));
+      const { writable } = collectingWritable();
+      // Keep now constant so mid-stream progress never fires; only final call.
+      const spy = vi.spyOn(Date, 'now').mockReturnValue(0);
+      const onProgress = vi.fn();
+
+      try {
+        await service.connect('mongodb://localhost:27017');
+        await service.exportCollection('testdb', 'users', writable, onProgress, new AbortController().signal);
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(onProgress).toHaveBeenLastCalledWith(2);
+    });
+
+    it('aborts cleanly when signal.aborted is true mid-stream', async () => {
+      const controller = new AbortController();
+      const cursor = {
+        close: vi.fn().mockResolvedValue(undefined),
+        [Symbol.asyncIterator]: async function* () {
+          yield { a: 1 };
+          controller.abort();
+          yield { a: 2 };
+        },
+      };
+      mockCollection.find.mockReturnValue(cursor);
+      const { writable } = collectingWritable();
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), controller.signal);
+
+      expect(result).toEqual({ ok: false, error: 'Export cancelled' });
+      expect(cursor.close).toHaveBeenCalled();
+    });
+
+    it('returns error when not connected', async () => {
+      const { writable } = collectingWritable();
+      const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), new AbortController().signal);
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+  });
+
+  describe('importCollection', () => {
+    const streamOf = (docs: Record<string, unknown>[]): Readable => {
+      const buf = Buffer.concat(docs.map((d) => BSON.serialize(d)));
+      return Readable.from([buf]);
+    };
+
+    it('reads BSON chunks and flushes batches at BATCH_SIZE', async () => {
+      // 1500 docs → two flushes (1000 + 500)
+      const docs = Array.from({ length: 1500 }, (_, i) => ({ n: i }));
+      mockCollection.insertMany.mockResolvedValue({ insertedCount: 1000 });
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf(docs),
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result.ok).toBe(true);
+      // Two flushes: one mid-loop (batch full at 1000), one final (remaining 500)
+      expect(mockCollection.insertMany).toHaveBeenCalledTimes(2);
+      expect(mockCollection.insertMany.mock.calls[0][0]).toHaveLength(1000);
+      expect(mockCollection.insertMany.mock.calls[1][0]).toHaveLength(500);
+    });
+
+    it('fires a final onProgress(inserted + skipped) after the final flush', async () => {
+      const docs = [{ a: 1 }, { b: 2 }];
+      mockCollection.insertMany.mockResolvedValue({ insertedCount: 2 });
+      const onProgress = vi.fn();
+
+      await service.connect('mongodb://localhost:27017');
+      await service.importCollection(
+        'testdb',
+        'users',
+        streamOf(docs),
+        { onDuplicate: 'fail', clearFirst: false },
+        onProgress,
+        new AbortController().signal
+      );
+
+      expect(onProgress).toHaveBeenLastCalledWith(2);
+    });
+
+    it('aborts cleanly mid-stream', async () => {
+      const controller = new AbortController();
+      async function* gen(): AsyncGenerator<Buffer> {
+        yield Buffer.from(BSON.serialize({ a: 1 }));
+        controller.abort();
+        yield Buffer.from(BSON.serialize({ b: 2 }));
+      }
+      const stream = Readable.from(gen());
+      mockCollection.insertMany.mockResolvedValue({ insertedCount: 0 });
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        stream,
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        controller.signal
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toMatch(/Import cancelled/);
+    });
+
+    it('with onDuplicate=skip counts inserted + skipped correctly under MongoBulkWriteError', async () => {
+      const docs = [{ a: 1 }, { b: 2 }, { c: 3 }];
+      const err = Object.create(MongoBulkWriteError.prototype) as MongoBulkWriteError;
+      // Minimal BulkWriteResult shape needed by importCollection's skip branch.
+      (err as unknown as { result: { insertedCount: number } }).result = { insertedCount: 2 };
+      mockCollection.insertMany.mockRejectedValue(err);
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf(docs),
+        { onDuplicate: 'skip', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result).toEqual({ ok: true, data: { inserted: 2, skipped: 1 } });
+      expect(mockCollection.insertMany).toHaveBeenCalledWith(expect.any(Array), { ordered: false });
+    });
+
+    it('with onDuplicate=fail surfaces the error and stops', async () => {
+      const docs = [{ a: 1 }];
+      mockCollection.insertMany.mockRejectedValue(new Error('duplicate key'));
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf(docs),
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result).toEqual({ ok: false, error: 'duplicate key' });
+    });
+
+    it('with onDuplicate=upsert uses bulkWrite with upserts', async () => {
+      const docs = [
+        { _id: 1, v: 'a' },
+        { _id: 2, v: 'b' },
+      ];
+      mockCollection.bulkWrite.mockResolvedValue({ upsertedCount: 1, modifiedCount: 1 });
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf(docs),
+        { onDuplicate: 'upsert', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result).toEqual({ ok: true, data: { inserted: 2, skipped: 0 } });
+      expect(mockCollection.bulkWrite).toHaveBeenCalled();
+    });
+
+    it('clearFirst=true calls deleteMany before streaming', async () => {
+      mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
+
+      await service.connect('mongodb://localhost:27017');
+      await service.importCollection(
+        'testdb',
+        'users',
+        streamOf([{ a: 1 }]),
+        { onDuplicate: 'fail', clearFirst: true },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(mockCollection.deleteMany).toHaveBeenCalledWith({});
+    });
+
+    it('invalid BSON size returns error with offset and in-progress inserted count', async () => {
+      // Buffer whose first 4 bytes encode a huge doc size > 16MB
+      const badBuf = Buffer.alloc(8);
+      badBuf.writeInt32LE(0x7fffffff, 0);
+      const stream = Readable.from([badBuf]);
+
+      await service.connect('mongodb://localhost:27017');
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        stream,
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toMatch(/Invalid BSON document size/);
+        expect(result.error).toMatch(/offset 0/);
+        expect(result.error).toMatch(/0 docs imported/);
+      }
+    });
+
+    it('returns error when not connected', async () => {
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf([{ a: 1 }]),
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
