@@ -4,6 +4,21 @@ import userEvent from '@testing-library/user-event';
 import { ConnectionDialog } from './ConnectionDialog';
 import { useStore } from '../store';
 import { toast } from 'sonner';
+import type { ConnectedSession, ConnectionState } from '../../../shared/types';
+
+function sessionOk(uri = 'mongodb://localhost:27017'): { ok: true; data: ConnectedSession } {
+  return {
+    ok: true,
+    data: {
+      uri,
+      connectionKey: 'localhost:27017',
+      databases: [],
+      queryHistory: [],
+      autoSelectedDb: null,
+      collections: [],
+    },
+  };
+}
 
 vi.mock('sonner', () => ({
   toast: {
@@ -14,6 +29,7 @@ vi.mock('sonner', () => ({
 const mockApi = {
   connect: vi.fn(),
   disconnect: vi.fn(),
+  onConnectionState: vi.fn(() => () => {}),
   listDatabases: vi.fn(),
   listCollections: vi.fn(),
   find: vi.fn(),
@@ -31,7 +47,7 @@ const mockApi = {
 beforeEach(() => {
   vi.clearAllMocks();
   useStore.setState({
-    connected: false,
+    status: { status: 'disconnected' } as ConnectionState,
     uri: '',
     databases: [],
     collections: [],
@@ -59,9 +75,7 @@ describe('ConnectionDialog', () => {
   });
 
   it('submit calls store.connect', async () => {
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] });
-    mockApi.setLastUsed.mockResolvedValue(undefined);
+    mockApi.connect.mockResolvedValue(sessionOk());
 
     const onOpenChange = vi.fn();
     render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />);
@@ -90,9 +104,7 @@ describe('ConnectionDialog', () => {
   });
 
   it('hides dialog on successful connection', async () => {
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] });
-    mockApi.setLastUsed.mockResolvedValue(undefined);
+    mockApi.connect.mockResolvedValue(sessionOk());
 
     const onOpenChange = vi.fn();
     render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />);
@@ -122,9 +134,7 @@ describe('ConnectionDialog', () => {
 
   it('click saved connection fills URI and connects', async () => {
     mockApi.listConnections.mockResolvedValue([{ name: 'Local', uri: 'mongodb://localhost:27017' }]);
-    mockApi.connect.mockResolvedValue({ ok: true, data: undefined });
-    mockApi.listDatabases.mockResolvedValue({ ok: true, data: [] });
-    mockApi.setLastUsed.mockResolvedValue(undefined);
+    mockApi.connect.mockResolvedValue(sessionOk());
 
     const onOpenChange = vi.fn();
     render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />);

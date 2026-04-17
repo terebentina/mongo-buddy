@@ -72,3 +72,24 @@ export interface DistinctResult {
   values: unknown[];
   truncated: boolean;
 }
+
+export type ConnectionState =
+  | { status: 'disconnected' }
+  | { status: 'connecting'; uri: string }
+  | { status: 'connected'; uri: string; connectionKey: string }
+  | { status: 'error'; uri: string; error: string };
+
+export interface ConnectedSession {
+  uri: string;
+  connectionKey: string;
+  databases: DbInfo[];
+  queryHistory: QueryHistoryEntry[];
+  autoSelectedDb: string | null;
+  collections: CollectionInfo[];
+}
+
+export interface ConnectOptions {
+  autoSelectSingleDb?: boolean;
+  persistAsLastUsed?: boolean;
+  loadHistory?: boolean;
+}

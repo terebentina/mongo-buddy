@@ -17,6 +17,8 @@ import type {
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
+export type { ConnectionState, ConnectedSession, ConnectOptions };
+
 type IpcLike = {
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
   on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;

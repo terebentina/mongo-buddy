@@ -29,7 +29,7 @@ const mockApi = {
 beforeEach(() => {
   vi.clearAllMocks();
   useStore.setState({
-    connected: false,
+    status: { status: 'disconnected' },
     uri: '',
     databases: [],
     collections: [],
@@ -49,7 +49,7 @@ beforeEach(() => {
 describe('Sidebar', () => {
   it('renders database list', () => {
     useStore.setState({
-      connected: true,
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
       databases: [
         { name: 'testdb', sizeOnDisk: 1024, empty: false },
         { name: 'admin', sizeOnDisk: 512, empty: false },
@@ -72,7 +72,7 @@ describe('Sidebar', () => {
     });
 
     useStore.setState({
-      connected: true,
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
     });
 
@@ -99,7 +99,7 @@ describe('Sidebar', () => {
     });
 
     useStore.setState({
-      connected: true,
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
     });
 
@@ -123,7 +123,7 @@ describe('Sidebar', () => {
 
   it('shows selected collection as active', async () => {
     useStore.setState({
-      connected: true,
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
       selectedDb: 'testdb',
       selectedCollection: 'users',
