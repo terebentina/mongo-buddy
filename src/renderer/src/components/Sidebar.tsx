@@ -11,13 +11,23 @@ import { ImportDialog } from './ImportDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
-import type {
-  ExportDbProgress,
-  ExportProgress,
-  ImportOptions,
-  ImportProgress,
-  PickedFile,
-} from '../../../shared/types';
+import type { ImportOptions, OperationRecord, OperationStatus, PickedFile } from '../../../shared/types';
+
+function isTerminal(status: OperationStatus): boolean {
+  return status !== 'pending' && status !== 'running';
+}
+
+function waitForTerminal(opId: string): Promise<OperationRecord> {
+  return new Promise((resolve) => {
+    const unsub = window.api.onOperationUpdate((rec) => {
+      if (rec.id !== opId) return;
+      if (isTerminal(rec.status)) {
+        unsub();
+        resolve(rec);
+      }
+    });
+  });
+}
 
 interface SidebarProps {
   width: number;
@@ -36,18 +46,22 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   const [exportCount, setExportCount] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const opIdRef = useRef<string | null>(null);
 
   const selectDb = useStore((s) => s.selectDb);
   const selectedCollection = useStore((s) => s.selectedCollection);
 
   useEffect(() => {
-    const cleanup = window.api.onExportProgress((data: ExportProgress) => {
-      if (data.db === dbName && data.collection === coll.name) {
-        setExportCount(data.count);
+    return window.api.onOperationUpdate((rec) => {
+      if (rec.id !== opIdRef.current) return;
+      if (rec.status === 'running') {
+        setExportCount(rec.progress.processed);
+      } else if (isTerminal(rec.status)) {
+        opIdRef.current = null;
+        setExportCount(null);
       }
     });
-    return cleanup;
-  }, [dbName, coll.name]);
+  }, []);
 
   const exporting = exportCount !== null;
   const progress = exporting && coll.count ? Math.min((exportCount / coll.count) * 100, 100) : 0;
@@ -55,19 +69,28 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   const handleExport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (exporting) return;
+    const startRes = await window.api.operationStart({
+      kind: 'export-collection',
+      db: dbName,
+      collection: coll.name,
+    });
+    if (!startRes.ok) {
+      toast.error(startRes.error);
+      return;
+    }
+    opIdRef.current = startRes.data;
     setExportCount(0);
-    const result = await window.api.exportCollection(dbName, coll.name);
-    setExportCount(null);
-    if (!result.ok) {
-      toast.error(result.error);
-    } else if (result.data !== null) {
-      toast.success(`Exported ${result.data.toLocaleString()} documents`);
+    const rec = await waitForTerminal(startRes.data);
+    if (rec.status === 'succeeded' && rec.result?.kind === 'export-collection' && rec.result.path !== null) {
+      toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
+    } else if (rec.status === 'failed' || rec.status === 'rejected') {
+      toast.error(rec.error ?? 'Export failed');
     }
   };
 
   const handleCancel = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
-    await window.api.cancelExport(dbName, coll.name);
+    if (opIdRef.current) await window.api.operationCancel(opIdRef.current);
   };
 
   const handleDelete = async (): Promise<void> => {
@@ -209,6 +232,13 @@ interface DatabaseRowProps {
   onSelectCollection: (dbName: string, collName: string) => void;
 }
 
+function parseStage(stage: string | undefined): { index: number; total: number } | null {
+  if (!stage) return null;
+  const m = stage.match(/^(\d+) of (\d+)$/);
+  if (!m) return null;
+  return { index: Number(m[1]) - 1, total: Number(m[2]) };
+}
+
 function DatabaseRow({
   dbName,
   isOpen,
@@ -224,36 +254,41 @@ function DatabaseRow({
   const [importCount, setImportCount] = useState(0);
   const [importIndex, setImportIndex] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
-  const cancelledRef = useRef(false);
+  const importOpIdRef = useRef<string | null>(null);
   const [exportingCollection, setExportingCollection] = useState<string | null>(null);
   const [exportCount, setExportCount] = useState(0);
   const [exportIndex, setExportIndex] = useState(0);
   const [exportTotal, setExportTotal] = useState(0);
-  const exportCancelledRef = useRef(false);
+  const exportOpIdRef = useRef<string | null>(null);
   const refreshDocs = useStore((s) => s.refreshDocs);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
 
   useEffect(() => {
-    const cleanup = window.api.onImportProgress((data: ImportProgress) => {
-      if (data.db === dbName && importingCollection && data.collection === importingCollection) {
-        setImportCount(data.count);
+    return window.api.onOperationUpdate((rec) => {
+      if (rec.id === importOpIdRef.current) {
+        if (rec.status === 'running') {
+          setImportCount(rec.progress.processed);
+        }
+      } else if (rec.id === exportOpIdRef.current) {
+        if (rec.status === 'running') {
+          setExportingCollection(rec.progress.label ?? '');
+          setExportCount(rec.progress.processed);
+          const parsed = parseStage(rec.progress.stage);
+          if (parsed) {
+            setExportIndex(parsed.index);
+            setExportTotal(parsed.total);
+          }
+        } else if (isTerminal(rec.status)) {
+          exportOpIdRef.current = null;
+          setExportingCollection(null);
+          setExportCount(0);
+          setExportIndex(0);
+          setExportTotal(0);
+        }
       }
     });
-    return cleanup;
-  }, [dbName, importingCollection]);
-
-  useEffect(() => {
-    const cleanup = window.api.onExportDbProgress((data: ExportDbProgress) => {
-      if (data.db === dbName) {
-        setExportingCollection(data.collection);
-        setExportCount(data.count);
-        setExportIndex(data.index);
-        setExportTotal(data.total);
-      }
-    });
-    return cleanup;
-  }, [dbName]);
+  }, []);
 
   const importing = importingCollection !== null;
   const exporting = exportingCollection !== null;
@@ -277,11 +312,11 @@ function DatabaseRow({
     setImportDialogOpen(false);
     setPickedFiles([]);
     setImportTotal(files.length);
-    cancelledRef.current = false;
 
     let totalInserted = 0;
     let totalSkipped = 0;
     let failed = false;
+    let cancelled = false;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -289,19 +324,33 @@ function DatabaseRow({
       setImportingCollection(file.suggestedName);
       setImportCount(0);
 
-      const result = await window.api.importCollection(dbName, file.suggestedName, file.filePath, options);
-
-      if (!result.ok) {
-        if (!cancelledRef.current) {
-          toast.error(`Failed importing ${file.suggestedName}: ${result.error}`);
-        }
+      const startRes = await window.api.operationStart({
+        kind: 'import-collection',
+        db: dbName,
+        collection: file.suggestedName,
+        filePath: file.filePath,
+        options,
+      });
+      if (!startRes.ok) {
+        toast.error(`Failed importing ${file.suggestedName}: ${startRes.error}`);
         failed = true;
         break;
       }
-      if (result.data) {
-        totalInserted += result.data.inserted;
-        totalSkipped += result.data.skipped;
+      importOpIdRef.current = startRes.data;
+      const rec = await waitForTerminal(startRes.data);
+      importOpIdRef.current = null;
+
+      if (rec.status === 'cancelled') {
+        cancelled = true;
+        break;
       }
+      if (rec.status !== 'succeeded' || rec.result?.kind !== 'import-collection') {
+        toast.error(`Failed importing ${file.suggestedName}: ${rec.error ?? 'import failed'}`);
+        failed = true;
+        break;
+      }
+      totalInserted += rec.result.inserted;
+      totalSkipped += rec.result.skipped;
     }
 
     setImportingCollection(null);
@@ -309,13 +358,15 @@ function DatabaseRow({
     setImportTotal(0);
     setImportIndex(0);
 
-    if (!failed) {
+    if (!failed && !cancelled) {
       const collLabel = files.length === 1 ? 'collection' : `${files.length} collections`;
       const msg =
         totalSkipped > 0
           ? `Imported ${totalInserted.toLocaleString()} documents into ${collLabel} (${totalSkipped.toLocaleString()} duplicates skipped)`
           : `Imported ${totalInserted.toLocaleString()} documents into ${collLabel}`;
       toast.success(msg);
+    } else if (cancelled) {
+      toast('Import cancelled');
     }
 
     onSelectDb();
@@ -326,39 +377,38 @@ function DatabaseRow({
 
   const handleCancelImport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
-    if (!importingCollection) return;
-    cancelledRef.current = true;
-    await window.api.cancelImport(dbName, importingCollection);
-    toast('Import cancelled');
+    if (!importOpIdRef.current) return;
+    await window.api.operationCancel(importOpIdRef.current);
   };
 
   const handleExportClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (busy) return;
-    exportCancelledRef.current = false;
+    const startRes = await window.api.operationStart({ kind: 'export-database', db: dbName });
+    if (!startRes.ok) {
+      toast.error(startRes.error);
+      return;
+    }
+    exportOpIdRef.current = startRes.data;
     setExportingCollection('');
     setExportCount(0);
     setExportIndex(0);
     setExportTotal(0);
-    const result = await window.api.exportDatabase(dbName);
-    setExportingCollection(null);
-    setExportCount(0);
-    setExportIndex(0);
-    setExportTotal(0);
-    if (!result.ok) {
-      if (!exportCancelledRef.current) {
-        toast.error(result.error);
+    const rec = await waitForTerminal(startRes.data);
+    if (rec.status === 'succeeded' && rec.result?.kind === 'export-database' && rec.result.folder !== null) {
+      if (rec.result.exported > 0) {
+        toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
       }
-    } else if (result.data !== null && result.data > 0) {
-      toast.success(`Exported ${result.data.toLocaleString()} documents`);
+    } else if (rec.status === 'cancelled') {
+      toast('Export cancelled');
+    } else if (rec.status === 'failed' || rec.status === 'rejected') {
+      toast.error(rec.error ?? 'Export failed');
     }
   };
 
   const handleCancelExport = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
-    exportCancelledRef.current = true;
-    await window.api.cancelExportDatabase(dbName);
-    toast('Export cancelled');
+    if (exportOpIdRef.current) await window.api.operationCancel(exportOpIdRef.current);
   };
 
   return (

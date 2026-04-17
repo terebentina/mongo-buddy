@@ -8,12 +8,11 @@ import type {
   FindResult,
   SavedConnection,
   QueryHistoryEntry,
-  ExportProgress,
-  ImportProgress,
-  ImportOptions,
-  ExportDbProgress,
   PickedFile,
   DistinctResult,
+  OperationParams,
+  OperationId,
+  OperationRecord,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
@@ -77,41 +76,16 @@ export function createApi(ipc: IpcLike) {
     loadHistory: (): Promise<QueryHistoryEntry[]> => ipc.invoke('history:load') as Promise<QueryHistoryEntry[]>,
     saveHistory: (entries: QueryHistoryEntry[]): Promise<void> => ipc.invoke('history:save', entries) as Promise<void>,
     clearHistory: (): Promise<void> => ipc.invoke('history:clear') as Promise<void>,
-    exportCollection: (db: string, collection: string): Promise<Result<number | null>> =>
-      ipc.invoke('mongo:export-collection', db, collection) as Promise<Result<number | null>>,
-    cancelExport: (db: string, collection: string): Promise<Result<undefined>> =>
-      ipc.invoke('mongo:cancel-export', db, collection) as Promise<Result<undefined>>,
-    onExportProgress: (cb: (data: ExportProgress) => void): (() => void) => {
-      const handler = (_event: unknown, data: ExportProgress): void => cb(data);
-      ipc.on('export:progress', handler as (event: unknown, ...args: unknown[]) => void);
-      return () => ipc.off('export:progress', handler as (event: unknown, ...args: unknown[]) => void);
-    },
-    exportDatabase: (db: string): Promise<Result<number | null>> =>
-      ipc.invoke('mongo:export-database', db) as Promise<Result<number | null>>,
-    cancelExportDatabase: (db: string): Promise<Result<undefined>> =>
-      ipc.invoke('mongo:cancel-export-database', db) as Promise<Result<undefined>>,
-    onExportDbProgress: (cb: (data: ExportDbProgress) => void): (() => void) => {
-      const handler = (_event: unknown, data: ExportDbProgress): void => cb(data);
-      ipc.on('export-db:progress', handler as (event: unknown, ...args: unknown[]) => void);
-      return () => ipc.off('export-db:progress', handler as (event: unknown, ...args: unknown[]) => void);
-    },
     pickImportFile: (): Promise<Result<PickedFile[] | null>> =>
       ipc.invoke('mongo:pick-import-file') as Promise<Result<PickedFile[] | null>>,
-    importCollection: (
-      db: string,
-      collection: string,
-      filePath: string,
-      options: ImportOptions
-    ): Promise<Result<{ inserted: number; skipped: number } | null>> =>
-      ipc.invoke('mongo:import-collection', db, collection, filePath, options) as Promise<
-        Result<{ inserted: number; skipped: number } | null>
-      >,
-    cancelImport: (db: string, collection: string): Promise<Result<undefined>> =>
-      ipc.invoke('mongo:cancel-import', db, collection) as Promise<Result<undefined>>,
-    onImportProgress: (cb: (data: ImportProgress) => void): (() => void) => {
-      const handler = (_event: unknown, data: ImportProgress): void => cb(data);
-      ipc.on('import:progress', handler as (event: unknown, ...args: unknown[]) => void);
-      return () => ipc.off('import:progress', handler as (event: unknown, ...args: unknown[]) => void);
+    operationStart: (params: OperationParams): Promise<Result<OperationId>> =>
+      ipc.invoke('operation:start', params) as Promise<Result<OperationId>>,
+    operationCancel: (id: OperationId): Promise<Result<undefined>> =>
+      ipc.invoke('operation:cancel', id) as Promise<Result<undefined>>,
+    onOperationUpdate: (cb: (rec: OperationRecord) => void): (() => void) => {
+      const handler = (_event: unknown, rec: OperationRecord): void => cb(rec);
+      ipc.on('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
+      return () => ipc.off('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
     },
   };
 }
