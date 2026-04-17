@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, app } from 'electron';
+import { ipcMain, dialog } from 'electron';
 import path from 'path';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
@@ -13,7 +13,6 @@ import type {
   PickedFile,
   OperationParams,
   OperationId,
-  OperationRecord,
 } from '../shared/types';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
@@ -181,11 +180,4 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'operation:cancel',
     wrapSync((id: unknown): Result<undefined> => registry.cancel(id as OperationId))
   );
-
-  const unsubscribe = registry.subscribe((rec: OperationRecord) => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send('operation:update', rec);
-    }
-  });
-  app.on('will-quit', unsubscribe);
 }
