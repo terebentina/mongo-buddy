@@ -4,7 +4,8 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
-import type { ConnectionManager } from './connection-manager';
+import type { ConnectionManager, ConnectedSession, ConnectionState } from './connection-manager';
+import type { Broadcast } from './ipc-handlers';
 
 const mockShowSaveDialog = vi.fn();
 const mockShowOpenDialog = vi.fn();
@@ -88,17 +89,26 @@ describe('IPC Handlers', () => {
     requireClient: ReturnType<typeof vi.fn>;
     onStateChange: ReturnType<typeof vi.fn>;
   };
+  let mockBroadcast: ReturnType<typeof vi.fn<Broadcast>>;
+  let stateChangeCb: ((s: ConnectionState) => void) | null;
   let handlers: Record<string, (...args: unknown[]) => unknown>;
 
   beforeEach(() => {
+    stateChangeCb = null;
     mockManager = {
       connect: vi.fn(),
       disconnect: vi.fn(),
       getState: vi.fn(),
       getConnectionKey: vi.fn(),
       requireClient: vi.fn(),
-      onStateChange: vi.fn(),
+      onStateChange: vi.fn((cb: (s: ConnectionState) => void) => {
+        stateChangeCb = cb;
+        return () => {
+          stateChangeCb = null;
+        };
+      }),
     };
+    mockBroadcast = vi.fn<Broadcast>();
 
     mockService = {
       listDatabases: vi.fn(),
@@ -136,7 +146,8 @@ describe('IPC Handlers', () => {
       mockService as unknown as MongoService,
       mockConnStore as unknown as ConnectionStore,
       mockHistoryStore as unknown as QueryHistoryStore,
-      mockManager as unknown as ConnectionManager
+      mockManager as unknown as ConnectionManager,
+      mockBroadcast
     );
   });
 
@@ -171,16 +182,37 @@ describe('IPC Handlers', () => {
   });
 
   describe('mongo:connect', () => {
-    it('calls ConnectionManager.connect with URI and returns result', async () => {
-      mockManager.connect.mockResolvedValue({ ok: true, data: { uri: 'mongodb://localhost:27017' } });
-      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
-      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
-      expect(result).toEqual({ ok: true, data: undefined });
+    const session: ConnectedSession = {
+      uri: 'mongodb://localhost:27017',
+      connectionKey: 'localhost:27017',
+      databases: [{ name: 'db1', sizeOnDisk: 1, empty: false }],
+      queryHistory: [],
+      autoSelectedDb: 'db1',
+      collections: [],
+    };
+
+    it('delegates to ConnectionManager.connect and returns full ConnectedSession', async () => {
+      mockManager.connect.mockResolvedValue({ ok: true, data: session });
+      const result = await handlers['mongo:connect'](
+        {} as Electron.IpcMainInvokeEvent,
+        'mongodb://localhost:27017',
+        undefined
+      );
+      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017', undefined);
+      expect(result).toEqual({ ok: true, data: session });
+    });
+
+    it('forwards ConnectOptions to manager.connect', async () => {
+      mockManager.connect.mockResolvedValue({ ok: true, data: session });
+      await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017', {
+        loadHistory: false,
+      });
+      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017', { loadHistory: false });
     });
 
     it('returns error result on failure', async () => {
       mockManager.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
-      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'bad-uri');
+      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'bad-uri', undefined);
       expect(result).toEqual({ ok: false, error: 'Connection refused' });
     });
   });
@@ -332,31 +364,64 @@ describe('IPC Handlers', () => {
   });
 
   describe('history (per-connection)', () => {
-    const uri = 'mongodb://myhost:9999/testdb';
     const key = 'myhost:9999';
 
-    beforeEach(async () => {
-      mockManager.connect.mockResolvedValue({ ok: true, data: { uri } });
-      await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, uri);
+    beforeEach(() => {
+      mockManager.getConnectionKey.mockReturnValue(key);
     });
 
-    it('load returns entries for current connection key', () => {
+    it('load reads connection key from manager and returns entries', () => {
       const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       mockHistoryStore.getAll.mockReturnValue(entries);
       const result = handlers['history:load']({} as Electron.IpcMainInvokeEvent);
+      expect(mockManager.getConnectionKey).toHaveBeenCalled();
       expect(mockHistoryStore.getAll).toHaveBeenCalledWith(key);
       expect(result).toEqual(entries);
     });
 
-    it('save passes connection key to QueryHistoryStore', () => {
+    it('save passes connection key (from manager) to QueryHistoryStore', () => {
       const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       handlers['history:save']({} as Electron.IpcMainInvokeEvent, entries);
       expect(mockHistoryStore.save).toHaveBeenCalledWith(key, entries);
     });
 
-    it('clear passes connection key to QueryHistoryStore', () => {
+    it('clear passes connection key (from manager) to QueryHistoryStore', () => {
       handlers['history:clear']({} as Electron.IpcMainInvokeEvent);
       expect(mockHistoryStore.clear).toHaveBeenCalledWith(key);
+    });
+
+    it('load throws when manager reports no active connection', () => {
+      mockManager.getConnectionKey.mockReturnValue(null);
+      expect(() => handlers['history:load']({} as Electron.IpcMainInvokeEvent)).toThrow('Not connected');
+      expect(mockHistoryStore.getAll).not.toHaveBeenCalled();
+    });
+
+    it('save throws when manager reports no active connection', () => {
+      mockManager.getConnectionKey.mockReturnValue(null);
+      expect(() => handlers['history:save']({} as Electron.IpcMainInvokeEvent, [])).toThrow('Not connected');
+      expect(mockHistoryStore.save).not.toHaveBeenCalled();
+    });
+
+    it('clear throws when manager reports no active connection', () => {
+      mockManager.getConnectionKey.mockReturnValue(null);
+      expect(() => handlers['history:clear']({} as Electron.IpcMainInvokeEvent)).toThrow('Not connected');
+      expect(mockHistoryStore.clear).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('connection:state broadcast', () => {
+    it('subscribes to manager.onStateChange on registration', () => {
+      expect(mockManager.onStateChange).toHaveBeenCalledTimes(1);
+      expect(stateChangeCb).toBeTypeOf('function');
+    });
+
+    it('broadcasts on every state transition', () => {
+      const connecting: ConnectionState = { status: 'connecting', uri: 'mongodb://x' };
+      const connected: ConnectionState = { status: 'connected', uri: 'mongodb://x', connectionKey: 'x' };
+      stateChangeCb!(connecting);
+      stateChangeCb!(connected);
+      expect(mockBroadcast).toHaveBeenNthCalledWith(1, 'connection:state', connecting);
+      expect(mockBroadcast).toHaveBeenNthCalledWith(2, 'connection:state', connected);
     });
   });
 
