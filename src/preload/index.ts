@@ -49,8 +49,13 @@ export function createApi(ipc: IpcLike) {
       ipc.invoke('mongo:aggregate', db, collection, pipeline) as Promise<Result<Record<string, unknown>[]>>,
     sampleFields: (db: string, collection: string): Promise<Result<string[]>> =>
       ipc.invoke('mongo:sample-fields', db, collection) as Promise<Result<string[]>>,
-    distinct: (db: string, collection: string, field: string): Promise<Result<DistinctResult>> =>
-      ipc.invoke('mongo:distinct', db, collection, field) as Promise<Result<DistinctResult>>,
+    distinct: (
+      db: string,
+      collection: string,
+      field: string,
+      filter?: Record<string, unknown>
+    ): Promise<Result<DistinctResult>> =>
+      ipc.invoke('mongo:distinct', db, collection, field, filter) as Promise<Result<DistinctResult>>,
     insertOne: (
       db: string,
       collection: string,

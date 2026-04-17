@@ -55,7 +55,7 @@ export interface StoreState {
   addFilterValue: (column: string, value: unknown) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
-  fetchDistinct: (field: string) => Promise<Result<DistinctResult> | null>;
+  fetchDistinct: (field: string, filter?: Record<string, unknown>) => Promise<Result<DistinctResult> | null>;
 }
 
 export const selectConnected = (s: StoreState): boolean => s.status.status === 'connected';
@@ -401,9 +401,9 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
   },
 
-  fetchDistinct: async (field: string) => {
+  fetchDistinct: async (field: string, filter?: Record<string, unknown>) => {
     const { selectedDb, selectedCollection } = get();
     if (!selectedDb || !selectedCollection) return null;
-    return window.api.distinct(selectedDb, selectedCollection, field);
+    return window.api.distinct(selectedDb, selectedCollection, field, filter);
   },
 }));

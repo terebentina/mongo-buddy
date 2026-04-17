@@ -582,8 +582,18 @@ describe('fetchDistinct', () => {
 
     const result = await useStore.getState().fetchDistinct('status');
 
-    expect(mockApi.distinct).toHaveBeenCalledWith('testdb', 'users', 'status');
+    expect(mockApi.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', undefined);
     expect(result).toEqual(apiResult);
+  });
+
+  it('forwards filter arg to window.api.distinct', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    const apiResult = { ok: true as const, data: { values: ['active'], truncated: false } };
+    mockApi.distinct.mockResolvedValue(apiResult);
+
+    await useStore.getState().fetchDistinct('status', { age: 1 });
+
+    expect(mockApi.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', { age: 1 });
   });
 
   it('returns null when no collection selected', async () => {

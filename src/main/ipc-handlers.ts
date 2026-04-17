@@ -90,8 +90,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(
     'mongo:distinct',
-    wrap((db: unknown, coll: unknown, field: unknown) =>
-      service.distinct(db as string, coll as string, field as string)
+    wrap((db: unknown, coll: unknown, field: unknown, filter: unknown) =>
+      service.distinct(db as string, coll as string, field as string, filter as Record<string, unknown> | undefined)
     )
   );
   ipcMain.handle(

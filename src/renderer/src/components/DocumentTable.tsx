@@ -44,7 +44,15 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
   );
 }
 
-function ColumnMenu({ onShowDistinct }: { onShowDistinct: () => void }) {
+function ColumnMenu({
+  onShowDistinct,
+  onShowDistinctFiltered,
+  hasFilter,
+}: {
+  onShowDistinct: () => void;
+  onShowDistinctFiltered: () => void;
+  hasFilter: boolean;
+}) {
   return (
     <Menu.Root>
       <Menu.Trigger
@@ -66,6 +74,18 @@ function ColumnMenu({ onShowDistinct }: { onShowDistinct: () => void }) {
               <ListFilter className="h-3 w-3" />
               Show Distinct
             </Menu.Item>
+            {hasFilter && (
+              <Menu.Item
+                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowDistinctFiltered();
+                }}
+              >
+                <ListFilter className="h-3 w-3" />
+                Show Distinct (Filtered)
+              </Menu.Item>
+            )}
           </Menu.Popup>
         </Menu.Positioner>
       </Menu.Portal>
@@ -76,10 +96,12 @@ function ColumnMenu({ onShowDistinct }: { onShowDistinct: () => void }) {
 function DistinctPopover({
   column,
   anchorEl,
+  filter,
   onClose,
 }: {
   column: string;
   anchorEl: HTMLElement;
+  filter?: Record<string, unknown>;
   onClose: () => void;
 }) {
   const fetchDistinct = useStore((s) => s.fetchDistinct);
@@ -90,7 +112,7 @@ function DistinctPopover({
 
   useEffect(() => {
     let cancelled = false;
-    fetchDistinct(column).then((result) => {
+    fetchDistinct(column, filter).then((result) => {
       if (cancelled) return;
       if (!result || !result.ok) {
         setState({ status: 'error', message: result ? result.error : 'No collection selected' });
@@ -101,7 +123,7 @@ function DistinctPopover({
     return () => {
       cancelled = true;
     };
-  }, [column, fetchDistinct]);
+  }, [column, filter, fetchDistinct]);
 
   return (
     <BasePopover.Root open onOpenChange={(open) => !open && onClose()}>
@@ -204,6 +226,8 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const queryMode = useStore((s) => s.queryMode);
   const setLimit = useStore((s) => s.setLimit);
   const addFilterValue = useStore((s) => s.addFilterValue);
+  const storeFilter = useStore((s) => s.filter);
+  const hasFilter = Object.keys(storeFilter).length > 0;
 
   const columns = useMemo(() => getColumns(docs), [docs]);
   const currentPage = Math.floor(skip / limit) + 1;
@@ -212,7 +236,11 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
 
   const [pageInput, setPageInput] = useState(String(currentPage));
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [distinctState, setDistinctState] = useState<{ column: string; anchor: HTMLElement } | null>(null);
+  const [distinctState, setDistinctState] = useState<{
+    column: string;
+    anchor: HTMLElement;
+    filter?: Record<string, unknown>;
+  } | null>(null);
   const columnsKey = columns.join(',');
   const prevColumnsKey = useRef(columnsKey);
 
@@ -318,10 +346,16 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                         )}
                         {showMenu && (
                           <ColumnMenu
+                            hasFilter={hasFilter}
                             onShowDistinct={() => {
                               const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
                               const th = tableRef.current?.querySelector(selector);
                               if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
+                            }}
+                            onShowDistinctFiltered={() => {
+                              const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
+                              const th = tableRef.current?.querySelector(selector);
+                              if (th) setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
                             }}
                           />
                         )}
@@ -385,6 +419,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           <DistinctPopover
             column={distinctState.column}
             anchorEl={distinctState.anchor}
+            filter={distinctState.filter}
             onClose={() => setDistinctState(null)}
           />
         )}

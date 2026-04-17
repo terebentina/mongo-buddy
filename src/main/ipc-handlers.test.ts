@@ -423,8 +423,15 @@ describe('IPC Handlers', () => {
       const distinctResult = { values: ['active', 'inactive'], truncated: false };
       mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
       const result = await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status');
-      expect(mockService.distinct).toHaveBeenCalledWith('testdb', 'users', 'status');
+      expect(mockService.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', undefined);
       expect(result).toEqual({ ok: true, data: distinctResult });
+    });
+
+    it('forwards filter to MongoService.distinct', async () => {
+      const distinctResult = { values: ['active'], truncated: false };
+      mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
+      await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status', { age: 1 });
+      expect(mockService.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', { age: 1 });
     });
 
     it('returns error result on service failure', async () => {

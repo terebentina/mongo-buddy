@@ -319,11 +319,17 @@ export class MongoService {
     }
   }
 
-  async distinct(dbName: string, collName: string, field: string, maxValues = 1000): Promise<Result<DistinctResult>> {
+  async distinct(
+    dbName: string,
+    collName: string,
+    field: string,
+    filter: Record<string, unknown> = {},
+    maxValues = 1000
+  ): Promise<Result<DistinctResult>> {
     try {
       const client = this.conn.requireClient();
       const collection = client.db(dbName).collection(collName);
-      const rawValues = await collection.distinct(field);
+      const rawValues = await collection.distinct(field, filter);
       const truncated = rawValues.length > maxValues;
       const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
       const values = sliced.map((v) => EJSON.serialize(v));

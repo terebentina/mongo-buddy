@@ -45,7 +45,12 @@ interface MongoApi {
     pipeline: Record<string, unknown>[]
   ): Promise<Result<Record<string, unknown>[]>>;
   sampleFields(db: string, collection: string): Promise<Result<string[]>>;
-  distinct(db: string, collection: string, field: string): Promise<Result<DistinctResult>>;
+  distinct(
+    db: string,
+    collection: string,
+    field: string,
+    filter?: Record<string, unknown>
+  ): Promise<Result<DistinctResult>>;
   insertOne(db: string, collection: string, doc: Record<string, unknown>): Promise<Result<Record<string, unknown>>>;
   updateOne(
     db: string,

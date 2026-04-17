@@ -293,7 +293,16 @@ describe('MongoService', () => {
         expect(result.data.values).toEqual([{ $oid: '507f1f77bcf86cd799439011' }, 'hello', 42]);
         expect(result.data.truncated).toBe(false);
       }
-      expect(mockCollection.distinct).toHaveBeenCalledWith('status');
+      expect(mockCollection.distinct).toHaveBeenCalledWith('status', {});
+    });
+
+    it('passes filter to collection.distinct when provided', async () => {
+      mockCollection.distinct.mockResolvedValue(['active']);
+
+      const result = await service.distinct('testdb', 'users', 'status', { age: { $gt: 18 } });
+
+      expect(result.ok).toBe(true);
+      expect(mockCollection.distinct).toHaveBeenCalledWith('status', { age: { $gt: 18 } });
     });
 
     it('when not connected returns error', async () => {
@@ -308,7 +317,7 @@ describe('MongoService', () => {
       const values = Array.from({ length: 15 }, (_, i) => `val${i}`);
       mockCollection.distinct.mockResolvedValue(values);
 
-      const result = await service.distinct('testdb', 'users', 'status', 10);
+      const result = await service.distinct('testdb', 'users', 'status', {}, 10);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
