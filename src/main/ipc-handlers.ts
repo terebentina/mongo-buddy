@@ -5,13 +5,15 @@ import path from 'path';
 import { createGunzip, createGzip } from 'zlib';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
+import type { ConnectionManager } from './connection-manager';
 import { connectionKeyFromUri, type QueryHistoryStore } from './query-history-store';
 import type { Result, FindOpts, SavedConnection, QueryHistoryEntry, PickedFile, ImportOptions } from '../shared/types';
 
 export function registerIpcHandlers(
   service: MongoService,
   connStore: ConnectionStore,
-  historyStore: QueryHistoryStore
+  historyStore: QueryHistoryStore,
+  manager: ConnectionManager
 ): void {
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
@@ -33,16 +35,19 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     'mongo:connect',
-    wrap(async (uri: unknown) => {
-      const result = await service.connect(uri as string);
-      if (result.ok) currentUri = uri as string;
-      return result;
+    wrap(async (uri: unknown): Promise<Result<undefined>> => {
+      const result = await manager.connect(uri as string);
+      if (result.ok) {
+        currentUri = uri as string;
+        return { ok: true, data: undefined };
+      }
+      return { ok: false, error: result.error };
     })
   );
   ipcMain.handle(
     'mongo:disconnect',
     wrap(async () => {
-      const result = await service.disconnect();
+      const result = await manager.disconnect();
       currentUri = '';
       return result;
     })

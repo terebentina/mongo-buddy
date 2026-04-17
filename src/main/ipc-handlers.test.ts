@@ -4,6 +4,7 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
+import type { ConnectionManager } from './connection-manager';
 
 const mockShowSaveDialog = vi.fn();
 const mockShowOpenDialog = vi.fn();
@@ -56,8 +57,6 @@ vi.mock('./query-history-store', async (importOriginal) => {
 
 describe('IPC Handlers', () => {
   let mockService: {
-    connect: ReturnType<typeof vi.fn>;
-    disconnect: ReturnType<typeof vi.fn>;
     listDatabases: ReturnType<typeof vi.fn>;
     listCollections: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
@@ -81,12 +80,27 @@ describe('IPC Handlers', () => {
     save: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
   };
+  let mockManager: {
+    connect: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
+    getState: ReturnType<typeof vi.fn>;
+    getConnectionKey: ReturnType<typeof vi.fn>;
+    requireClient: ReturnType<typeof vi.fn>;
+    onStateChange: ReturnType<typeof vi.fn>;
+  };
   let handlers: Record<string, (...args: unknown[]) => unknown>;
 
   beforeEach(() => {
-    mockService = {
+    mockManager = {
       connect: vi.fn(),
       disconnect: vi.fn(),
+      getState: vi.fn(),
+      getConnectionKey: vi.fn(),
+      requireClient: vi.fn(),
+      onStateChange: vi.fn(),
+    };
+
+    mockService = {
       listDatabases: vi.fn(),
       listCollections: vi.fn(),
       find: vi.fn(),
@@ -121,7 +135,8 @@ describe('IPC Handlers', () => {
     registerIpcHandlers(
       mockService as unknown as MongoService,
       mockConnStore as unknown as ConnectionStore,
-      mockHistoryStore as unknown as QueryHistoryStore
+      mockHistoryStore as unknown as QueryHistoryStore,
+      mockManager as unknown as ConnectionManager
     );
   });
 
@@ -156,25 +171,25 @@ describe('IPC Handlers', () => {
   });
 
   describe('mongo:connect', () => {
-    it('calls MongoService.connect with URI and returns result', async () => {
-      mockService.connect.mockResolvedValue({ ok: true, data: undefined });
+    it('calls ConnectionManager.connect with URI and returns result', async () => {
+      mockManager.connect.mockResolvedValue({ ok: true, data: { uri: 'mongodb://localhost:27017' } });
       const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
-      expect(mockService.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
+      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
       expect(result).toEqual({ ok: true, data: undefined });
     });
 
     it('returns error result on failure', async () => {
-      mockService.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
+      mockManager.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
       const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'bad-uri');
       expect(result).toEqual({ ok: false, error: 'Connection refused' });
     });
   });
 
   describe('mongo:disconnect', () => {
-    it('calls MongoService.disconnect', async () => {
-      mockService.disconnect.mockResolvedValue({ ok: true, data: undefined });
+    it('calls ConnectionManager.disconnect', async () => {
+      mockManager.disconnect.mockResolvedValue({ ok: true, data: undefined });
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
-      expect(mockService.disconnect).toHaveBeenCalled();
+      expect(mockManager.disconnect).toHaveBeenCalled();
       expect(result).toEqual({ ok: true, data: undefined });
     });
   });
@@ -321,7 +336,7 @@ describe('IPC Handlers', () => {
     const key = 'myhost:9999';
 
     beforeEach(async () => {
-      mockService.connect.mockResolvedValue({ ok: true, data: undefined });
+      mockManager.connect.mockResolvedValue({ ok: true, data: { uri } });
       await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, uri);
     });
 

@@ -4,15 +4,23 @@ import { fileURLToPath } from 'url';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+import { MongoClient } from 'mongodb';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
-import { QueryHistoryStore } from './query-history-store';
+import { QueryHistoryStore, connectionKeyFromUri } from './query-history-store';
+import { createConnectionManager } from './connection-manager';
 import { registerIpcHandlers } from './ipc-handlers';
 
-const mongoService = new MongoService();
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
-registerIpcHandlers(mongoService, connectionStore, queryHistoryStore);
+const connectionManager = createConnectionManager({
+  clientFactory: { create: (uri: string) => new MongoClient(uri) },
+  connectionStore,
+  historyStore: queryHistoryStore,
+  connectionKeyFromUri,
+});
+const mongoService = new MongoService({ conn: connectionManager });
+registerIpcHandlers(mongoService, connectionStore, queryHistoryStore, connectionManager);
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

@@ -1,6 +1,7 @@
-import { MongoClient, MongoBulkWriteError } from 'mongodb';
+import { MongoBulkWriteError } from 'mongodb';
 import { BSON, EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
+import type { ConnectionManager } from './connection-manager';
 import type {
   Result,
   DbInfo,
@@ -11,34 +12,21 @@ import type {
   DistinctResult,
 } from '../shared/types';
 
+export interface MongoServiceDeps {
+  conn: Pick<ConnectionManager, 'requireClient'>;
+}
+
 export class MongoService {
-  private client: MongoClient | null = null;
+  private readonly conn: Pick<ConnectionManager, 'requireClient'>;
 
-  async connect(uri: string): Promise<Result<undefined>> {
-    try {
-      this.client = new MongoClient(uri);
-      await this.client.connect();
-      return { ok: true, data: undefined };
-    } catch (err) {
-      this.client = null;
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async disconnect(): Promise<Result<undefined>> {
-    try {
-      await this.client?.close();
-      this.client = null;
-      return { ok: true, data: undefined };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+  constructor(deps: MongoServiceDeps) {
+    this.conn = deps.conn;
   }
 
   async listDatabases(): Promise<Result<DbInfo[]>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const result = await this.client.db().admin().listDatabases();
+      const client = this.conn.requireClient();
+      const result = await client.db().admin().listDatabases();
       const databases: DbInfo[] = result.databases.map((db) => ({
         name: db.name,
         sizeOnDisk: db.sizeOnDisk ?? 0,
@@ -51,9 +39,9 @@ export class MongoService {
   }
 
   async listCollections(dbName: string): Promise<Result<CollectionInfo[]>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const db = this.client.db(dbName);
+      const client = this.conn.requireClient();
+      const db = client.db(dbName);
       const collections = await db.listCollections().toArray();
       const data: CollectionInfo[] = await Promise.all(
         collections.map(async (c) => {
@@ -73,9 +61,9 @@ export class MongoService {
   }
 
   async find(dbName: string, collName: string, opts: FindOpts): Promise<Result<FindResult>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const filter = opts.filter ?? {};
       const cursor = collection.find(filter);
       if (opts.sort) cursor.sort(opts.sort);
@@ -84,7 +72,6 @@ export class MongoService {
 
       const [rawDocs, totalCount] = await Promise.all([cursor.toArray(), collection.countDocuments(filter)]);
 
-      // EJSON serialize to handle ObjectId, Date, etc.
       const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
 
       return { ok: true, data: { docs, totalCount } };
@@ -98,9 +85,9 @@ export class MongoService {
     collName: string,
     pipeline: Record<string, unknown>[]
   ): Promise<Result<Record<string, unknown>[]>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const rawDocs = await collection.aggregate(pipeline).toArray();
       const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
       return { ok: true, data: docs };
@@ -110,9 +97,9 @@ export class MongoService {
   }
 
   async count(dbName: string, collName: string, filter: Record<string, unknown> = {}): Promise<Result<number>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const count = await collection.countDocuments(filter);
       return { ok: true, data: count };
     } catch (err) {
@@ -125,9 +112,9 @@ export class MongoService {
     collName: string,
     doc: Record<string, unknown>
   ): Promise<Result<Record<string, unknown>>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
       const result = await collection.insertOne(deserialized);
       const inserted = await collection.findOne({ _id: result.insertedId });
@@ -143,9 +130,9 @@ export class MongoService {
     id: unknown,
     doc: Record<string, unknown>
   ): Promise<Result<Record<string, unknown>>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
       const { _id, ...updateFields } = deserialized;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -159,9 +146,9 @@ export class MongoService {
   }
 
   async sampleFields(dbName: string, collName: string): Promise<Result<string[]>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const docs = await collection.find({}).limit(50).toArray();
       const keySet = new Set<string>();
       for (const doc of docs) {
@@ -183,9 +170,9 @@ export class MongoService {
     onProgress: (count: number) => void,
     signal: AbortSignal
   ): Promise<Result<number>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const cursor = collection.find({});
       let count = 0;
       let lastProgressTime = 0;
@@ -225,9 +212,9 @@ export class MongoService {
     onProgress: (count: number) => void,
     signal: AbortSignal
   ): Promise<Result<{ inserted: number; skipped: number }>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
 
       if (options.clearFirst) {
         await collection.deleteMany({});
@@ -323,7 +310,6 @@ export class MongoService {
         leftover = leftover.subarray(offset);
       }
 
-      // Flush remaining docs
       await flush();
       onProgress(inserted + skipped);
 
@@ -334,9 +320,9 @@ export class MongoService {
   }
 
   async distinct(dbName: string, collName: string, field: string, maxValues = 1000): Promise<Result<DistinctResult>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       const rawValues = await collection.distinct(field);
       const truncated = rawValues.length > maxValues;
       const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
@@ -348,9 +334,9 @@ export class MongoService {
   }
 
   async dropCollection(dbName: string, collName: string): Promise<Result<undefined>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      await this.client.db(dbName).dropCollection(collName);
+      const client = this.conn.requireClient();
+      await client.db(dbName).dropCollection(collName);
       return { ok: true, data: undefined };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
@@ -358,9 +344,9 @@ export class MongoService {
   }
 
   async deleteOne(dbName: string, collName: string, id: unknown): Promise<Result<undefined>> {
-    if (!this.client) return { ok: false, error: 'Not connected' };
     try {
-      const collection = this.client.db(dbName).collection(collName);
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const filterid = (EJSON.deserialize({ _id: id }) as Record<string, unknown>)._id as any;
       await collection.deleteOne({ _id: filterid });
