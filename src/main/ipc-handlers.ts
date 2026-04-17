@@ -5,15 +5,18 @@ import path from 'path';
 import { createGunzip, createGzip } from 'zlib';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
-import type { ConnectionManager } from './connection-manager';
-import { connectionKeyFromUri, type QueryHistoryStore } from './query-history-store';
+import type { ConnectionManager, ConnectOptions } from './connection-manager';
+import type { QueryHistoryStore } from './query-history-store';
 import type { Result, FindOpts, SavedConnection, QueryHistoryEntry, PickedFile, ImportOptions } from '../shared/types';
+
+export type Broadcast = (channel: string, payload: unknown) => void;
 
 export function registerIpcHandlers(
   service: MongoService,
   connStore: ConnectionStore,
   historyStore: QueryHistoryStore,
-  manager: ConnectionManager
+  manager: ConnectionManager,
+  broadcast: Broadcast = () => {}
 ): void {
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
@@ -31,27 +34,24 @@ export function registerIpcHandlers(
     };
   };
 
-  let currentUri = '';
+  manager.onStateChange((state) => {
+    broadcast('connection:state', state);
+  });
 
   ipcMain.handle(
     'mongo:connect',
-    wrap(async (uri: unknown): Promise<Result<undefined>> => {
-      const result = await manager.connect(uri as string);
-      if (result.ok) {
-        currentUri = uri as string;
-        return { ok: true, data: undefined };
-      }
-      return { ok: false, error: result.error };
-    })
+    wrap((uri: unknown, opts: unknown) => manager.connect(uri as string, opts as ConnectOptions | undefined))
   );
   ipcMain.handle(
     'mongo:disconnect',
-    wrap(async () => {
-      const result = await manager.disconnect();
-      currentUri = '';
-      return result;
-    })
+    wrap(() => manager.disconnect())
   );
+
+  const requireConnectionKey = (): string => {
+    const key = manager.getConnectionKey();
+    if (!key) throw new Error('Not connected');
+    return key;
+  };
   ipcMain.handle(
     'mongo:list-databases',
     wrap(() => service.listDatabases())
@@ -132,15 +132,15 @@ export function registerIpcHandlers(
 
   ipcMain.handle(
     'history:load',
-    wrapSync(() => historyStore.getAll(connectionKeyFromUri(currentUri)))
+    wrapSync(() => historyStore.getAll(requireConnectionKey()))
   );
   ipcMain.handle(
     'history:save',
-    wrapSync((entries: unknown) => historyStore.save(connectionKeyFromUri(currentUri), entries as QueryHistoryEntry[]))
+    wrapSync((entries: unknown) => historyStore.save(requireConnectionKey(), entries as QueryHistoryEntry[]))
   );
   ipcMain.handle(
     'history:clear',
-    wrapSync(() => historyStore.clear(connectionKeyFromUri(currentUri)))
+    wrapSync(() => historyStore.clear(requireConnectionKey()))
   );
 
   const activeExports = new Map<string, AbortController>();

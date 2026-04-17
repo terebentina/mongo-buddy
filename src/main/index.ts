@@ -20,7 +20,12 @@ const connectionManager = createConnectionManager({
   connectionKeyFromUri,
 });
 const mongoService = new MongoService({ conn: connectionManager });
-registerIpcHandlers(mongoService, connectionStore, queryHistoryStore, connectionManager);
+const broadcast = (channel: string, payload: unknown): void => {
+  for (const w of BrowserWindow.getAllWindows()) {
+    w.webContents.send(channel, payload);
+  }
+};
+registerIpcHandlers(mongoService, connectionStore, queryHistoryStore, connectionManager, broadcast);
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
