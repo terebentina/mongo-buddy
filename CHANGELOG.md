@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.25.0](https://github.com/terebentina/mongo-buddy/compare/v1.24.0...v1.25.0) (2026-04-17)
+
+
+### Features
+
+* Show Distinct (Filtered) column menu item ([59d7946](https://github.com/terebentina/mongo-buddy/commit/59d7946aba1569dfe64c45eace5f27fb81976397))
+
 ## [1.24.0](https://github.com/terebentina/mongo-buddy/compare/v1.23.2...v1.24.0) (2026-04-17)
 
 
