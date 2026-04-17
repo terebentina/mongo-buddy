@@ -7,16 +7,29 @@ import type {
   FindResult,
   SavedConnection,
   QueryHistoryEntry,
-  ExportProgress,
-  ImportProgress,
-  ImportOptions,
-  ExportDbProgress,
   PickedFile,
   DistinctResult,
+  OperationKind,
+  OperationStatus,
+  OperationId,
+  OperationParams,
+  OperationResult,
+  OperationRecord,
+  OperationProgress,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
 export type { ConnectionState, ConnectedSession, ConnectOptions };
+
+export type {
+  OperationKind,
+  OperationStatus,
+  OperationId,
+  OperationParams,
+  OperationResult,
+  OperationRecord,
+  OperationProgress,
+};
 
 interface MongoApi {
   connect(uri: string, opts?: ConnectOptions): Promise<Result<ConnectedSession>>;
@@ -50,21 +63,10 @@ interface MongoApi {
   loadHistory(): Promise<QueryHistoryEntry[]>;
   saveHistory(entries: QueryHistoryEntry[]): Promise<void>;
   clearHistory(): Promise<void>;
-  exportCollection(db: string, collection: string): Promise<Result<number | null>>;
-  cancelExport(db: string, collection: string): Promise<Result<undefined>>;
-  onExportProgress(cb: (data: ExportProgress) => void): () => void;
-  exportDatabase(db: string): Promise<Result<number | null>>;
-  cancelExportDatabase(db: string): Promise<Result<undefined>>;
-  onExportDbProgress(cb: (data: ExportDbProgress) => void): () => void;
   pickImportFile(): Promise<Result<PickedFile[] | null>>;
-  importCollection(
-    db: string,
-    collection: string,
-    filePath: string,
-    options: ImportOptions
-  ): Promise<Result<{ inserted: number; skipped: number } | null>>;
-  cancelImport(db: string, collection: string): Promise<Result<undefined>>;
-  onImportProgress(cb: (data: ImportProgress) => void): () => void;
+  operationStart(params: OperationParams): Promise<Result<OperationId>>;
+  operationCancel(id: OperationId): Promise<Result<undefined>>;
+  onOperationUpdate(cb: (rec: OperationRecord) => void): () => void;
 }
 
 declare global {
