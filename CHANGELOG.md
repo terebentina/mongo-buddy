@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.26.1](https://github.com/terebentina/mongo-buddy/compare/v1.26.0...v1.26.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* use Dialog initialFocus to land cursor in editor ([188bc2f](https://github.com/terebentina/mongo-buddy/commit/188bc2fa7257cc5fbbe9313d9b8186aa9cbe4def))
+
 ## [1.26.0](https://github.com/terebentina/mongo-buddy/compare/v1.25.0...v1.26.0) (2026-04-18)
 
 
