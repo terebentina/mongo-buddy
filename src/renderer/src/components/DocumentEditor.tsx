@@ -77,7 +77,6 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
           ],
         });
         viewRef.current = new EditorView({ state, parent: node });
-        requestAnimationFrame(() => viewRef.current?.focus());
       } else {
         viewRef.current?.destroy();
         viewRef.current = null;
@@ -150,7 +149,10 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
         </Button>
       )}
       <Dialog open={isEditing ? true : open} onOpenChange={handleClose}>
-        <DialogContent className={maximized ? 'max-w-[90vw] w-[90vw] h-[90vh] flex flex-col' : ''}>
+        <DialogContent
+          className={maximized ? 'max-w-[90vw] w-[90vw] h-[90vh] flex flex-col' : ''}
+          initialFocus={() => viewRef.current?.contentDOM ?? null}
+        >
           <button
             className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
             onClick={() =>
