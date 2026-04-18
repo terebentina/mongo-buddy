@@ -77,6 +77,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
           ],
         });
         viewRef.current = new EditorView({ state, parent: node });
+        requestAnimationFrame(() => viewRef.current?.focus());
       } else {
         viewRef.current?.destroy();
         viewRef.current = null;
