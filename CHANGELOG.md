@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.26.0](https://github.com/terebentina/mongo-buddy/compare/v1.25.0...v1.26.0) (2026-04-18)
+
+
+### Features
+
+* auto-focus editor when opening DocumentEditor ([ed86eb9](https://github.com/terebentina/mongo-buddy/commit/ed86eb9b34f73905efe335310cffe2fac94f6a2e))
+
 ## [1.25.0](https://github.com/terebentina/mongo-buddy/compare/v1.24.0...v1.25.0) (2026-04-17)
 
 
