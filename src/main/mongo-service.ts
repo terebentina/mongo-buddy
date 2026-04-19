@@ -64,7 +64,7 @@ export class MongoService {
     try {
       const client = this.conn.requireClient();
       const collection = client.db(dbName).collection(collName);
-      const filter = opts.filter ?? {};
+      const filter = EJSON.deserialize(opts.filter ?? {}) as Record<string, unknown>;
       const cursor = collection.find(filter);
       if (opts.sort) cursor.sort(opts.sort);
       if (opts.skip !== undefined) cursor.skip(opts.skip);
@@ -88,7 +88,8 @@ export class MongoService {
     try {
       const client = this.conn.requireClient();
       const collection = client.db(dbName).collection(collName);
-      const rawDocs = await collection.aggregate(pipeline).toArray();
+      const deserializedPipeline = EJSON.deserialize(pipeline) as Record<string, unknown>[];
+      const rawDocs = await collection.aggregate(deserializedPipeline).toArray();
       const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
       return { ok: true, data: docs };
     } catch (err) {
@@ -100,7 +101,8 @@ export class MongoService {
     try {
       const client = this.conn.requireClient();
       const collection = client.db(dbName).collection(collName);
-      const count = await collection.countDocuments(filter);
+      const deserialized = EJSON.deserialize(filter) as Record<string, unknown>;
+      const count = await collection.countDocuments(deserialized);
       return { ok: true, data: count };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
@@ -329,7 +331,8 @@ export class MongoService {
     try {
       const client = this.conn.requireClient();
       const collection = client.db(dbName).collection(collName);
-      const rawValues = await collection.distinct(field, filter);
+      const deserialized = EJSON.deserialize(filter) as Record<string, unknown>;
+      const rawValues = await collection.distinct(field, deserialized);
       const truncated = rawValues.length > maxValues;
       const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
       const values = sliced.map((v) => EJSON.serialize(v));

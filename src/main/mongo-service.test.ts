@@ -149,6 +149,25 @@ describe('MongoService', () => {
       expect(mockCursor.skip).toHaveBeenCalledWith(0);
       expect(mockCursor.limit).toHaveBeenCalledWith(20);
     });
+
+    it('deserializes EJSON $oid in filter to ObjectId', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
+      const mockCursor = {
+        sort: vi.fn().mockReturnThis(),
+        skip: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        toArray: vi.fn().mockResolvedValue([]),
+      };
+      mockCollection.find.mockReturnValue(mockCursor);
+      mockCollection.countDocuments.mockResolvedValue(0);
+
+      await service.find('testdb', 'users', {
+        filter: { _id: { $oid: '507f1f77bcf86cd799439011' } },
+      });
+
+      expect(mockCollection.find).toHaveBeenCalledWith({ _id: oid });
+      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ _id: oid });
+    });
   });
 
   describe('count', () => {
@@ -157,6 +176,13 @@ describe('MongoService', () => {
       const result = await service.count('testdb', 'users', { active: true });
       expect(result).toEqual({ ok: true, data: 42 });
       expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true });
+    });
+
+    it('deserializes EJSON $oid in filter to ObjectId', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
+      mockCollection.countDocuments.mockResolvedValue(1);
+      await service.count('testdb', 'users', { _id: { $oid: '507f1f77bcf86cd799439011' } });
+      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ _id: oid });
     });
   });
 
@@ -178,6 +204,16 @@ describe('MongoService', () => {
         expect(result.data[0].total).toBe(100);
       }
       expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $group: { _id: null, total: { $sum: 1 } } }]);
+    });
+
+    it('deserializes EJSON $oid inside pipeline stages', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
+      const mockCursor = { toArray: vi.fn().mockResolvedValue([]) };
+      mockCollection.aggregate.mockReturnValue(mockCursor);
+
+      await service.aggregate('testdb', 'users', [{ $match: { _id: { $oid: '507f1f77bcf86cd799439011' } } }]);
+
+      expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $match: { _id: oid } }]);
     });
 
     it('when not connected returns error', async () => {
@@ -303,6 +339,15 @@ describe('MongoService', () => {
 
       expect(result.ok).toBe(true);
       expect(mockCollection.distinct).toHaveBeenCalledWith('status', { age: { $gt: 18 } });
+    });
+
+    it('deserializes EJSON $oid in filter to ObjectId', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
+      mockCollection.distinct.mockResolvedValue([]);
+
+      await service.distinct('testdb', 'users', 'status', { _id: { $oid: '507f1f77bcf86cd799439011' } });
+
+      expect(mockCollection.distinct).toHaveBeenCalledWith('status', { _id: oid });
     });
 
     it('when not connected returns error', async () => {
