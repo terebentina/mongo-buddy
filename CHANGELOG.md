@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.26.2](https://github.com/terebentina/mongo-buddy/compare/v1.26.1...v1.26.2) (2026-04-19)
+
+
+### Bug Fixes
+
+* deserialize EJSON in find/count/aggregate/distinct filters ([895b3b1](https://github.com/terebentina/mongo-buddy/commit/895b3b1aacf57beab50ec049bc2eedcb16d0cfe4))
+
 ## [1.26.1](https://github.com/terebentina/mongo-buddy/compare/v1.26.0...v1.26.1) (2026-04-18)
 
 
