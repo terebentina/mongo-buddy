@@ -11,6 +11,7 @@ import JSON5 from 'json5';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
 import { defaultKeymap, historyKeymap, history } from '@codemirror/commands';
+import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
 
 interface DocumentEditorProps {
   editDoc?: Record<string, unknown> | null;
@@ -72,7 +73,14 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
             editorTheme,
             foldGutter(),
             history(),
-            keymap.of([...foldKeymap, ...defaultKeymap, ...historyKeymap]),
+            search(),
+            keymap.of([
+              ...foldKeymap,
+              ...defaultKeymap,
+              ...historyKeymap,
+              ...searchKeymap,
+              { key: 'Mod-h', run: openSearchPanel },
+            ]),
             EditorView.lineWrapping,
           ],
         });

@@ -162,4 +162,37 @@ describe('DocumentEditor', () => {
       expect(toast.error).toHaveBeenCalled();
     });
   });
+
+  it('Ctrl+F opens the search panel', async () => {
+    render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={() => {}} />);
+
+    getEditorView().focus();
+    await userEvent.keyboard('{Control>}f{/Control}');
+
+    expect(document.querySelector('.cm-search.cm-panel')).toBeTruthy();
+  });
+
+  it('Ctrl+H opens the replace panel', async () => {
+    render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={() => {}} />);
+
+    getEditorView().focus();
+    await userEvent.keyboard('{Control>}h{/Control}');
+
+    const panel = document.querySelector('.cm-search.cm-panel');
+    expect(panel).toBeTruthy();
+    expect(panel!.querySelectorAll('input').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('Esc closes the search panel without closing the Dialog', async () => {
+    render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={() => {}} />);
+
+    getEditorView().focus();
+    await userEvent.keyboard('{Control>}f{/Control}');
+    expect(document.querySelector('.cm-search.cm-panel')).toBeTruthy();
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(document.querySelector('.cm-search.cm-panel')).toBeNull();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
 });
