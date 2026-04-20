@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.27.0](https://github.com/terebentina/mongo-buddy/compare/v1.26.2...v1.27.0) (2026-04-20)
+
+
+### Features
+
+* **editor:** add Ctrl+F search and Ctrl+H replace to DocumentEditor ([56fa5da](https://github.com/terebentina/mongo-buddy/commit/56fa5da2597fc90ea02a83b10f5e171914a7764f))
+
 ## [1.26.2](https://github.com/terebentina/mongo-buddy/compare/v1.26.1...v1.26.2) (2026-04-19)
 
 
