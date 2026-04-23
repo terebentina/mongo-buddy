@@ -51,7 +51,7 @@ describe('DocumentTable', () => {
     expect(screen.getByText('age')).toBeInTheDocument();
   });
 
-  it('renders _id column first', () => {
+  it('renders row number column first, then _id', () => {
     useStore.setState({
       docs: [{ name: 'Alice', _id: '1', email: 'alice@test.com' }],
       totalCount: 1,
@@ -60,7 +60,8 @@ describe('DocumentTable', () => {
     render(<DocumentTable />);
 
     const headers = screen.getAllByRole('columnheader');
-    expect(headers[0]).toHaveTextContent('_id');
+    expect(headers[0]).toHaveTextContent('#');
+    expect(headers[1]).toHaveTextContent('_id');
   });
 
   it('renders long cell values with truncation class', () => {

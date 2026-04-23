@@ -193,7 +193,7 @@ function snapshotColumnWidths(
   const ths = table.querySelectorAll('thead th');
   const widths: Record<string, number> = {};
   columns.forEach((col, i) => {
-    if (ths[i]) widths[col] = Math.max(40, (ths[i] as HTMLElement).offsetWidth);
+    if (ths[i + 1]) widths[col] = Math.max(40, (ths[i + 1] as HTMLElement).offsetWidth);
   });
   return widths;
 }
@@ -321,9 +321,12 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   return (
     <div className={`flex flex-col ${className ?? ''}`}>
       <div className="flex-1 overflow-auto">
-        <Table ref={tableRef} style={{ tableLayout: 'fixed', minWidth: columns.length * 150 }}>
+        <Table ref={tableRef} style={{ tableLayout: 'fixed', minWidth: columns.length * 150 + 48 }}>
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
+              <TableHead className="w-12 px-2 text-right text-muted-foreground select-none border-r border-border">
+                #
+              </TableHead>
               {columns.map((col) => {
                 const isAggregate = queryMode === 'aggregate';
                 const sortDir = sort && col in sort ? sort[col] : null;
@@ -348,12 +351,12 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                           <ColumnMenu
                             hasFilter={hasFilter}
                             onShowDistinct={() => {
-                              const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
+                              const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
                               const th = tableRef.current?.querySelector(selector);
                               if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
                             }}
                             onShowDistinctFiltered={() => {
-                              const selector = `thead th:nth-child(${columns.indexOf(col) + 1})`;
+                              const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
                               const th = tableRef.current?.querySelector(selector);
                               if (th) setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
                             }}
@@ -386,6 +389,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                 className={`group/row even:bg-muted-row ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
                 onClick={() => onRowClick?.(doc)}
               >
+                <TableCell className="w-12 px-2 text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
                 {columns.map((col) => {
                   const cellValue = doc[col];
                   const raw = formatCell(cellValue);
