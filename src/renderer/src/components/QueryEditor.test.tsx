@@ -17,17 +17,21 @@ vi.mock('@codemirror/theme-one-dark', () => ({
   oneDark: [],
 }));
 const mockEditorContent = '{}';
-vi.mock('@codemirror/view', () => ({
-  EditorView: vi.fn().mockImplementation(function () {
+vi.mock('@codemirror/view', () => {
+  const EditorView = vi.fn().mockImplementation(function () {
     return {
       state: { doc: { toString: () => mockEditorContent } },
       destroy: vi.fn(),
       dispatch: vi.fn(),
     };
-  }),
-  keymap: { of: vi.fn(() => []) },
-  placeholder: vi.fn(() => []),
-}));
+  });
+  (EditorView as unknown as { theme: (spec: unknown) => unknown[] }).theme = vi.fn(() => []);
+  return {
+    EditorView,
+    keymap: { of: vi.fn(() => []) },
+    placeholder: vi.fn(() => []),
+  };
+});
 vi.mock('@codemirror/state', () => ({
   EditorState: {
     create: vi.fn(() => ({ doc: { toString: () => mockEditorContent } })),

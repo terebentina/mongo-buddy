@@ -9,6 +9,11 @@ import { Button } from './ui/button';
 
 const autocompleteConf = new Compartment();
 
+const editorTheme = EditorView.theme({
+  '&': { minHeight: '80px' },
+  '.cm-scroller': { overflow: 'auto' },
+});
+
 function fieldCompletion(fieldNames: string[]) {
   return autocompletion({
     override: [
@@ -97,6 +102,7 @@ export function QueryEditor() {
           ],
         }),
         placeholder('Enter query...'),
+        editorTheme,
         autocompleteConf.of(fieldCompletion(fieldNames)),
       ],
     });
