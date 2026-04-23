@@ -1,10 +1,8 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { EditorView, keymap, placeholder } from '@codemirror/view';
+import { EditorView, placeholder } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
-import { javascript } from '@codemirror/lang-javascript';
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
+import { baseExtensions } from '../lib/editor';
 import { useStore } from '../store';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -84,24 +82,20 @@ export function QueryEditor() {
   useEffect(() => {
     if (!editorRef.current) return;
 
-    const runKeymap = keymap.of([
-      {
-        key: 'Mod-Enter',
-        run: () => {
-          handleRun();
-          return true;
-        },
-      },
-    ]);
-
     const state = EditorState.create({
       doc: queryMode === 'filter' ? '{}' : '[]',
       extensions: [
-        javascript(),
-        ...(document.documentElement.classList.contains('dark')
-          ? [oneDark]
-          : [syntaxHighlighting(defaultHighlightStyle)]),
-        runKeymap,
+        ...baseExtensions({
+          extraKeymaps: [
+            {
+              key: 'Mod-Enter',
+              run: () => {
+                handleRun();
+                return true;
+              },
+            },
+          ],
+        }),
         placeholder('Enter query...'),
         autocompleteConf.of(fieldCompletion(fieldNames)),
       ],

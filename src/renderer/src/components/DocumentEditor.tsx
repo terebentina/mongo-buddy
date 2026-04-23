@@ -4,14 +4,11 @@ import { Button } from './ui/button';
 import { useStore } from '../store';
 import { toast } from 'sonner';
 import { Copy, Maximize2, Minimize2 } from 'lucide-react';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
-import { javascript } from '@codemirror/lang-javascript';
 import JSON5 from 'json5';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { foldGutter, foldKeymap, syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
-import { defaultKeymap, historyKeymap, history } from '@codemirror/commands';
-import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
+import { foldGutter, foldKeymap } from '@codemirror/language';
+import { baseExtensions } from '../lib/editor';
 
 interface DocumentEditorProps {
   editDoc?: Record<string, unknown> | null;
@@ -24,10 +21,6 @@ function extractIdDisplay(doc: Record<string, unknown>): string | null {
   if (typeof id === 'string') return id;
   if (typeof id === 'object' && id !== null && '$oid' in id) return (id as { $oid: string }).$oid;
   return JSON.stringify(id);
-}
-
-function isDarkMode(): boolean {
-  return document.documentElement.classList.contains('dark');
 }
 
 const editorTheme = EditorView.theme({
@@ -67,22 +60,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
           : '{\n  \n}';
         const state = EditorState.create({
           doc,
-          extensions: [
-            javascript(),
-            ...(isDarkMode() ? [oneDark] : [syntaxHighlighting(defaultHighlightStyle)]),
-            editorTheme,
-            foldGutter(),
-            history(),
-            search(),
-            keymap.of([
-              ...foldKeymap,
-              ...defaultKeymap,
-              ...historyKeymap,
-              ...searchKeymap,
-              { key: 'Mod-h', run: openSearchPanel },
-            ]),
-            EditorView.lineWrapping,
-          ],
+          extensions: [...baseExtensions({ extraKeymaps: foldKeymap }), editorTheme, foldGutter()],
         });
         viewRef.current = new EditorView({ state, parent: node });
       } else {
