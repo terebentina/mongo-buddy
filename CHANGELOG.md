@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.28.0](https://github.com/terebentina/mongo-buddy/compare/v1.27.0...v1.28.0) (2026-04-23)
+
+
+### Features
+
+* **editor:** add undo/redo and bracket matching to all CodeMirror editors ([6373748](https://github.com/terebentina/mongo-buddy/commit/63737485d519be5a567b0a21815f7581982bd7c3))
+
 ## [1.27.0](https://github.com/terebentina/mongo-buddy/compare/v1.26.2...v1.27.0) (2026-04-20)
 
 
