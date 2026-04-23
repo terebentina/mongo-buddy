@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.29.1](https://github.com/terebentina/mongo-buddy/compare/v1.29.0...v1.29.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* **editor:** make query editor render 3 rows initially ([569a409](https://github.com/terebentina/mongo-buddy/commit/569a409007242f135d9b6d0b14017c053cd2c74d))
+
 ## [1.29.0](https://github.com/terebentina/mongo-buddy/compare/v1.28.0...v1.29.0) (2026-04-23)
 
 
