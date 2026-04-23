@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.29.0](https://github.com/terebentina/mongo-buddy/compare/v1.28.0...v1.29.0) (2026-04-23)
+
+
+### Features
+
+* **table:** add row number column to results table ([a1faf38](https://github.com/terebentina/mongo-buddy/commit/a1faf38e4c6b9ee8d745669b2c3197c927aff8c4))
+
 ## [1.28.0](https://github.com/terebentina/mongo-buddy/compare/v1.27.0...v1.28.0) (2026-04-23)
 
 
