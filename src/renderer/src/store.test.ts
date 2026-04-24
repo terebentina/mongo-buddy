@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStore, selectConnected } from './store';
-import type { ConnectionState, ConnectedSession } from '../../shared/types';
+import type { ConnectionState, ConnectedSession, McpStatus } from '../../shared/types';
 
 const mockApi = {
   connect: vi.fn(),
@@ -24,6 +24,8 @@ const mockApi = {
   saveHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
   distinct: vi.fn(),
+  getMcpStatus: vi.fn<() => Promise<McpStatus>>().mockResolvedValue({ running: false, port: null }),
+  onMcpStatusUpdate: vi.fn<(cb: (s: McpStatus) => void) => () => void>(() => () => {}),
 };
 
 function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSession {
@@ -41,6 +43,8 @@ function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSessio
 beforeEach(() => {
   vi.clearAllMocks();
   mockApi.onConnectionState.mockImplementation(() => () => {});
+  mockApi.onMcpStatusUpdate.mockImplementation(() => () => {});
+  mockApi.getMcpStatus.mockResolvedValue({ running: false, port: null });
   useStore.setState({
     status: { status: 'disconnected' } as ConnectionState,
     uri: '',
@@ -61,6 +65,7 @@ beforeEach(() => {
     pendingFilterText: null,
     queryHistory: [],
     pendingQueryMode: null,
+    mcpStatus: { running: false, port: null },
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });
@@ -643,6 +648,42 @@ describe('subscribeToConnectionState', () => {
     mockApi.onConnectionState.mockImplementation(() => unsubSpy);
 
     const unsub = useStore.getState().subscribeToConnectionState();
+    unsub();
+
+    expect(unsubSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('initMcpStatus', () => {
+  it('subscribes to updates and hydrates from getMcpStatus', async () => {
+    let emit: (s: McpStatus) => void = () => {};
+    mockApi.onMcpStatusUpdate.mockImplementation((cb: (s: McpStatus) => void) => {
+      emit = cb;
+      return () => {};
+    });
+    mockApi.getMcpStatus.mockResolvedValue({ running: true, port: 27099 });
+
+    useStore.getState().initMcpStatus();
+
+    expect(mockApi.onMcpStatusUpdate).toHaveBeenCalledTimes(1);
+    expect(mockApi.getMcpStatus).toHaveBeenCalledTimes(1);
+
+    await vi.waitFor(() => {
+      expect(useStore.getState().mcpStatus).toEqual({ running: true, port: 27099 });
+    });
+
+    emit({ running: false, port: null });
+    expect(useStore.getState().mcpStatus).toEqual({ running: false, port: null });
+
+    emit({ running: true, port: 9999 });
+    expect(useStore.getState().mcpStatus).toEqual({ running: true, port: 9999 });
+  });
+
+  it('returns the unsubscribe function from onMcpStatusUpdate', () => {
+    const unsubSpy = vi.fn();
+    mockApi.onMcpStatusUpdate.mockImplementation(() => unsubSpy);
+
+    const unsub = useStore.getState().initMcpStatus();
     unsub();
 
     expect(unsubSpy).toHaveBeenCalledTimes(1);

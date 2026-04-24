@@ -8,6 +8,7 @@ import type {
   DistinctResult,
   Result,
   ConnectionState,
+  McpStatus,
 } from '../../shared/types';
 
 export interface StoreState {
@@ -31,10 +32,12 @@ export interface StoreState {
   pendingFilterText: string | null;
   queryHistory: QueryHistoryEntry[];
   pendingQueryMode: 'filter' | 'aggregate' | null;
+  mcpStatus: McpStatus;
 
   connect: (uri: string) => Promise<void>;
   disconnect: () => Promise<void>;
   subscribeToConnectionState: () => () => void;
+  initMcpStatus: () => () => void;
   selectDb: (db: string) => Promise<void>;
   selectCollection: (db: string, collection: string) => Promise<void>;
   fetchPage: (skip: number) => Promise<void>;
@@ -81,6 +84,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   pendingFilterText: null,
   queryHistory: [],
   pendingQueryMode: null,
+  mcpStatus: { running: false, port: null },
 
   connect: async (uri: string) => {
     if (selectConnected(get())) await get().disconnect();
@@ -112,6 +116,12 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   subscribeToConnectionState: () => window.api.onConnectionState((status) => set({ status })),
+
+  initMcpStatus: () => {
+    const unsubscribe = window.api.onMcpStatusUpdate((mcpStatus) => set({ mcpStatus }));
+    window.api.getMcpStatus().then((mcpStatus) => set({ mcpStatus }));
+    return unsubscribe;
+  },
 
   selectDb: async (db: string) => {
     set({ loading: true, selectedDb: db, selectedCollection: null, docs: [], totalCount: 0, fieldNames: [] });

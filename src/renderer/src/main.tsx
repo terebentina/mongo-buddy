@@ -6,6 +6,7 @@ import { subscribeOperationStream } from './hooks/use-operation';
 import './assets/index.css';
 
 useStore.getState().subscribeToConnectionState();
+useStore.getState().initMcpStatus();
 subscribeOperationStream();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
