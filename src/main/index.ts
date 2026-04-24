@@ -13,6 +13,8 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { createOperationRegistry } from './operation-registry';
 import { createFsSinkAdapter } from './adapters/fs-sink';
 import { createDialogProviderAdapter } from './adapters/dialog-provider';
+import { parseMcpArgs } from './mcp/cli-args';
+import { startMcpServer, type McpServerHandle } from './mcp/server';
 
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
@@ -23,6 +25,8 @@ const connectionManager = createConnectionManager({
   connectionKeyFromUri,
 });
 const mongoService = new MongoService({ conn: connectionManager });
+const mcpArgs = parseMcpArgs(process.argv);
+let mcpHandle: McpServerHandle | null = null;
 const broadcast = (channel: string, payload: unknown): void => {
   for (const w of BrowserWindow.getAllWindows()) {
     w.webContents.send(channel, payload);
@@ -75,7 +79,7 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.mongobuddy');
 
   app.on('browser-window-created', (_, window) => {
@@ -89,6 +93,27 @@ app.whenReady().then(() => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  if (mcpArgs.enabled) {
+    mcpHandle = await startMcpServer({ service: mongoService, port: mcpArgs.port });
+    if (mcpHandle) {
+      console.log(`MCP server listening on http://${mcpHandle.address}:${mcpHandle.actualPort}/mcp`);
+    } else {
+      console.error(`MCP failed to bind port ${mcpArgs.port}: see earlier error`);
+    }
+  } else {
+    console.log('MCP server disabled');
+  }
+});
+
+app.on('before-quit', () => {
+  const handle = mcpHandle;
+  mcpHandle = null;
+  if (handle) {
+    void handle.close().catch((err) => {
+      console.error('MCP: error during shutdown:', err);
+    });
+  }
 });
 
 app.on('window-all-closed', () => {
