@@ -15,6 +15,7 @@ import { createFsSinkAdapter } from './adapters/fs-sink';
 import { createDialogProviderAdapter } from './adapters/dialog-provider';
 import { parseMcpArgs } from './mcp/cli-args';
 import { startMcpServer, type McpServerHandle } from './mcp/server';
+import { createMcpStatusEmitter } from './mcp/status';
 
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
@@ -26,6 +27,7 @@ const connectionManager = createConnectionManager({
 });
 const mongoService = new MongoService({ conn: connectionManager });
 const mcpArgs = parseMcpArgs(process.argv);
+const mcpStatusEmitter = createMcpStatusEmitter();
 let mcpHandle: McpServerHandle | null = null;
 const broadcast = (channel: string, payload: unknown): void => {
   for (const w of BrowserWindow.getAllWindows()) {
@@ -48,6 +50,7 @@ registerIpcHandlers({
   historyStore: queryHistoryStore,
   manager: connectionManager,
   registry: operationRegistry,
+  mcpStatus: mcpStatusEmitter,
   broadcast,
 });
 
@@ -98,6 +101,7 @@ app.whenReady().then(async () => {
     mcpHandle = await startMcpServer({ service: mongoService, port: mcpArgs.port });
     if (mcpHandle) {
       console.log(`MCP server listening on http://${mcpHandle.address}:${mcpHandle.actualPort}/mcp`);
+      mcpStatusEmitter.set({ running: true, port: mcpHandle.actualPort });
     } else {
       console.error(`MCP failed to bind port ${mcpArgs.port}: see earlier error`);
     }
@@ -110,6 +114,7 @@ app.on('before-quit', () => {
   const handle = mcpHandle;
   mcpHandle = null;
   if (handle) {
+    mcpStatusEmitter.set({ running: false, port: null });
     void handle.close().catch((err) => {
       console.error('MCP: error during shutdown:', err);
     });

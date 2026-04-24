@@ -61,6 +61,12 @@ describe('IPC Handlers', () => {
   };
   let mockBroadcast: ReturnType<typeof vi.fn<Broadcast>>;
   let stateChangeCb: ((s: ConnectionState) => void) | null;
+  let mcpStatusCb: ((s: import('../shared/types').McpStatus) => void) | null;
+  let mockMcpStatus: {
+    get: ReturnType<typeof vi.fn>;
+    set: ReturnType<typeof vi.fn>;
+    subscribe: ReturnType<typeof vi.fn>;
+  };
   let mockRegistry: {
     start: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
@@ -121,6 +127,18 @@ describe('IPC Handlers', () => {
       subscribe: vi.fn(),
     };
 
+    mcpStatusCb = null;
+    mockMcpStatus = {
+      get: vi.fn(() => ({ running: false, port: null })),
+      set: vi.fn(),
+      subscribe: vi.fn((cb: (s: import('../shared/types').McpStatus) => void) => {
+        mcpStatusCb = cb;
+        return () => {
+          mcpStatusCb = null;
+        };
+      }),
+    };
+
     handlers = {};
     vi.mocked(ipcMain.handle).mockImplementation(((channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers[channel] = handler;
@@ -132,12 +150,17 @@ describe('IPC Handlers', () => {
       historyStore: mockHistoryStore as unknown as QueryHistoryStore,
       manager: mockManager as unknown as ConnectionManager,
       registry: mockRegistry as unknown as OperationRegistry,
+      mcpStatus: mockMcpStatus as unknown as import('./mcp/status').McpStatusEmitter,
       broadcast: mockBroadcast,
     });
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('registers mcp:status:get channel', () => {
+    expect(handlers['mcp:status:get']).toBeDefined();
   });
 
   it('registers all expected channels', () => {
@@ -415,6 +438,26 @@ describe('IPC Handlers', () => {
       stateChangeCb!(connected);
       expect(mockBroadcast).toHaveBeenNthCalledWith(1, 'connection:state', connecting);
       expect(mockBroadcast).toHaveBeenNthCalledWith(2, 'connection:state', connected);
+    });
+  });
+
+  describe('mcp:status', () => {
+    it('mcp:status:get returns current status from emitter', () => {
+      mockMcpStatus.get.mockReturnValue({ running: true, port: 27099 });
+      const result = handlers['mcp:status:get']({} as Electron.IpcMainInvokeEvent);
+      expect(result).toEqual({ running: true, port: 27099 });
+    });
+
+    it('subscribes to mcpStatus.subscribe on registration', () => {
+      expect(mockMcpStatus.subscribe).toHaveBeenCalledTimes(1);
+      expect(mcpStatusCb).toBeTypeOf('function');
+    });
+
+    it('broadcasts mcp:status:update on every status change', () => {
+      mcpStatusCb!({ running: true, port: 27099 });
+      mcpStatusCb!({ running: false, port: null });
+      expect(mockBroadcast).toHaveBeenCalledWith('mcp:status:update', { running: true, port: 27099 });
+      expect(mockBroadcast).toHaveBeenCalledWith('mcp:status:update', { running: false, port: null });
     });
   });
 

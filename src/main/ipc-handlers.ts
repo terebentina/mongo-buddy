@@ -5,6 +5,7 @@ import type { ConnectionStore } from './connection-store';
 import type { ConnectionManager, ConnectOptions } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
 import type { OperationRegistry } from './operation-registry';
+import type { McpStatusEmitter } from './mcp/status';
 import type {
   Result,
   FindOpts,
@@ -13,6 +14,7 @@ import type {
   PickedFile,
   OperationParams,
   OperationId,
+  McpStatus,
 } from '../shared/types';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
@@ -23,11 +25,12 @@ export interface IpcDeps {
   historyStore: QueryHistoryStore;
   manager: ConnectionManager;
   registry: OperationRegistry;
+  mcpStatus: McpStatusEmitter;
   broadcast?: Broadcast;
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const { service, connStore, historyStore, manager, registry, broadcast = () => {} } = deps;
+  const { service, connStore, historyStore, manager, registry, mcpStatus, broadcast = () => {} } = deps;
 
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
@@ -48,6 +51,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   manager.onStateChange((state) => {
     broadcast('connection:state', state);
   });
+
+  mcpStatus.subscribe((status) => {
+    broadcast('mcp:status:update', status);
+  });
+
+  ipcMain.handle(
+    'mcp:status:get',
+    wrapSync((): McpStatus => mcpStatus.get())
+  );
 
   ipcMain.handle(
     'mongo:connect',
