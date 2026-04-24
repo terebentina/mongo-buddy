@@ -8,6 +8,7 @@ import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw } from
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
+import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
@@ -514,19 +515,22 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
 
   return (
     <div className="border-r bg-muted/30 flex flex-col relative" style={{ width }}>
-      <div className="p-3 font-semibold text-sm border-b flex items-center justify-between">
+      <div className="p-3 font-semibold text-sm border-b flex items-center justify-between gap-2">
         <span className="truncate" title={displayName}>
           {displayName}
         </span>
-        {onChangeConnection && (
-          <button
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            onClick={onChangeConnection}
-            title="Change connection"
-          >
-            <Unplug className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          <McpStatusPill />
+          {onChangeConnection && (
+            <button
+              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+              onClick={onChangeConnection}
+              title="Change connection"
+            >
+              <Unplug className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">

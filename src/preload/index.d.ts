@@ -16,6 +16,7 @@ import type {
   OperationResult,
   OperationRecord,
   OperationProgress,
+  McpStatus,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
@@ -72,6 +73,8 @@ interface MongoApi {
   operationStart(params: OperationParams): Promise<Result<OperationId>>;
   operationCancel(id: OperationId): Promise<Result<undefined>>;
   onOperationUpdate(cb: (rec: OperationRecord) => void): () => void;
+  getMcpStatus(): Promise<McpStatus>;
+  onMcpStatusUpdate(cb: (status: McpStatus) => void): () => void;
 }
 
 declare global {
