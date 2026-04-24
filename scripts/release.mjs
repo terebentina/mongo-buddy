@@ -1,5 +1,4 @@
 import { execSync } from 'node:child_process'
-import { rmSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -13,7 +12,6 @@ function run(cmd) {
   execSync(cmd, { cwd: root, stdio: 'inherit' })
 }
 
-// Guard: abort if working tree is dirty
 const status = execSync('git status --porcelain', { cwd: root, encoding: 'utf-8' }).trim()
 if (status) {
   console.error('Working tree is dirty. Commit or stash changes before releasing.\n')
@@ -21,25 +19,16 @@ if (status) {
   process.exit(1)
 }
 
-// Bump version, update CHANGELOG, commit, tag
 const bumpArgs = ['pnpm exec commit-and-tag-version']
 if (dryRun) bumpArgs.push('--dry-run')
 if (firstRelease) bumpArgs.push('--first-release')
 run(bumpArgs.join(' '))
 
 if (dryRun) {
-  console.log('\nDry run complete. No build performed.')
+  console.log('\nDry run complete. No commit or push performed.')
   process.exit(0)
 }
 
-// Clean output directories
-for (const dir of ['out', 'dist']) {
-  const target = resolve(root, dir)
-  console.log(`\nCleaning ${dir}/`)
-  rmSync(target, { recursive: true, force: true })
-}
+run('git push --follow-tags')
 
-// Build and package
-run('pnpm dist')
-
-console.log('\nRelease complete!')
+console.log('\nTag pushed. CI is building release assets — check https://github.com/terebentina/mongo-buddy/actions')
