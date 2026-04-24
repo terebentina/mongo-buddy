@@ -13,6 +13,7 @@ import type {
   OperationParams,
   OperationId,
   OperationRecord,
+  McpStatus,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
@@ -91,6 +92,12 @@ export function createApi(ipc: IpcLike) {
       const handler = (_event: unknown, rec: OperationRecord): void => cb(rec);
       ipc.on('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
       return () => ipc.off('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
+    },
+    getMcpStatus: (): Promise<McpStatus> => ipc.invoke('mcp:status:get') as Promise<McpStatus>,
+    onMcpStatusUpdate: (cb: (s: McpStatus) => void): (() => void) => {
+      const handler = (_event: unknown, s: McpStatus): void => cb(s);
+      ipc.on('mcp:status:update', handler as (event: unknown, ...args: unknown[]) => void);
+      return () => ipc.off('mcp:status:update', handler as (event: unknown, ...args: unknown[]) => void);
     },
   };
 }

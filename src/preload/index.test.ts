@@ -11,6 +11,7 @@ vi.mock('@electron-toolkit/preload', () => ({
 
 import { createApi } from './index';
 import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
+import type { McpStatus } from '../shared/types';
 
 describe('preload createApi', () => {
   let invoke: ReturnType<typeof vi.fn>;
@@ -107,6 +108,49 @@ describe('preload createApi', () => {
 
       expect(off).toHaveBeenNthCalledWith(1, 'connection:state', handler1);
       expect(off).toHaveBeenNthCalledWith(2, 'connection:state', handler2);
+    });
+  });
+
+  describe('getMcpStatus', () => {
+    it('invokes mcp:status:get and returns the McpStatus payload', async () => {
+      const status: McpStatus = { running: true, port: 27099 };
+      invoke.mockResolvedValue(status);
+      const api = createApi(ipcRenderer);
+
+      const result = await api.getMcpStatus();
+
+      expect(invoke).toHaveBeenCalledWith('mcp:status:get');
+      expect(result).toEqual(status);
+    });
+  });
+
+  describe('onMcpStatusUpdate', () => {
+    it('registers a listener on mcp:status:update and forwards the payload', () => {
+      const api = createApi(ipcRenderer);
+      const cb = vi.fn();
+
+      api.onMcpStatusUpdate(cb);
+
+      expect(on).toHaveBeenCalledTimes(1);
+      const [channel, handler] = on.mock.calls[0];
+      expect(channel).toBe('mcp:status:update');
+
+      const status: McpStatus = { running: true, port: 27099 };
+      (handler as (event: unknown, data: McpStatus) => void)({}, status);
+
+      expect(cb).toHaveBeenCalledWith(status);
+    });
+
+    it('returns an unsubscribe function that removes the exact listener via ipcRenderer.off', () => {
+      const api = createApi(ipcRenderer);
+      const cb = vi.fn();
+
+      const unsubscribe = api.onMcpStatusUpdate(cb);
+      const registeredHandler = on.mock.calls[0][1];
+
+      unsubscribe();
+
+      expect(off).toHaveBeenCalledWith('mcp:status:update', registeredHandler);
     });
   });
 });

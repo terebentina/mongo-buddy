@@ -131,3 +131,8 @@ export interface OperationRecord {
   result?: OperationResult;
   error?: string;
 }
+
+export interface McpStatus {
+  running: boolean;
+  port: number | null;
+}
