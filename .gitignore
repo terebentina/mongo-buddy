@@ -4,6 +4,10 @@ dist
 .DS_Store
 *.log
 .idea
-prds/progress.txt
-prds/prd.json
-/.claude/settings.local.json
+/ralph.sh
+/.agents
+/.claude
+/skills-lock.json
+/CLAUDE.md
+/.mcp.json
+/prds
