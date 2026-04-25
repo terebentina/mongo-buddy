@@ -16,6 +16,7 @@ import { createDialogProviderAdapter } from './adapters/dialog-provider';
 import { parseMcpArgs } from './mcp/cli-args';
 import { startMcpServer, type McpServerHandle } from './mcp/server';
 import { createMcpStatusEmitter } from './mcp/status';
+import { formatWindowTitle } from './window-title';
 
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
@@ -59,11 +60,16 @@ function createWindow(): void {
     width: 1200,
     height: 800,
     show: false,
+    title: formatWindowTitle('MongoBuddy', app.getVersion()),
     icon: resolve(__dirname, '../../build/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,
     },
+  });
+
+  mainWindow.on('page-title-updated', (e) => {
+    e.preventDefault();
   });
 
   mainWindow.on('ready-to-show', () => {
