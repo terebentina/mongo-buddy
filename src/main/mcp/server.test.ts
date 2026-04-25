@@ -21,7 +21,7 @@ function mockService(): MongoService {
 
 async function listenBlocker(): Promise<{ server: Server; port: number }> {
   const server = createHttpServer();
-  await new Promise<void>((res) => server.listen(0, '127.0.0.1', () => res()));
+  await new Promise<void>((res) => server.listen(0, '0.0.0.0', () => res()));
   const addr = server.address();
   if (!addr || typeof addr === 'string') {
     throw new Error('blocker: unexpected address()');
