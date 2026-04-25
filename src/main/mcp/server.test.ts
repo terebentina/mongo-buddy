@@ -50,7 +50,7 @@ describe('startMcpServer', () => {
     restore.push(() => handle.close());
 
     expect(handle.actualPort).toBeGreaterThan(0);
-    expect(handle.address).toBe('127.0.0.1');
+    expect(handle.address).toBe('0.0.0.0');
 
     const url = new URL(`http://127.0.0.1:${handle.actualPort}/mcp`);
     const client = new Client({ name: 'mongo-buddy-test', version: '0.0.0' });

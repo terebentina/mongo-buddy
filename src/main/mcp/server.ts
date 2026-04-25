@@ -4,7 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { registerMcpTools } from './tools';
 import type { MongoService } from '../mongo-service';
 
-const HOST = '127.0.0.1';
+const HOST = '0.0.0.0';
 const MCP_PATH = '/mcp';
 
 export interface StartMcpServerOptions {
