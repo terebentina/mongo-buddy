@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.31.1](https://github.com/terebentina/mongo-buddy/compare/v1.31.0...v1.31.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* **mcp:** bind server to 0.0.0.0 for WSL2 reachability ([871024c](https://github.com/terebentina/mongo-buddy/commit/871024c421fd101e4a915c10b805c30a7c1a1f00))
+
 ## [1.31.0](https://github.com/terebentina/mongo-buddy/compare/v1.30.0...v1.31.0) (2026-04-25)
 
 
