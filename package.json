@@ -1,6 +1,6 @@
 {
   "name": "mongo-buddy",
-  "version": "1.29.3",
+  "version": "1.30.0",
   "description": "Lightweight MongoDB GUI client",
   "license": "MIT",
   "author": {

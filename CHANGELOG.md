@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.30.0](https://github.com/terebentina/mongo-buddy/compare/v1.29.3...v1.30.0) (2026-04-25)
+
+
+### Features
+
+* MCP deps + CLI args parser (closes [#32](https://github.com/terebentina/mongo-buddy/issues/32)) ([024d105](https://github.com/terebentina/mongo-buddy/commit/024d1050a3b32fc336779e524c99211bd603d246))
+* MCP HTTP server bootstrap (closes [#34](https://github.com/terebentina/mongo-buddy/issues/34)) ([cb7a74f](https://github.com/terebentina/mongo-buddy/commit/cb7a74f21cbc6e46cb47e894cadebbb1902219e9)), closes [#31](https://github.com/terebentina/mongo-buddy/issues/31)
+* MCP read-only tools wrapping MongoService (closes [#33](https://github.com/terebentina/mongo-buddy/issues/33)) ([7ffc4fc](https://github.com/terebentina/mongo-buddy/commit/7ffc4fcc8a2c741f00f29a4c0bc9265591eb1ad0))
+* MCP status emitter + IPC + preload API (closes [#36](https://github.com/terebentina/mongo-buddy/issues/36)) ([0e90405](https://github.com/terebentina/mongo-buddy/commit/0e90405440b26da446b5fa379e9fe7bf7215438f))
+* renderer MCP status pill + Sidebar integration (closes [#37](https://github.com/terebentina/mongo-buddy/issues/37)) ([e530875](https://github.com/terebentina/mongo-buddy/commit/e5308751d7b7f364752eb28950c4296b62b53282)), closes [#36](https://github.com/terebentina/mongo-buddy/issues/36)
+* wire MCP into Electron main lifecycle (closes [#35](https://github.com/terebentina/mongo-buddy/issues/35)) ([97d74d0](https://github.com/terebentina/mongo-buddy/commit/97d74d0102c1d0266a9dd22c5d9af5d0ddb73d12))
+
 ## [1.29.3](https://github.com/terebentina/mongo-buddy/compare/v1.29.2...v1.29.3) (2026-04-24)
 
 ## [1.29.2](https://github.com/terebentina/mongo-buddy/compare/v1.29.1...v1.29.2) (2026-04-24)
