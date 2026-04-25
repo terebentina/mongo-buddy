@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.31.0](https://github.com/terebentina/mongo-buddy/compare/v1.30.0...v1.31.0) (2026-04-25)
+
+
+### Features
+
+* show app version in OS window title ([121c1dd](https://github.com/terebentina/mongo-buddy/commit/121c1dd578541fcf3affa053c52b1cd0e97d5b0d))
+
 ## [1.30.0](https://github.com/terebentina/mongo-buddy/compare/v1.29.3...v1.30.0) (2026-04-25)
 
 
