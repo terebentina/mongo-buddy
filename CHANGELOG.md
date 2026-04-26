@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.31.2](https://github.com/terebentina/mongo-buddy/compare/v1.31.1...v1.31.2) (2026-04-26)
+
+
+### Bug Fixes
+
+* **mcp:** bind test blocker to 0.0.0.0 to match server ([981b4a4](https://github.com/terebentina/mongo-buddy/commit/981b4a40a19ccb89accb4eb10a3c23d6a1a33977))
+
 ## [1.31.1](https://github.com/terebentina/mongo-buddy/compare/v1.31.0...v1.31.1) (2026-04-25)
 
 
