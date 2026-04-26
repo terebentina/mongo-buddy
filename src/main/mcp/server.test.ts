@@ -12,6 +12,7 @@ const EXPECTED_TOOL_NAMES = [
   'find',
   'list_collections',
   'list_databases',
+  'list_indexes',
   'sample_fields',
 ].sort();
 

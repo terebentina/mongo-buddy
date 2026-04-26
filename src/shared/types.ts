@@ -73,6 +73,12 @@ export interface DistinctResult {
   truncated: boolean;
 }
 
+export interface IndexInfo {
+  name: string;
+  key: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
 export type ConnectionState =
   | { status: 'disconnected' }
   | { status: 'connecting'; uri: string }

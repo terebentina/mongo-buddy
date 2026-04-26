@@ -28,6 +28,7 @@ describe('MongoService', () => {
     replaceOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
+    indexes: ReturnType<typeof vi.fn>;
   };
   let requireClient: ReturnType<typeof vi.fn<() => MongoClient>>;
 
@@ -44,6 +45,7 @@ describe('MongoService', () => {
       replaceOne: vi.fn(),
       deleteOne: vi.fn(),
       distinct: vi.fn(),
+      indexes: vi.fn(),
     };
     mockDb = {
       listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
@@ -688,6 +690,82 @@ describe('MongoService', () => {
         new AbortController().signal
       );
       expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+  });
+
+  describe('listIndexes', () => {
+    it('returns EJSON-serialized index documents', async () => {
+      const indexes = [
+        { v: 2, key: { _id: 1 }, name: '_id_' },
+        { v: 2, key: { email: 1 }, name: 'email_1', unique: true },
+      ];
+      mockCollection.indexes.mockResolvedValue(indexes);
+
+      const result = await service.listIndexes('testdb', 'users');
+
+      expect(mockClient.db).toHaveBeenCalledWith('testdb');
+      expect(mockDb.collection).toHaveBeenCalledWith('users');
+      expect(mockCollection.indexes).toHaveBeenCalled();
+      expect(result).toEqual({
+        ok: true,
+        data: [
+          { v: 2, key: { _id: 1 }, name: '_id_' },
+          { v: 2, key: { email: 1 }, name: 'email_1', unique: true },
+        ],
+      });
+    });
+
+    it('preserves additional fields like partialFilterExpression and expireAfterSeconds', async () => {
+      const indexes = [
+        {
+          v: 2,
+          key: { createdAt: 1 },
+          name: 'ttl_idx',
+          expireAfterSeconds: 3600,
+          partialFilterExpression: { archived: false },
+        },
+      ];
+      mockCollection.indexes.mockResolvedValue(indexes);
+
+      const result = await service.listIndexes('testdb', 'users');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data[0].expireAfterSeconds).toBe(3600);
+        expect(result.data[0].partialFilterExpression).toEqual({ archived: false });
+      }
+    });
+
+    it('handles compound and special index types in keys', async () => {
+      const indexes = [
+        { v: 2, key: { lastName: 1, firstName: -1 }, name: 'name_compound' },
+        { v: 2, key: { description: 'text' }, name: 'description_text' },
+        { v: 2, key: { location: '2dsphere' }, name: 'location_2dsphere' },
+      ];
+      mockCollection.indexes.mockResolvedValue(indexes);
+
+      const result = await service.listIndexes('testdb', 'places');
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data[0].key).toEqual({ lastName: 1, firstName: -1 });
+        expect(result.data[1].key).toEqual({ description: 'text' });
+        expect(result.data[2].key).toEqual({ location: '2dsphere' });
+      }
+    });
+
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
+      const result = await service.listIndexes('testdb', 'users');
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+
+    it('surfaces driver errors verbatim', async () => {
+      mockCollection.indexes.mockRejectedValue(new Error('ns not found'));
+      const result = await service.listIndexes('testdb', 'users');
+      expect(result).toEqual({ ok: false, error: 'ns not found' });
     });
   });
 

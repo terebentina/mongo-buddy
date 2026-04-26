@@ -9,6 +9,7 @@ import type {
   QueryHistoryEntry,
   PickedFile,
   DistinctResult,
+  IndexInfo,
   OperationKind,
   OperationStatus,
   OperationId,
@@ -38,6 +39,7 @@ interface MongoApi {
   onConnectionState(cb: (state: ConnectionState) => void): () => void;
   listDatabases(): Promise<Result<DbInfo[]>>;
   listCollections(db: string): Promise<Result<CollectionInfo[]>>;
+  listIndexes(db: string, collection: string): Promise<Result<IndexInfo[]>>;
   find(db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>>;
   count(db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>>;
   aggregate(

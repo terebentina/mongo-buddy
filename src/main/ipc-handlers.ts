@@ -84,6 +84,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     wrap((db: unknown) => service.listCollections(db as string))
   );
   ipcMain.handle(
+    'mongo:list-indexes',
+    wrap((db: unknown, coll: unknown) => service.listIndexes(db as string, coll as string))
+  );
+  ipcMain.handle(
     'mongo:find',
     wrap((db: unknown, coll: unknown, opts: unknown) => service.find(db as string, coll as string, opts as FindOpts))
   );
