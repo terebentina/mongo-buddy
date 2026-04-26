@@ -10,6 +10,7 @@ import type {
   FindResult,
   ImportOptions,
   DistinctResult,
+  IndexInfo,
 } from '../shared/types';
 
 export interface MongoServiceDeps {
@@ -337,6 +338,18 @@ export class MongoService {
       const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
       const values = sliced.map((v) => EJSON.serialize(v));
       return { ok: true, data: { values, truncated } };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async listIndexes(dbName: string, collName: string): Promise<Result<IndexInfo[]>> {
+    try {
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
+      const rawIndexes = await collection.indexes();
+      const data = rawIndexes.map((idx) => EJSON.serialize(idx) as unknown as IndexInfo);
+      return { ok: true, data };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

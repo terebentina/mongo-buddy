@@ -10,6 +10,7 @@ import type {
   QueryHistoryEntry,
   PickedFile,
   DistinctResult,
+  IndexInfo,
   OperationParams,
   OperationId,
   OperationRecord,
@@ -38,6 +39,8 @@ export function createApi(ipc: IpcLike) {
     listDatabases: (): Promise<Result<DbInfo[]>> => ipc.invoke('mongo:list-databases') as Promise<Result<DbInfo[]>>,
     listCollections: (db: string): Promise<Result<CollectionInfo[]>> =>
       ipc.invoke('mongo:list-collections', db) as Promise<Result<CollectionInfo[]>>,
+    listIndexes: (db: string, collection: string): Promise<Result<IndexInfo[]>> =>
+      ipc.invoke('mongo:list-indexes', db, collection) as Promise<Result<IndexInfo[]>>,
     find: (db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>> =>
       ipc.invoke('mongo:find', db, collection, opts) as Promise<Result<FindResult>>,
     count: (db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>> =>

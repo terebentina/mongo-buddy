@@ -4,10 +4,11 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw } from 'lucide-react';
+import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw, KeyRound } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
+import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
@@ -31,6 +32,7 @@ interface CollectionRowProps {
 function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [indexesOpen, setIndexesOpen] = useState(false);
 
   const exp = useOperation('export-collection');
   const exporting = exp.status === 'running' || exp.status === 'pending';
@@ -142,6 +144,16 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
                       Export
                     </Menu.Item>
                     <Menu.Item
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIndexesOpen(true);
+                      }}
+                    >
+                      <KeyRound className="h-3 w-3" />
+                      Indexes
+                    </Menu.Item>
+                    <Menu.Item
                       className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -189,6 +201,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <IndexesDialog open={indexesOpen} onOpenChange={setIndexesOpen} db={dbName} collection={coll.name} />
     </>
   );
 }

@@ -38,6 +38,7 @@ describe('IPC Handlers', () => {
     updateOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
+    listIndexes: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>;
@@ -103,6 +104,7 @@ describe('IPC Handlers', () => {
       updateOne: vi.fn(),
       deleteOne: vi.fn(),
       distinct: vi.fn(),
+      listIndexes: vi.fn(),
     };
 
     mockConnStore = {
@@ -168,6 +170,7 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:disconnect']).toBeDefined();
     expect(handlers['mongo:list-databases']).toBeDefined();
     expect(handlers['mongo:list-collections']).toBeDefined();
+    expect(handlers['mongo:list-indexes']).toBeDefined();
     expect(handlers['mongo:find']).toBeDefined();
     expect(handlers['mongo:count']).toBeDefined();
     expect(handlers['mongo:aggregate']).toBeDefined();
@@ -259,6 +262,22 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:list-collections']({} as Electron.IpcMainInvokeEvent, 'testdb');
       expect(mockService.listCollections).toHaveBeenCalledWith('testdb');
       expect(result).toEqual({ ok: true, data: colls });
+    });
+  });
+
+  describe('mongo:list-indexes', () => {
+    it('calls MongoService.listIndexes with db and collection', async () => {
+      const indexes = [{ v: 2, key: { _id: 1 }, name: '_id_' }];
+      mockService.listIndexes.mockResolvedValue({ ok: true, data: indexes });
+      const result = await handlers['mongo:list-indexes']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
+      expect(mockService.listIndexes).toHaveBeenCalledWith('testdb', 'users');
+      expect(result).toEqual({ ok: true, data: indexes });
+    });
+
+    it('forwards service error result', async () => {
+      mockService.listIndexes.mockResolvedValue({ ok: false, error: 'ns not found' });
+      const result = await handlers['mongo:list-indexes']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
+      expect(result).toEqual({ ok: false, error: 'ns not found' });
     });
   });
 
