@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'fs';
-import { unlink, writeFile } from 'fs/promises';
+import { readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { createGunzip, createGzip } from 'zlib';
 import type { FilesystemSinkPort, GunzipSource, GzipSink } from '../operation-registry';
@@ -59,6 +59,15 @@ export function createFsSinkAdapter(): FilesystemSinkPort {
 
     async writeIndexesSidecar(filePath: string, json: string): Promise<void> {
       await writeFile(filePath, json, 'utf8');
+    },
+
+    async readIndexesSidecar(filePath: string): Promise<string | null> {
+      try {
+        return await readFile(filePath, 'utf8');
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+        throw err;
+      }
     },
   };
 }

@@ -12,7 +12,8 @@ import type {
   DistinctResult,
   IndexInfo,
 } from '../shared/types';
-import { sanitizeForExport, type IndexSpec } from './index-spec';
+import type { IndexDescription } from 'mongodb';
+import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
 
 export interface MongoServiceDeps {
   conn: Pick<ConnectionManager, 'requireClient'>;
@@ -363,6 +364,38 @@ export class MongoService {
       const rawIndexes = await collection.indexes();
       const data = sanitizeForExport(rawIndexes as Record<string, unknown>[]);
       return { ok: true, data };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async applyImportedIndexes(
+    dbName: string,
+    collName: string,
+    specs: IndexSpec[],
+    opts: { dropExisting: boolean }
+  ): Promise<Result<undefined>> {
+    try {
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
+
+      let toCreate: IndexSpec[];
+      if (opts.dropExisting) {
+        // dropIndexes() leaves the auto _id_ index alone.
+        await collection.dropIndexes();
+        toCreate = pickIndexesToCreate(specs, [], true);
+      } else {
+        const existing = await collection.indexes();
+        const existingNames = existing
+          .map((idx) => (idx as { name?: unknown }).name)
+          .filter((n): n is string => typeof n === 'string');
+        toCreate = pickIndexesToCreate(specs, existingNames, false);
+      }
+
+      if (toCreate.length > 0) {
+        await collection.createIndexes(toCreate as unknown as IndexDescription[]);
+      }
+      return { ok: true, data: undefined };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

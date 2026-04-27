@@ -10,7 +10,7 @@ import type {
   OperationRecord,
   Result,
 } from '../shared/types';
-import type { IndexSpec } from './index-spec';
+import { parseAndValidateSidecar, type IndexSpec } from './index-spec';
 
 export interface MongoServicePort {
   exportCollection(
@@ -30,6 +30,12 @@ export interface MongoServicePort {
   ): Promise<Result<{ inserted: number; skipped: number }>>;
   listCollections(dbName: string): Promise<Result<CollectionInfo[]>>;
   getExportableIndexes(dbName: string, collName: string): Promise<Result<IndexSpec[]>>;
+  applyImportedIndexes(
+    dbName: string,
+    collName: string,
+    specs: IndexSpec[],
+    opts: { dropExisting: boolean }
+  ): Promise<Result<undefined>>;
 }
 
 export interface GzipSink {
@@ -49,6 +55,7 @@ export interface FilesystemSinkPort {
   joinExportFilename(dir: string, base: string): string;
   indexesSidecarPath(dataFilePath: string): string;
   writeIndexesSidecar(filePath: string, json: string): Promise<void>;
+  readIndexesSidecar(filePath: string): Promise<string | null>;
 }
 
 export interface DialogProviderPort {
@@ -214,6 +221,22 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
   ): Promise<void> => {
     emitUpdate(id, { status: 'running' });
 
+    // Validate sidecar BEFORE any destructive data operation. A bad sidecar
+    // must not cause "Clear collection first" to wipe data and then fail.
+    // Cancellation is not honored during the index-apply phase below.
+    let sidecarSpecs: IndexSpec[] | null = null;
+    try {
+      const sidecarPath = deps.fs.indexesSidecarPath(params.filePath);
+      const raw = await deps.fs.readIndexesSidecar(sidecarPath);
+      if (raw !== null) {
+        sidecarSpecs = parseAndValidateSidecar(raw);
+      }
+    } catch (err) {
+      inFlight.delete(key);
+      emitUpdate(id, { status: 'failed', error: (err as Error).message });
+      return;
+    }
+
     const source = deps.fs.readGunzipSource(params.filePath);
     let failed = false;
     let errorMsg: string | undefined;
@@ -246,19 +269,40 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
 
     await source.destroy();
 
-    inFlight.delete(key);
-
     if (failed) {
+      inFlight.delete(key);
       emitUpdate(id, {
         status: cancelled ? 'cancelled' : 'failed',
         error: errorMsg,
       });
-    } else {
-      emitUpdate(id, {
-        status: 'succeeded',
-        result: { kind: 'import-collection', inserted, skipped },
-      });
+      return;
     }
+
+    // Data import succeeded. Apply indexes from sidecar, or surface a warning
+    // if no sidecar was present.
+    let warning: string | undefined;
+    if (sidecarSpecs === null) {
+      warning = 'No indexes were restored (sidecar file not found).';
+    } else {
+      const applyRes = await deps.mongo.applyImportedIndexes(params.db, params.collection, sidecarSpecs, {
+        dropExisting: params.options.clearFirst,
+      });
+      if (!applyRes.ok) {
+        inFlight.delete(key);
+        emitUpdate(id, {
+          status: 'failed',
+          error: `${applyRes.error} (${inserted} docs imported)`,
+        });
+        return;
+      }
+    }
+
+    inFlight.delete(key);
+    emitUpdate(id, {
+      status: 'succeeded',
+      result: { kind: 'import-collection', inserted, skipped },
+      warning,
+    });
   };
 
   const runExportDatabase = async (

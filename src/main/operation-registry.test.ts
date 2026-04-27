@@ -39,7 +39,12 @@ type ImportCall = {
  * this file (rather than extracting) so test intent stays local.
  */
 
-function makeFsPort(overrides: { writeIndexesSidecar?: (filePath: string, json: string) => Promise<void> } = {}) {
+function makeFsPort(
+  overrides: {
+    writeIndexesSidecar?: (filePath: string, json: string) => Promise<void>;
+    readIndexesSidecar?: (filePath: string) => Promise<string | null>;
+  } = {}
+) {
   const sinks: Array<{
     filePath: string;
     writes: Buffer[];
@@ -94,6 +99,12 @@ function makeFsPort(overrides: { writeIndexesSidecar?: (filePath: string, json: 
       }
       sidecarWrites.push({ filePath, json });
     }),
+    readIndexesSidecar: vi.fn(async (filePath: string): Promise<string | null> => {
+      if (overrides.readIndexesSidecar) {
+        return overrides.readIndexesSidecar(filePath);
+      }
+      return null;
+    }),
     _sinks: sinks,
     _sources: sources,
     _sidecarWrites: sidecarWrites,
@@ -115,6 +126,12 @@ function makeMongoPort(
     importCollection?: (call: ImportCall) => Promise<Result<{ inserted: number; skipped: number }>>;
     listCollections?: (db: string) => Promise<Result<CollectionInfo[]>>;
     getExportableIndexes?: (db: string, coll: string) => Promise<Result<IndexSpec[]>>;
+    applyImportedIndexes?: (
+      db: string,
+      coll: string,
+      specs: IndexSpec[],
+      opts: { dropExisting: boolean }
+    ) => Promise<Result<undefined>>;
   } = {}
 ) {
   return {
@@ -167,6 +184,12 @@ function makeMongoPort(
       if (overrides.getExportableIndexes) return overrides.getExportableIndexes(db, coll);
       return Promise.resolve({ ok: true, data: [] });
     }),
+    applyImportedIndexes: vi.fn(
+      (db: string, coll: string, specs: IndexSpec[], opts: { dropExisting: boolean }): Promise<Result<undefined>> => {
+        if (overrides.applyImportedIndexes) return overrides.applyImportedIndexes(db, coll, specs, opts);
+        return Promise.resolve({ ok: true, data: undefined });
+      }
+    ),
   };
 }
 
@@ -380,6 +403,157 @@ describe('OperationRegistry', () => {
       expect(args[0]).toBe('mydb');
       expect(args[1]).toBe('users');
       expect(args[3]).toEqual({ onDuplicate: 'skip', clearFirst: false });
+    });
+  });
+
+  describe('import-collection sidecar', () => {
+    const importParams = (overrides: Partial<{ clearFirst: boolean }> = {}): OperationParams => ({
+      kind: 'import-collection',
+      db: 'mydb',
+      collection: 'users',
+      filePath: '/tmp/input.bson.gz',
+      options: { onDuplicate: 'skip', clearFirst: overrides.clearFirst ?? false },
+    });
+
+    it('missing sidecar: data import succeeds with a warning, applyImportedIndexes not called', async () => {
+      const fs = makeFsPort(); // default readIndexesSidecar returns null
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams());
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeDefined();
+      expect(terminal.warning).toMatch(/sidecar/i);
+      expect(mongo.applyImportedIndexes).not.toHaveBeenCalled();
+      expect(fs.readIndexesSidecar).toHaveBeenCalledWith('/tmp/input.indexes.json');
+    });
+
+    it('valid sidecar: applies indexes after data import with dropExisting=clearFirst', async () => {
+      const specs = [{ key: { email: 1 }, name: 'email_1', unique: true }];
+      const json = JSON.stringify(specs);
+      const fs = makeFsPort({ readIndexesSidecar: async () => json });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams({ clearFirst: true }));
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeUndefined();
+      expect(mongo.applyImportedIndexes).toHaveBeenCalledTimes(1);
+      const callArgs = mongo.applyImportedIndexes.mock.calls[0];
+      expect(callArgs[0]).toBe('mydb');
+      expect(callArgs[1]).toBe('users');
+      expect(callArgs[2]).toEqual(specs);
+      expect(callArgs[3]).toEqual({ dropExisting: true });
+    });
+
+    it('valid sidecar with clearFirst=false: applies indexes with dropExisting=false', async () => {
+      const specs = [{ key: { x: 1 }, name: 'x_1' }];
+      const fs = makeFsPort({ readIndexesSidecar: async () => JSON.stringify(specs) });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams({ clearFirst: false }));
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+      expect(mongo.applyImportedIndexes).toHaveBeenCalledTimes(1);
+      expect(mongo.applyImportedIndexes.mock.calls[0][3]).toEqual({ dropExisting: false });
+    });
+
+    it('malformed sidecar: fails before any data operation runs', async () => {
+      const fs = makeFsPort({ readIndexesSidecar: async () => 'not valid json {{{' });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams({ clearFirst: true }));
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('failed');
+      expect(terminal.error).toBeDefined();
+      // Critical: importCollection (which does deleteMany) must NOT have been called
+      expect(mongo.importCollection).not.toHaveBeenCalled();
+      expect(mongo.applyImportedIndexes).not.toHaveBeenCalled();
+    });
+
+    it('sidecar that is not an array: fails before any data operation runs', async () => {
+      const fs = makeFsPort({ readIndexesSidecar: async () => JSON.stringify({ not: 'an array' }) });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams({ clearFirst: true }));
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('failed');
+      expect(mongo.importCollection).not.toHaveBeenCalled();
+    });
+
+    it('index-create failure: marks op failed with inserted-count message', async () => {
+      const specs = [{ key: { email: 1 }, name: 'email_1', unique: true }];
+      const fs = makeFsPort({ readIndexesSidecar: async () => JSON.stringify(specs) });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort({
+        importCollection: async () => ({ ok: true, data: { inserted: 42, skipped: 0 } }),
+        applyImportedIndexes: async () => ({ ok: false, error: 'duplicate key violation' }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams({ clearFirst: false }));
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('failed');
+      expect(terminal.error).toMatch(/duplicate key violation/);
+      expect(terminal.error).toMatch(/42/);
+    });
+
+    it('data-import failure: does not call applyImportedIndexes', async () => {
+      const specs = [{ key: { x: 1 }, name: 'x_1' }];
+      const fs = makeFsPort({ readIndexesSidecar: async () => JSON.stringify(specs) });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort({
+        importCollection: async () => ({ ok: false, error: 'bson decode failed' }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams());
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('failed');
+      expect(terminal.error).toBe('bson decode failed');
+      expect(mongo.applyImportedIndexes).not.toHaveBeenCalled();
+    });
+
+    it('readIndexesSidecar throwing a non-ENOENT error: fails before any data operation', async () => {
+      const fs = makeFsPort({
+        readIndexesSidecar: async () => {
+          throw new Error('EACCES: permission denied');
+        },
+      });
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start(importParams({ clearFirst: true }));
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('failed');
+      expect(terminal.error).toMatch(/EACCES/);
+      expect(mongo.importCollection).not.toHaveBeenCalled();
     });
   });
 
