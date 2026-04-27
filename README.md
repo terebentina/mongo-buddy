@@ -33,6 +33,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout
 - 🌙 **Dark by default** — CodeMirror one-dark theme, easy on the eyes
 - 🖥 **Cross-platform native builds** — Windows, macOS (Apple Silicon), and Linux
+- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read-only tools)
 
 ---
 
@@ -71,6 +72,52 @@ Grab the latest build from **[Releases →](https://github.com/terebentina/mongo
 3. **Add a connection** — paste any MongoDB URI (`mongodb://…` or `mongodb+srv://…`) and hit connect
 
 That’s it. Pick a database, pick a collection, and start querying.
+
+---
+
+## 🤖 MCP Server
+
+MongoBuddy ships with a built-in [Model Context Protocol](https://modelcontextprotocol.io/) server so you can let Claude, Cursor, or any MCP-aware tool inspect the MongoDB connection you already have open in the app.
+
+The server starts automatically on launch and exposes a Streamable HTTP endpoint:
+
+```
+http://localhost:27099/mcp
+```
+
+The MCP server uses the **active connection in the app** — open a connection in MongoBuddy and your MCP client will see the same databases and collections. Close the app and the server goes with it.
+
+### Tools
+
+All tools are **read-only**. Writes still go through the GUI.
+
+| Tool | Purpose |
+| --- | --- |
+| `list_databases` | List databases on the connected server |
+| `list_collections` | List collections in a database |
+| `sample_fields` | Sample a collection and return its top-level field names |
+| `find` | Query documents (supports `filter`, `sort`, `skip`, `limit`, EJSON) |
+| `count` | Count documents matching a filter |
+| `aggregate` | Run an aggregation pipeline |
+| `distinct` | Distinct values of a field |
+| `list_indexes` | List indexes on a collection |
+
+### CLI flags
+
+| Flag | Default | What it does |
+| --- | --- | --- |
+| `--mcp-port=N` | `27099` | Bind the MCP server to port `N` (1–65535) |
+| `--disable-mcp` | off | Don’t start the MCP server |
+
+### Wiring up a client
+
+For [Claude Code](https://docs.claude.com/en/docs/claude-code), register the server with the `claude` CLI:
+
+```bash
+claude mcp add --transport http mongo-buddy http://localhost:27099/mcp
+```
+
+For other MCP clients that support Streamable HTTP, point them at the same URL. If you change the port with `--mcp-port=N`, update the URL to match.
 
 ---
 
