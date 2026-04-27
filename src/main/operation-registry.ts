@@ -294,6 +294,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     let failed = false;
     let errorMsg: string | undefined;
     let cancelled = false;
+    const sidecarErrorCollections: string[] = [];
 
     for (let i = 0; i < collections.length; i++) {
       if (ac.signal.aborted) {
@@ -345,19 +346,37 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
         if (cancelled) break;
         failed = true;
         break;
-      } else {
-        try {
-          await sink.finalize();
-        } catch (err) {
-          await sink.destroy();
-          failed = true;
-          errorMsg = (err as Error).message;
-          break;
+      }
+
+      try {
+        await sink.finalize();
+      } catch (err) {
+        await sink.destroy();
+        failed = true;
+        errorMsg = (err as Error).message;
+        break;
+      }
+
+      // Sidecar write is best-effort per collection. A single bad collection
+      // must not abort a long DB export — accumulate the name and continue.
+      try {
+        const indexesRes = await deps.mongo.getExportableIndexes(params.db, coll.name);
+        if (!indexesRes.ok) {
+          sidecarErrorCollections.push(coll.name);
+        } else {
+          const sidecarPath = deps.fs.indexesSidecarPath(filePath);
+          const json = JSON.stringify(EJSON.serialize(indexesRes.data));
+          await deps.fs.writeIndexesSidecar(sidecarPath, json);
         }
+      } catch {
+        sidecarErrorCollections.push(coll.name);
       }
     }
 
     inFlight.delete(key);
+
+    const warning =
+      sidecarErrorCollections.length > 0 ? `sidecar errors for: ${sidecarErrorCollections.join(', ')}` : undefined;
 
     if (cancelled) {
       emitUpdate(id, {
@@ -371,6 +390,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       emitUpdate(id, {
         status: 'succeeded',
         result: { kind: 'export-database', exported: totalExported, folder },
+        warning,
       });
     }
   };

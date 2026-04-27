@@ -486,6 +486,166 @@ describe('OperationRegistry', () => {
     });
   });
 
+  describe('export-database sidecar', () => {
+    it('writes one indexes sidecar per collection, no warning on success', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection' },
+            { name: 'b', type: 'collection' },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 1 }),
+        getExportableIndexes: async (_db, coll) => ({
+          ok: true,
+          data: [{ key: { x: 1 }, name: `${coll}_x_1` }],
+        }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb' });
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeUndefined();
+
+      expect(fs._sidecarWrites.map((s) => s.filePath)).toEqual(['/tmp/out/a.indexes.json', '/tmp/out/b.indexes.json']);
+      expect(JSON.parse(fs._sidecarWrites[0].json)).toEqual([{ key: { x: 1 }, name: 'a_x_1' }]);
+      expect(JSON.parse(fs._sidecarWrites[1].json)).toEqual([{ key: { x: 1 }, name: 'b_x_1' }]);
+      expect(mongo.getExportableIndexes).toHaveBeenCalledTimes(2);
+    });
+
+    it('accumulates per-collection sidecar-write errors into a warning; other sidecars still written', async () => {
+      const written: string[] = [];
+      const fs = makeFsPort({
+        writeIndexesSidecar: async (filePath) => {
+          if (filePath === '/tmp/out/b.indexes.json') {
+            throw new Error('disk full');
+          }
+          written.push(filePath);
+        },
+      });
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection' },
+            { name: 'b', type: 'collection' },
+            { name: 'c', type: 'collection' },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 1 }),
+        getExportableIndexes: async () => ({ ok: true, data: [{ key: { x: 1 }, name: 'x_1' }] }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb' });
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeDefined();
+      expect(terminal.warning).toContain('b');
+      // a and c still got written
+      expect(written).toEqual(['/tmp/out/a.indexes.json', '/tmp/out/c.indexes.json']);
+      // all 3 data files were finalized
+      expect(fs._sinks.every((s) => s.finalized)).toBe(true);
+    });
+
+    it('lists multiple bad collections in a single accumulated warning', async () => {
+      const fs = makeFsPort({
+        writeIndexesSidecar: async (filePath) => {
+          if (filePath === '/tmp/out/b.indexes.json' || filePath === '/tmp/out/c.indexes.json') {
+            throw new Error('boom');
+          }
+        },
+      });
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection' },
+            { name: 'b', type: 'collection' },
+            { name: 'c', type: 'collection' },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 1 }),
+        getExportableIndexes: async () => ({ ok: true, data: [{ key: { x: 1 }, name: 'x_1' }] }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb' });
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeDefined();
+      // Extract the comma-separated names list and check exactly which collections appear
+      const match = /sidecar errors for:\s*(.*)$/.exec(terminal.warning ?? '');
+      expect(match).not.toBeNull();
+      const names = match![1].split(',').map((s) => s.trim());
+      expect(names).toEqual(['b', 'c']);
+    });
+
+    it('records a warning when getExportableIndexes fails for one collection', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection' },
+            { name: 'b', type: 'collection' },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 1 }),
+        getExportableIndexes: async (_db, coll) =>
+          coll === 'a' ? { ok: false, error: 'ns not found' } : { ok: true, data: [] },
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb' });
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeDefined();
+      expect(terminal.warning).toContain('a');
+      // b's sidecar still got written
+      expect(fs._sidecarWrites.map((s) => s.filePath)).toEqual(['/tmp/out/b.indexes.json']);
+    });
+
+    it('data-export failure still fails the operation (sidecar errors do not change this)', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection' },
+            { name: 'b', type: 'collection' },
+          ],
+        }),
+        exportCollection: async ({ coll }) =>
+          coll === 'a' ? { ok: true, data: 1 } : { ok: false, error: 'disk read error' },
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb' });
+      const terminal = await waitForTerminal(emits);
+
+      expect(terminal.status).toBe('failed');
+      expect(terminal.error).toBe('disk read error');
+    });
+  });
+
   describe('enqueue guard', () => {
     it('rejects second start() with same scope key while in-flight; accepts after terminal', async () => {
       const fs = makeFsPort();
