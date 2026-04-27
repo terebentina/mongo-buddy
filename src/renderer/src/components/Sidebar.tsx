@@ -53,6 +53,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
     const rec = await waitForTerminal(id);
     if (rec.status === 'succeeded' && rec.result?.kind === 'export-collection' && rec.result.path !== null) {
       toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
+      if (rec.warning) toast.warning(rec.warning);
     } else if (rec.status === 'failed' || rec.status === 'rejected') {
       toast.error(rec.error ?? 'Export failed');
     }
@@ -301,6 +302,7 @@ function DatabaseRow({
         failed = true;
         break;
       }
+      if (rec.warning) toast.warning(`${file.suggestedName}: ${rec.warning}`);
       totalInserted += rec.result.inserted;
       totalSkipped += rec.result.skipped;
     }
@@ -344,6 +346,7 @@ function DatabaseRow({
       if (rec.result.exported > 0) {
         toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
       }
+      if (rec.warning) toast.warning(rec.warning);
     } else if (rec.status === 'cancelled') {
       toast('Export cancelled');
     } else if (rec.status === 'failed' || rec.status === 'rejected') {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
 import type {
   CollectionInfo,
@@ -9,6 +10,7 @@ import type {
   OperationRecord,
   Result,
 } from '../shared/types';
+import { parseAndValidateSidecar, type IndexSpec } from './index-spec';
 
 export interface MongoServicePort {
   exportCollection(
@@ -27,6 +29,13 @@ export interface MongoServicePort {
     signal: AbortSignal
   ): Promise<Result<{ inserted: number; skipped: number }>>;
   listCollections(dbName: string): Promise<Result<CollectionInfo[]>>;
+  getExportableIndexes(dbName: string, collName: string): Promise<Result<IndexSpec[]>>;
+  applyImportedIndexes(
+    dbName: string,
+    collName: string,
+    specs: IndexSpec[],
+    opts: { dropExisting: boolean }
+  ): Promise<Result<undefined>>;
 }
 
 export interface GzipSink {
@@ -44,6 +53,9 @@ export interface FilesystemSinkPort {
   writeGzipSink(filePath: string): GzipSink;
   readGunzipSource(filePath: string): GunzipSource;
   joinExportFilename(dir: string, base: string): string;
+  indexesSidecarPath(dataFilePath: string): string;
+  writeIndexesSidecar(filePath: string, json: string): Promise<void>;
+  readIndexesSidecar(filePath: string): Promise<string | null>;
 }
 
 export interface DialogProviderPort {
@@ -165,6 +177,24 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       }
     }
 
+    // After data file is finalized, write the indexes sidecar. Failure here
+    // is non-fatal: data file is valid, so we report success with a warning.
+    let warning: string | undefined;
+    if (!failed) {
+      try {
+        const indexesRes = await deps.mongo.getExportableIndexes(params.db, params.collection);
+        if (!indexesRes.ok) {
+          warning = `Exported data but failed to read indexes: ${indexesRes.error}`;
+        } else {
+          const sidecarPath = deps.fs.indexesSidecarPath(savePath);
+          const json = JSON.stringify(EJSON.serialize(indexesRes.data));
+          await deps.fs.writeIndexesSidecar(sidecarPath, json);
+        }
+      } catch (err) {
+        warning = `Exported data but failed to write indexes sidecar: ${(err as Error).message}`;
+      }
+    }
+
     // Release in-flight BEFORE emitting terminal, so a subscriber that
     // re-starts on terminal doesn't hit a stale guard.
     inFlight.delete(key);
@@ -178,6 +208,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       emitUpdate(id, {
         status: 'succeeded',
         result: { kind: 'export-collection', exported, path: savePath },
+        warning,
       });
     }
   };
@@ -189,6 +220,22 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     key: string
   ): Promise<void> => {
     emitUpdate(id, { status: 'running' });
+
+    // Validate sidecar BEFORE any destructive data operation. A bad sidecar
+    // must not cause "Clear collection first" to wipe data and then fail.
+    // Cancellation is not honored during the index-apply phase below.
+    let sidecarSpecs: IndexSpec[] | null = null;
+    try {
+      const sidecarPath = deps.fs.indexesSidecarPath(params.filePath);
+      const raw = await deps.fs.readIndexesSidecar(sidecarPath);
+      if (raw !== null) {
+        sidecarSpecs = parseAndValidateSidecar(raw);
+      }
+    } catch (err) {
+      inFlight.delete(key);
+      emitUpdate(id, { status: 'failed', error: (err as Error).message });
+      return;
+    }
 
     const source = deps.fs.readGunzipSource(params.filePath);
     let failed = false;
@@ -222,19 +269,40 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
 
     await source.destroy();
 
-    inFlight.delete(key);
-
     if (failed) {
+      inFlight.delete(key);
       emitUpdate(id, {
         status: cancelled ? 'cancelled' : 'failed',
         error: errorMsg,
       });
-    } else {
-      emitUpdate(id, {
-        status: 'succeeded',
-        result: { kind: 'import-collection', inserted, skipped },
-      });
+      return;
     }
+
+    // Data import succeeded. Apply indexes from sidecar, or surface a warning
+    // if no sidecar was present.
+    let warning: string | undefined;
+    if (sidecarSpecs === null) {
+      warning = 'No indexes were restored (sidecar file not found).';
+    } else {
+      const applyRes = await deps.mongo.applyImportedIndexes(params.db, params.collection, sidecarSpecs, {
+        dropExisting: params.options.clearFirst,
+      });
+      if (!applyRes.ok) {
+        inFlight.delete(key);
+        emitUpdate(id, {
+          status: 'failed',
+          error: `${applyRes.error} (${inserted} docs imported)`,
+        });
+        return;
+      }
+    }
+
+    inFlight.delete(key);
+    emitUpdate(id, {
+      status: 'succeeded',
+      result: { kind: 'import-collection', inserted, skipped },
+      warning,
+    });
   };
 
   const runExportDatabase = async (
@@ -270,6 +338,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     let failed = false;
     let errorMsg: string | undefined;
     let cancelled = false;
+    const sidecarErrorCollections: string[] = [];
 
     for (let i = 0; i < collections.length; i++) {
       if (ac.signal.aborted) {
@@ -321,19 +390,37 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
         if (cancelled) break;
         failed = true;
         break;
-      } else {
-        try {
-          await sink.finalize();
-        } catch (err) {
-          await sink.destroy();
-          failed = true;
-          errorMsg = (err as Error).message;
-          break;
+      }
+
+      try {
+        await sink.finalize();
+      } catch (err) {
+        await sink.destroy();
+        failed = true;
+        errorMsg = (err as Error).message;
+        break;
+      }
+
+      // Sidecar write is best-effort per collection. A single bad collection
+      // must not abort a long DB export — accumulate the name and continue.
+      try {
+        const indexesRes = await deps.mongo.getExportableIndexes(params.db, coll.name);
+        if (!indexesRes.ok) {
+          sidecarErrorCollections.push(coll.name);
+        } else {
+          const sidecarPath = deps.fs.indexesSidecarPath(filePath);
+          const json = JSON.stringify(EJSON.serialize(indexesRes.data));
+          await deps.fs.writeIndexesSidecar(sidecarPath, json);
         }
+      } catch {
+        sidecarErrorCollections.push(coll.name);
       }
     }
 
     inFlight.delete(key);
+
+    const warning =
+      sidecarErrorCollections.length > 0 ? `sidecar errors for: ${sidecarErrorCollections.join(', ')}` : undefined;
 
     if (cancelled) {
       emitUpdate(id, {
@@ -347,6 +434,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       emitUpdate(id, {
         status: 'succeeded',
         result: { kind: 'export-database', exported: totalExported, folder },
+        warning,
       });
     }
   };
