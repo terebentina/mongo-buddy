@@ -12,43 +12,43 @@ describe('parseMcpArgs', () => {
     warnSpy.mockRestore();
   });
 
-  it('returns disabled with default port when no flags provided', () => {
-    expect(parseMcpArgs([])).toEqual({ enabled: false, port: DEFAULT_MCP_PORT });
+  it('returns enabled with default port when no flags provided', () => {
+    expect(parseMcpArgs([])).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
   });
 
   it('DEFAULT_MCP_PORT is 27099', () => {
     expect(DEFAULT_MCP_PORT).toBe(27099);
   });
 
-  it('enables MCP with default port when --mcp is provided', () => {
-    expect(parseMcpArgs(['--mcp'])).toEqual({ enabled: true, port: 27099 });
+  it('disables MCP when --disable-mcp is provided', () => {
+    expect(parseMcpArgs(['--disable-mcp'])).toEqual({ enabled: false, port: DEFAULT_MCP_PORT });
   });
 
-  it('enables MCP with custom port when --mcp-port=N is provided', () => {
+  it('uses custom port when --mcp-port=N is provided', () => {
     expect(parseMcpArgs(['--mcp-port=3000'])).toEqual({ enabled: true, port: 3000 });
   });
 
-  it('handles both --mcp and --mcp-port together', () => {
-    expect(parseMcpArgs(['--mcp', '--mcp-port=12345'])).toEqual({ enabled: true, port: 12345 });
+  it('--disable-mcp wins even if --mcp-port is also provided', () => {
+    expect(parseMcpArgs(['--disable-mcp', '--mcp-port=12345'])).toEqual({ enabled: false, port: 12345 });
   });
 
   it('handles flags in either order', () => {
-    expect(parseMcpArgs(['--mcp-port=12345', '--mcp'])).toEqual({ enabled: true, port: 12345 });
+    expect(parseMcpArgs(['--mcp-port=12345', '--disable-mcp'])).toEqual({ enabled: false, port: 12345 });
   });
 
   it('ignores unrelated argv entries and electron runtime args', () => {
-    const argv = ['/path/to/electron', '/path/to/app', '--some-electron-flag', '--mcp', '--mcp-port=8080', 'extra'];
+    const argv = ['/path/to/electron', '/path/to/app', '--some-electron-flag', '--mcp-port=8080', 'extra'];
     expect(parseMcpArgs(argv)).toEqual({ enabled: true, port: 8080 });
   });
 
   it('falls back to default port and warns when --mcp-port is NaN', () => {
-    const result = parseMcpArgs(['--mcp', '--mcp-port=abc']);
+    const result = parseMcpArgs(['--mcp-port=abc']);
     expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to default port and warns when --mcp-port is empty', () => {
-    const result = parseMcpArgs(['--mcp', '--mcp-port=']);
+    const result = parseMcpArgs(['--mcp-port=']);
     expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
@@ -75,10 +75,6 @@ describe('parseMcpArgs', () => {
     const result = parseMcpArgs(['--mcp-port=3000.5']);
     expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
     expect(warnSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('treats --mcp-port alone (without --mcp) as enabling MCP', () => {
-    expect(parseMcpArgs(['--mcp-port=3000'])).toEqual({ enabled: true, port: 3000 });
   });
 
   it('accepts the minimum valid port 1', () => {

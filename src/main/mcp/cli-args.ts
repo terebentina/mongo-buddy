@@ -5,7 +5,7 @@ export interface McpArgs {
   port: number;
 }
 
-const MCP_FLAG = '--mcp';
+const DISABLE_MCP_FLAG = '--disable-mcp';
 const MCP_PORT_PREFIX = '--mcp-port=';
 
 function parsePort(raw: string): number | null {
@@ -18,16 +18,15 @@ function parsePort(raw: string): number | null {
 }
 
 export function parseMcpArgs(argv: readonly string[]): McpArgs {
-  let enabled = false;
+  let enabled = true;
   let port = DEFAULT_MCP_PORT;
 
   for (const arg of argv) {
-    if (arg === MCP_FLAG) {
-      enabled = true;
+    if (arg === DISABLE_MCP_FLAG) {
+      enabled = false;
       continue;
     }
     if (arg.startsWith(MCP_PORT_PREFIX)) {
-      enabled = true;
       const raw = arg.slice(MCP_PORT_PREFIX.length);
       const parsed = parsePort(raw);
       if (parsed === null) {
