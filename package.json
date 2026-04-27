@@ -22,7 +22,8 @@
     "test": "vitest run --config vitest.config.main.ts --passWithNoTests && vitest run --config vitest.config.renderer.ts --passWithNoTests",
     "test:watch": "vitest --config vitest.config.renderer.ts",
     "postinstall": "electron-builder install-app-deps",
-    "build:local": "pnpm run build && xvfb-run electron-builder --win",
+    "clean": "rm -rf dist out",
+    "build:local": "pnpm run clean && pnpm run build && xvfb-run electron-builder --win",
     "release": "node scripts/release.mjs"
   },
   "dependencies": {
