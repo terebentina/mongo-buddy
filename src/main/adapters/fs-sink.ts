@@ -1,8 +1,11 @@
 import { createReadStream, createWriteStream } from 'fs';
-import { unlink } from 'fs/promises';
+import { unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { createGunzip, createGzip } from 'zlib';
 import type { FilesystemSinkPort, GunzipSource, GzipSink } from '../operation-registry';
+
+const DATA_SUFFIX = '.bson.gz';
+const SIDECAR_SUFFIX = '.indexes.json';
 
 export function createFsSinkAdapter(): FilesystemSinkPort {
   return {
@@ -44,7 +47,18 @@ export function createFsSinkAdapter(): FilesystemSinkPort {
     },
 
     joinExportFilename(dir: string, base: string): string {
-      return path.join(dir, `${base}.bson.gz`);
+      return path.join(dir, `${base}${DATA_SUFFIX}`);
+    },
+
+    indexesSidecarPath(dataFilePath: string): string {
+      if (!dataFilePath.endsWith(DATA_SUFFIX)) {
+        throw new Error(`Expected path ending in ${DATA_SUFFIX}, got: ${dataFilePath}`);
+      }
+      return dataFilePath.slice(0, -DATA_SUFFIX.length) + SIDECAR_SUFFIX;
+    },
+
+    async writeIndexesSidecar(filePath: string, json: string): Promise<void> {
+      await writeFile(filePath, json, 'utf8');
     },
   };
 }

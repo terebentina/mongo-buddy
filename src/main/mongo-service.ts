@@ -12,6 +12,7 @@ import type {
   DistinctResult,
   IndexInfo,
 } from '../shared/types';
+import { sanitizeForExport, type IndexSpec } from './index-spec';
 
 export interface MongoServiceDeps {
   conn: Pick<ConnectionManager, 'requireClient'>;
@@ -349,6 +350,18 @@ export class MongoService {
       const collection = client.db(dbName).collection(collName);
       const rawIndexes = await collection.indexes();
       const data = rawIndexes.map((idx) => EJSON.serialize(idx) as unknown as IndexInfo);
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async getExportableIndexes(dbName: string, collName: string): Promise<Result<IndexSpec[]>> {
+    try {
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
+      const rawIndexes = await collection.indexes();
+      const data = sanitizeForExport(rawIndexes as Record<string, unknown>[]);
       return { ok: true, data };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

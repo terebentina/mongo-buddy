@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
 import type {
   CollectionInfo,
@@ -9,6 +10,7 @@ import type {
   OperationRecord,
   Result,
 } from '../shared/types';
+import type { IndexSpec } from './index-spec';
 
 export interface MongoServicePort {
   exportCollection(
@@ -27,6 +29,7 @@ export interface MongoServicePort {
     signal: AbortSignal
   ): Promise<Result<{ inserted: number; skipped: number }>>;
   listCollections(dbName: string): Promise<Result<CollectionInfo[]>>;
+  getExportableIndexes(dbName: string, collName: string): Promise<Result<IndexSpec[]>>;
 }
 
 export interface GzipSink {
@@ -44,6 +47,8 @@ export interface FilesystemSinkPort {
   writeGzipSink(filePath: string): GzipSink;
   readGunzipSource(filePath: string): GunzipSource;
   joinExportFilename(dir: string, base: string): string;
+  indexesSidecarPath(dataFilePath: string): string;
+  writeIndexesSidecar(filePath: string, json: string): Promise<void>;
 }
 
 export interface DialogProviderPort {
@@ -165,6 +170,24 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       }
     }
 
+    // After data file is finalized, write the indexes sidecar. Failure here
+    // is non-fatal: data file is valid, so we report success with a warning.
+    let warning: string | undefined;
+    if (!failed) {
+      try {
+        const indexesRes = await deps.mongo.getExportableIndexes(params.db, params.collection);
+        if (!indexesRes.ok) {
+          warning = `Exported data but failed to read indexes: ${indexesRes.error}`;
+        } else {
+          const sidecarPath = deps.fs.indexesSidecarPath(savePath);
+          const json = JSON.stringify(EJSON.serialize(indexesRes.data));
+          await deps.fs.writeIndexesSidecar(sidecarPath, json);
+        }
+      } catch (err) {
+        warning = `Exported data but failed to write indexes sidecar: ${(err as Error).message}`;
+      }
+    }
+
     // Release in-flight BEFORE emitting terminal, so a subscriber that
     // re-starts on terminal doesn't hit a stale guard.
     inFlight.delete(key);
@@ -178,6 +201,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       emitUpdate(id, {
         status: 'succeeded',
         result: { kind: 'export-collection', exported, path: savePath },
+        warning,
       });
     }
   };

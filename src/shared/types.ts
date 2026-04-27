@@ -136,6 +136,7 @@ export interface OperationRecord {
   progress: OperationProgress;
   result?: OperationResult;
   error?: string;
+  warning?: string;
 }
 
 export interface McpStatus {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Writable, Readable } from 'stream';
 import { createOperationRegistry } from './operation-registry';
 import type { MongoServicePort } from './operation-registry';
+import type { IndexSpec } from './index-spec';
 import { MongoService } from './mongo-service';
 import type { OperationRecord, OperationParams, Result, ImportOptions, CollectionInfo } from '../shared/types';
 
@@ -38,7 +39,7 @@ type ImportCall = {
  * this file (rather than extracting) so test intent stays local.
  */
 
-function makeFsPort() {
+function makeFsPort(overrides: { writeIndexesSidecar?: (filePath: string, json: string) => Promise<void> } = {}) {
   const sinks: Array<{
     filePath: string;
     writes: Buffer[];
@@ -46,6 +47,7 @@ function makeFsPort() {
     destroyed: boolean;
   }> = [];
   const sources: Array<{ filePath: string; destroyed: boolean }> = [];
+  const sidecarWrites: Array<{ filePath: string; json: string }> = [];
 
   return {
     writeGzipSink: vi.fn((filePath: string) => {
@@ -79,8 +81,22 @@ function makeFsPort() {
       };
     }),
     joinExportFilename: (dir: string, base: string): string => `${dir}/${base}.bson.gz`,
+    indexesSidecarPath: (dataFilePath: string): string => {
+      if (!dataFilePath.endsWith('.bson.gz')) {
+        throw new Error(`Expected .bson.gz suffix, got: ${dataFilePath}`);
+      }
+      return dataFilePath.slice(0, -'.bson.gz'.length) + '.indexes.json';
+    },
+    writeIndexesSidecar: vi.fn(async (filePath: string, json: string): Promise<void> => {
+      if (overrides.writeIndexesSidecar) {
+        await overrides.writeIndexesSidecar(filePath, json);
+        return;
+      }
+      sidecarWrites.push({ filePath, json });
+    }),
     _sinks: sinks,
     _sources: sources,
+    _sidecarWrites: sidecarWrites,
   };
 }
 
@@ -98,6 +114,7 @@ function makeMongoPort(
     exportCollection?: (call: ExportCall) => Promise<Result<number>>;
     importCollection?: (call: ImportCall) => Promise<Result<{ inserted: number; skipped: number }>>;
     listCollections?: (db: string) => Promise<Result<CollectionInfo[]>>;
+    getExportableIndexes?: (db: string, coll: string) => Promise<Result<IndexSpec[]>>;
   } = {}
 ) {
   return {
@@ -144,6 +161,10 @@ function makeMongoPort(
     ),
     listCollections: vi.fn((db: string): Promise<Result<CollectionInfo[]>> => {
       if (overrides.listCollections) return overrides.listCollections(db);
+      return Promise.resolve({ ok: true, data: [] });
+    }),
+    getExportableIndexes: vi.fn((db: string, coll: string): Promise<Result<IndexSpec[]>> => {
+      if (overrides.getExportableIndexes) return overrides.getExportableIndexes(db, coll);
       return Promise.resolve({ ok: true, data: [] });
     }),
   };
@@ -227,6 +248,83 @@ describe('OperationRegistry', () => {
       const callArgs = mongo.exportCollection.mock.calls[0];
       expect(callArgs[0]).toBe('mydb');
       expect(callArgs[1]).toBe('users');
+    });
+  });
+
+  describe('export-collection sidecar', () => {
+    it('writes the indexes sidecar after sink.finalize() with EJSON-serialized specs', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ savePath: '/tmp/users.bson.gz' });
+      const mongo = makeMongoPort({
+        getExportableIndexes: async () => ({
+          ok: true,
+          data: [{ key: { email: 1 }, name: 'email_1', unique: true }],
+        }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toBeUndefined();
+
+      expect(fs._sidecarWrites).toHaveLength(1);
+      expect(fs._sidecarWrites[0].filePath).toBe('/tmp/users.indexes.json');
+      const parsed = JSON.parse(fs._sidecarWrites[0].json);
+      expect(parsed).toEqual([{ key: { email: 1 }, name: 'email_1', unique: true }]);
+      expect(mongo.getExportableIndexes).toHaveBeenCalledWith('mydb', 'users');
+    });
+
+    it('skips sidecar write when user cancelled the save dialog', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ savePath: null });
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+      expect(fs._sidecarWrites).toHaveLength(0);
+      expect(mongo.getExportableIndexes).not.toHaveBeenCalled();
+    });
+
+    it('still succeeds with a warning when sidecar write fails', async () => {
+      const fs = makeFsPort({
+        writeIndexesSidecar: async () => {
+          throw new Error('EACCES: read-only directory');
+        },
+      });
+      const dialog = makeDialogPort({ savePath: '/tmp/users.bson.gz' });
+      const mongo = makeMongoPort({
+        getExportableIndexes: async () => ({ ok: true, data: [{ key: { x: 1 }, name: 'x_1' }] }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toMatch(/EACCES/);
+      // Data file finalized regardless
+      expect(fs._sinks[0].finalized).toBe(true);
+    });
+
+    it('still succeeds with a warning when reading the indexes fails', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ savePath: '/tmp/users.bson.gz' });
+      const mongo = makeMongoPort({
+        getExportableIndexes: async () => ({ ok: false, error: 'ns not found' }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+      expect(terminal.warning).toMatch(/ns not found/);
+      expect(fs._sidecarWrites).toHaveLength(0);
     });
   });
 
