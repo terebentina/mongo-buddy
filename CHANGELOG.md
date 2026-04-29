@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.34.0](https://github.com/terebentina/mongo-buddy/compare/v1.33.0...v1.34.0) (2026-04-29)
+
+
+### Features
+
+* **sidebar:** add ghost databases for importing into new dbs ([25b4929](https://github.com/terebentina/mongo-buddy/commit/25b4929ffde1f25ba78e67f313b99089c9308670))
+
 ## [1.33.0](https://github.com/terebentina/mongo-buddy/compare/v1.32.0...v1.33.0) (2026-04-29)
 
 
