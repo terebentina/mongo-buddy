@@ -15,6 +15,7 @@ export interface StoreState {
   status: ConnectionState;
   uri: string;
   databases: DbInfo[];
+  ghostDatabases: string[];
   collections: CollectionInfo[];
   selectedDb: string | null;
   selectedCollection: string | null;
@@ -59,6 +60,9 @@ export interface StoreState {
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
   fetchDistinct: (field: string, filter?: Record<string, unknown>) => Promise<Result<DistinctResult> | null>;
+  addGhostDatabase: (name: string) => void;
+  removeGhostDatabase: (name: string) => void;
+  refreshDatabases: () => Promise<void>;
 }
 
 export const selectConnected = (s: StoreState): boolean => s.status.status === 'connected';
@@ -67,6 +71,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   status: { status: 'disconnected' },
   uri: '',
   databases: [],
+  ghostDatabases: [],
   collections: [],
   selectedDb: null,
   selectedCollection: null,
@@ -95,7 +100,15 @@ export const useStore = create<StoreState>()((set, get) => ({
       return;
     }
     const { databases, queryHistory, autoSelectedDb, collections } = result.data;
-    set({ loading: false, uri: result.data.uri, databases, queryHistory, selectedDb: autoSelectedDb, collections });
+    set({
+      loading: false,
+      uri: result.data.uri,
+      databases,
+      ghostDatabases: [],
+      queryHistory,
+      selectedDb: autoSelectedDb,
+      collections,
+    });
   },
 
   disconnect: async () => {
@@ -103,6 +116,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({
       uri: '',
       databases: [],
+      ghostDatabases: [],
       collections: [],
       selectedDb: null,
       selectedCollection: null,
@@ -415,5 +429,31 @@ export const useStore = create<StoreState>()((set, get) => ({
     const { selectedDb, selectedCollection } = get();
     if (!selectedDb || !selectedCollection) return null;
     return window.api.distinct(selectedDb, selectedCollection, field, filter);
+  },
+
+  addGhostDatabase: (name: string) => {
+    const { ghostDatabases } = get();
+    if (ghostDatabases.includes(name)) return;
+    set({ ghostDatabases: [...ghostDatabases, name] });
+  },
+
+  removeGhostDatabase: (name: string) => {
+    const { ghostDatabases, selectedDb } = get();
+    const next = ghostDatabases.filter((n) => n !== name);
+    if (selectedDb === name) {
+      set({
+        ghostDatabases: next,
+        selectedDb: null,
+        selectedCollection: null,
+        collections: [],
+      });
+    } else {
+      set({ ghostDatabases: next });
+    }
+  },
+
+  refreshDatabases: async () => {
+    const result = await window.api.listDatabases();
+    if (result.ok) set({ databases: result.data });
   },
 }));

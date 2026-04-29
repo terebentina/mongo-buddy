@@ -49,6 +49,7 @@ beforeEach(() => {
     status: { status: 'disconnected' } as ConnectionState,
     uri: '',
     databases: [],
+    ghostDatabases: [],
     collections: [],
     selectedDb: null,
     selectedCollection: null,
@@ -708,6 +709,94 @@ describe('selectConnected', () => {
     for (const s of states) {
       expect(selectConnected({ status: s } as unknown as ReturnType<typeof useStore.getState>)).toBe(false);
     }
+  });
+});
+
+describe('ghost databases', () => {
+  it('addGhostDatabase appends a name', () => {
+    useStore.getState().addGhostDatabase('newdb');
+    expect(useStore.getState().ghostDatabases).toEqual(['newdb']);
+  });
+
+  it('addGhostDatabase is a no-op when name already in ghost set', () => {
+    useStore.setState({ ghostDatabases: ['newdb'] });
+    useStore.getState().addGhostDatabase('newdb');
+    expect(useStore.getState().ghostDatabases).toEqual(['newdb']);
+  });
+
+  it('removeGhostDatabase removes the name', () => {
+    useStore.setState({ ghostDatabases: ['a', 'b', 'c'] });
+    useStore.getState().removeGhostDatabase('b');
+    expect(useStore.getState().ghostDatabases).toEqual(['a', 'c']);
+  });
+
+  it('removeGhostDatabase clears selection state if removing currently-selected ghost', () => {
+    useStore.setState({
+      ghostDatabases: ['ghosty'],
+      selectedDb: 'ghosty',
+      selectedCollection: 'whatever',
+      collections: [{ name: 'whatever', type: 'collection' }],
+    });
+    useStore.getState().removeGhostDatabase('ghosty');
+    const state = useStore.getState();
+    expect(state.ghostDatabases).toEqual([]);
+    expect(state.selectedDb).toBeNull();
+    expect(state.selectedCollection).toBeNull();
+    expect(state.collections).toEqual([]);
+  });
+
+  it('removeGhostDatabase preserves selection when a different db is selected', () => {
+    useStore.setState({
+      ghostDatabases: ['ghosty'],
+      selectedDb: 'realdb',
+      selectedCollection: 'users',
+    });
+    useStore.getState().removeGhostDatabase('ghosty');
+    const state = useStore.getState();
+    expect(state.selectedDb).toBe('realdb');
+    expect(state.selectedCollection).toBe('users');
+  });
+
+  it('disconnect() clears ghostDatabases', async () => {
+    mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
+    useStore.setState({ ghostDatabases: ['ghosty', 'spooky'] });
+
+    await useStore.getState().disconnect();
+
+    expect(useStore.getState().ghostDatabases).toEqual([]);
+  });
+
+  it('connect() clears any existing ghostDatabases', async () => {
+    useStore.setState({ ghostDatabases: ['stale-ghost'] });
+    mockApi.connect.mockResolvedValue({
+      ok: true,
+      data: makeSession({ databases: [{ name: 'realdb', sizeOnDisk: 1, empty: false }] }),
+    });
+
+    await useStore.getState().connect('mongodb://localhost');
+
+    expect(useStore.getState().ghostDatabases).toEqual([]);
+  });
+
+  it('refreshDatabases() calls listDatabases and updates databases', async () => {
+    mockApi.listDatabases.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'newone', sizeOnDisk: 100, empty: false }],
+    });
+
+    await useStore.getState().refreshDatabases();
+
+    expect(mockApi.listDatabases).toHaveBeenCalled();
+    expect(useStore.getState().databases).toEqual([{ name: 'newone', sizeOnDisk: 100, empty: false }]);
+  });
+
+  it('refreshDatabases() leaves state unchanged when IPC fails', async () => {
+    useStore.setState({ databases: [{ name: 'old', sizeOnDisk: 1, empty: false }] });
+    mockApi.listDatabases.mockResolvedValue({ ok: false, error: 'network' });
+
+    await useStore.getState().refreshDatabases();
+
+    expect(useStore.getState().databases).toEqual([{ name: 'old', sizeOnDisk: 1, empty: false }]);
   });
 });
 

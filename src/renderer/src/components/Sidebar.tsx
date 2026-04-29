@@ -4,12 +4,13 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw, KeyRound } from 'lucide-react';
+import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw, KeyRound, Plus } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
 import { ExportDatabaseDialog } from './ExportDatabaseDialog';
 import { DropDatabaseDialog } from './DropDatabaseDialog';
+import { NewDatabaseDialog } from './NewDatabaseDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
@@ -212,11 +213,13 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
 interface DatabaseRowProps {
   dbName: string;
   isOpen: boolean;
+  isGhost: boolean;
   collections: { name: string; count?: number }[];
   selectedCollection: string | null;
   loading: boolean;
   onSelectDb: () => void;
   onSelectCollection: (dbName: string, collName: string) => void;
+  onRemoveGhost: () => void;
 }
 
 function parseStage(stage: string | undefined): { index: number; total: number } | null {
@@ -229,11 +232,13 @@ function parseStage(stage: string | undefined): { index: number; total: number }
 function DatabaseRow({
   dbName,
   isOpen,
+  isGhost,
   collections,
   selectedCollection,
   loading,
   onSelectDb,
   onSelectCollection,
+  onRemoveGhost,
 }: DatabaseRowProps) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
@@ -248,6 +253,7 @@ function DatabaseRow({
   const imp = useOperation('import-collection');
 
   const refreshDocs = useStore((s) => s.refreshDocs);
+  const refreshDatabases = useStore((s) => s.refreshDatabases);
   const selectDb = useStore((s) => s.selectDb);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
@@ -330,6 +336,7 @@ function DatabaseRow({
     }
 
     onSelectDb();
+    await refreshDatabases();
     if (storeSelectedDb === dbName && files.some((f) => f.suggestedName === storeSelectedCollection)) {
       refreshDocs();
     }
@@ -434,7 +441,7 @@ function DatabaseRow({
               className={`group/db w-full justify-between text-sm font-medium ${busy ? 'animate-pulse bg-accent/40' : ''}`}
               onClick={onSelectDb}
             >
-              <span className="truncate">{dbName}</span>
+              <span className={`truncate ${isGhost ? 'text-muted-foreground' : ''}`}>{dbName}</span>
               <span className="flex items-center gap-1">
                 {importing && (
                   <span className="text-[10px] text-muted-foreground">
@@ -474,33 +481,37 @@ function DatabaseRow({
                     <Menu.Portal>
                       <Menu.Positioner sideOffset={4} align="start" className="z-50">
                         <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
-                          <Menu.Item
-                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (dbName === storeSelectedDb) {
-                                const result = await window.api.listCollections(dbName);
-                                if (result.ok) {
-                                  useStore.setState({ collections: result.data });
+                          {!isGhost && (
+                            <Menu.Item
+                              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (dbName === storeSelectedDb) {
+                                  const result = await window.api.listCollections(dbName);
+                                  if (result.ok) {
+                                    useStore.setState({ collections: result.data });
+                                  }
+                                } else {
+                                  onSelectDb();
                                 }
-                              } else {
-                                onSelectDb();
-                              }
-                            }}
-                          >
-                            <RefreshCw className="h-3 w-3" />
-                            Refresh
-                          </Menu.Item>
-                          <Menu.Item
-                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleExportClick(e);
-                            }}
-                          >
-                            <Download className="h-3 w-3" />
-                            Export
-                          </Menu.Item>
+                              }}
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Refresh
+                            </Menu.Item>
+                          )}
+                          {!isGhost && (
+                            <Menu.Item
+                              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportClick(e);
+                              }}
+                            >
+                              <Download className="h-3 w-3" />
+                              Export
+                            </Menu.Item>
+                          )}
                           <Menu.Item
                             className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                             onClick={(e) => {
@@ -511,17 +522,35 @@ function DatabaseRow({
                             <Upload className="h-3 w-3" />
                             Import
                           </Menu.Item>
-                          <div className="my-1 h-px bg-border" />
-                          <Menu.Item
-                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDropClick(e);
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Drop collections…
-                          </Menu.Item>
+                          {isGhost ? (
+                            <>
+                              <div className="my-1 h-px bg-border" />
+                              <Menu.Item
+                                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRemoveGhost();
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                                Remove
+                              </Menu.Item>
+                            </>
+                          ) : (
+                            <>
+                              <div className="my-1 h-px bg-border" />
+                              <Menu.Item
+                                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDropClick(e);
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Drop collections…
+                              </Menu.Item>
+                            </>
+                          )}
                         </Menu.Popup>
                       </Menu.Positioner>
                     </Menu.Portal>
@@ -593,16 +622,29 @@ function DatabaseRow({
 
 export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
   const databases = useStore((s) => s.databases);
+  const ghostDatabases = useStore((s) => s.ghostDatabases);
   const collections = useStore((s) => s.collections);
   const selectedDb = useStore((s) => s.selectedDb);
   const selectedCollection = useStore((s) => s.selectedCollection);
   const selectDb = useStore((s) => s.selectDb);
   const selectCollection = useStore((s) => s.selectCollection);
+  const addGhostDatabase = useStore((s) => s.addGhostDatabase);
+  const removeGhostDatabase = useStore((s) => s.removeGhostDatabase);
   const loading = useStore((s) => s.loading);
   const uri = useStore((s) => s.uri);
   const savedConnections = useStore((s) => s.savedConnections);
 
   const displayName = getConnectionDisplayName(uri, savedConnections);
+
+  const [newDbDialogOpen, setNewDbDialogOpen] = useState(false);
+
+  const realNames = new Set(databases.map((d) => d.name));
+  const displayDatabases: { name: string; isGhost: boolean }[] = [
+    ...databases.map((d) => ({ name: d.name, isGhost: false })),
+    ...ghostDatabases.filter((g) => !realNames.has(g)).map((name) => ({ name, isGhost: true })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
+  const existingNames = [...databases.map((d) => d.name), ...ghostDatabases];
 
   const dragging = useRef(false);
 
@@ -649,26 +691,42 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-1">
-          {databases.length === 0 && !loading && (
+          {displayDatabases.length === 0 && !loading && (
             <p className="text-xs text-muted-foreground px-2 py-4 text-center">No databases</p>
           )}
-          {databases.length === 0 && loading && <Loader className="py-4" />}
-          {[...databases]
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .map((db) => (
-              <DatabaseRow
-                key={db.name}
-                dbName={db.name}
-                isOpen={selectedDb === db.name}
-                collections={collections}
-                selectedCollection={selectedCollection}
-                loading={loading}
-                onSelectDb={() => selectDb(db.name)}
-                onSelectCollection={selectCollection}
-              />
-            ))}
+          {displayDatabases.length === 0 && loading && <Loader className="py-4" />}
+          {displayDatabases.map((db) => (
+            <DatabaseRow
+              key={db.name}
+              dbName={db.name}
+              isOpen={selectedDb === db.name}
+              isGhost={db.isGhost}
+              collections={collections}
+              selectedCollection={selectedCollection}
+              loading={loading}
+              onSelectDb={() => selectDb(db.name)}
+              onSelectCollection={selectCollection}
+              onRemoveGhost={() => removeGhostDatabase(db.name)}
+            />
+          ))}
         </div>
       </ScrollArea>
+      <div className="border-t p-2 shrink-0">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => setNewDbDialogOpen(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add database
+        </Button>
+      </div>
+      <NewDatabaseDialog
+        open={newDbDialogOpen}
+        onOpenChange={setNewDbDialogOpen}
+        existingNames={existingNames}
+        onAdd={addGhostDatabase}
+      />
       <div
         className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 active:bg-primary/40"
         onMouseDown={handleMouseDown}
