@@ -8,13 +8,14 @@ import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw, KeyRo
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
+import { ExportDatabaseDialog } from './ExportDatabaseDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
 import { useOperation, waitForTerminal } from '../hooks/use-operation';
-import type { ImportOptions, PickedFile } from '../../../shared/types';
+import type { CollectionInfo, ImportOptions, PickedFile } from '../../../shared/types';
 
 interface SidebarProps {
   width: number;
@@ -237,6 +238,8 @@ function DatabaseRow({
   const [pickedFiles, setPickedFiles] = useState<PickedFile[]>([]);
   const [importIndex, setImportIndex] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportableCollections, setExportableCollections] = useState<CollectionInfo[]>([]);
 
   const exp = useOperation('export-database');
   const imp = useOperation('import-collection');
@@ -336,7 +339,23 @@ function DatabaseRow({
   const handleExportClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
     if (busy) return;
-    const id = await exp.start({ kind: 'export-database', db: dbName });
+    const list = await window.api.listCollections(dbName);
+    if (!list.ok) {
+      toast.error(list.error);
+      return;
+    }
+    const exportable = list.data.filter((c) => c.type === 'collection');
+    if (exportable.length === 0) {
+      toast('Nothing to export');
+      return;
+    }
+    setExportableCollections(exportable);
+    setExportDialogOpen(true);
+  };
+
+  const handleExportConfirm = async (selected: string[]): Promise<void> => {
+    setExportDialogOpen(false);
+    const id = await exp.start({ kind: 'export-database', db: dbName, collections: selected });
     if (id === null) {
       toast.error(exp.error ?? 'Export failed');
       return;
@@ -486,6 +505,18 @@ function DatabaseRow({
           dbName={dbName}
           files={pickedFiles}
           onConfirm={handleImportConfirm}
+        />
+      )}
+      {exportableCollections.length > 0 && (
+        <ExportDatabaseDialog
+          open={exportDialogOpen}
+          onOpenChange={(open) => {
+            setExportDialogOpen(open);
+            if (!open) setExportableCollections([]);
+          }}
+          dbName={dbName}
+          collections={exportableCollections}
+          onConfirm={handleExportConfirm}
         />
       )}
     </>

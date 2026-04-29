@@ -658,6 +658,79 @@ describe('OperationRegistry', () => {
       // only a and b reached mongo.exportCollection
       expect(mongo.exportCollection).toHaveBeenCalledTimes(2);
     });
+
+    it('exports only the collections listed in params.collections', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection', count: 1 },
+            { name: 'b', type: 'collection', count: 1 },
+            { name: 'c', type: 'collection', count: 1 },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 10 }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'c'] });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+
+      const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[1]);
+      expect(exportedNames).toEqual(['a', 'c']);
+      expect(fs._sinks.map((s) => s.filePath)).toEqual(['/tmp/out/a.bson.gz', '/tmp/out/c.bson.gz']);
+    });
+
+    it('silently ignores params.collections names that do not exist in the db', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection', count: 1 },
+            { name: 'b', type: 'collection', count: 1 },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 10 }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'ghost'] });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+
+      const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[1]);
+      expect(exportedNames).toEqual(['a']);
+    });
+
+    it('exports every collection when params.collections is undefined', async () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
+      const mongo = makeMongoPort({
+        listCollections: async () => ({
+          ok: true,
+          data: [
+            { name: 'a', type: 'collection', count: 1 },
+            { name: 'b', type: 'collection', count: 1 },
+          ],
+        }),
+        exportCollection: async () => ({ ok: true, data: 10 }),
+      });
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+
+      registry.start({ kind: 'export-database', db: 'mydb' });
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('succeeded');
+
+      expect(mongo.exportCollection).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('export-database sidecar', () => {

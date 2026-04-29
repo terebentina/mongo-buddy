@@ -330,7 +330,11 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       return;
     }
 
-    const collections = listRes.data.filter((c) => c.type === 'collection');
+    let collections = listRes.data.filter((c) => c.type === 'collection');
+    if (params.collections !== undefined) {
+      const wanted = new Set(params.collections);
+      collections = collections.filter((c) => wanted.has(c.name));
+    }
     const total = collections.length;
     updateProgress(id, { processed: 0, total });
 

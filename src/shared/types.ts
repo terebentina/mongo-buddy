@@ -115,7 +115,7 @@ export interface OperationProgress {
 
 export type OperationParams =
   | { kind: 'export-collection'; db: string; collection: string }
-  | { kind: 'export-database'; db: string }
+  | { kind: 'export-database'; db: string; collections?: string[] }
   | {
       kind: 'import-collection';
       db: string;
