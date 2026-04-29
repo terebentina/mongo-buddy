@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.33.0](https://github.com/terebentina/mongo-buddy/compare/v1.32.0...v1.33.0) (2026-04-29)
+
+
+### Features
+
+* **drop:** selectively drop collections from database sidebar ([18427db](https://github.com/terebentina/mongo-buddy/commit/18427dbcb1585e8746ca07ba80495675e6365435))
+* **export:** let users pick which collections to export ([ba5523a](https://github.com/terebentina/mongo-buddy/commit/ba5523a2fa5589b92ddc3d112a7da293523db9ba))
+
 ## [1.32.0](https://github.com/terebentina/mongo-buddy/compare/v1.31.3...v1.32.0) (2026-04-27)
 
 
