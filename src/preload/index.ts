@@ -4,6 +4,7 @@ import type {
   Result,
   DbInfo,
   CollectionInfo,
+  DropCollectionsResult,
   FindOpts,
   FindResult,
   SavedConnection,
@@ -77,6 +78,8 @@ export function createApi(ipc: IpcLike) {
       ipc.invoke('mongo:delete-one', db, collection, id) as Promise<Result<undefined>>,
     dropCollection: (db: string, collection: string): Promise<Result<undefined>> =>
       ipc.invoke('mongo:drop-collection', db, collection) as Promise<Result<undefined>>,
+    dropCollections: (db: string, names: string[]): Promise<Result<DropCollectionsResult>> =>
+      ipc.invoke('mongo:drop-collections', db, names) as Promise<Result<DropCollectionsResult>>,
     listConnections: (): Promise<SavedConnection[]> => ipc.invoke('connections:list') as Promise<SavedConnection[]>,
     saveConnection: (conn: SavedConnection): Promise<void> => ipc.invoke('connections:save', conn) as Promise<void>,
     deleteConnection: (name: string): Promise<void> => ipc.invoke('connections:delete', name) as Promise<void>,

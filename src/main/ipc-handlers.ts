@@ -135,6 +135,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'mongo:drop-collection',
     wrap((db: unknown, coll: unknown) => service.dropCollection(db as string, coll as string))
   );
+  ipcMain.handle(
+    'mongo:drop-collections',
+    wrap((db: unknown, names: unknown) => service.dropCollections(db as string, names as string[]))
+  );
 
   ipcMain.handle(
     'connections:list',

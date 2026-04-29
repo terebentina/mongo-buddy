@@ -9,6 +9,7 @@ import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
 import { ExportDatabaseDialog } from './ExportDatabaseDialog';
+import { DropDatabaseDialog } from './DropDatabaseDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
@@ -240,11 +241,14 @@ function DatabaseRow({
   const [importTotal, setImportTotal] = useState(0);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportableCollections, setExportableCollections] = useState<CollectionInfo[]>([]);
+  const [dropDialogOpen, setDropDialogOpen] = useState(false);
+  const [droppableCollections, setDroppableCollections] = useState<CollectionInfo[]>([]);
 
   const exp = useOperation('export-database');
   const imp = useOperation('import-collection');
 
   const refreshDocs = useStore((s) => s.refreshDocs);
+  const selectDb = useStore((s) => s.selectDb);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
 
@@ -379,6 +383,47 @@ function DatabaseRow({
     await exp.cancel();
   };
 
+  const handleDropClick = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    if (busy) return;
+    const list = await window.api.listCollections(dbName);
+    if (!list.ok) {
+      toast.error(list.error);
+      return;
+    }
+    const droppable = list.data.filter((c) => c.type === 'collection');
+    if (droppable.length === 0) {
+      toast('Nothing to drop');
+      return;
+    }
+    setDroppableCollections(droppable);
+    setDropDialogOpen(true);
+  };
+
+  const handleDropConfirm = async (selected: string[]): Promise<void> => {
+    setDropDialogOpen(false);
+    const result = await window.api.dropCollections(dbName, selected);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const { dropped, failed } = result.data;
+    if (dropped.length > 0) {
+      toast.success(dropped.length === 1 ? `Dropped 1 collection` : `Dropped ${dropped.length} collections`);
+    }
+    for (const f of failed) {
+      toast.error(`Failed to drop ${f.name}: ${f.error}`);
+    }
+    if (storeSelectedDb === dbName) {
+      if (storeSelectedCollection !== null && dropped.includes(storeSelectedCollection)) {
+        await selectDb(dbName);
+      } else {
+        const r = await window.api.listCollections(dbName);
+        if (r.ok) useStore.setState({ collections: r.data });
+      }
+    }
+  };
+
   return (
     <>
       <Collapsible open={isOpen}>
@@ -466,6 +511,17 @@ function DatabaseRow({
                             <Upload className="h-3 w-3" />
                             Import
                           </Menu.Item>
+                          <div className="my-1 h-px bg-border" />
+                          <Menu.Item
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDropClick(e);
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Drop collections…
+                          </Menu.Item>
                         </Menu.Popup>
                       </Menu.Positioner>
                     </Menu.Portal>
@@ -517,6 +573,18 @@ function DatabaseRow({
           dbName={dbName}
           collections={exportableCollections}
           onConfirm={handleExportConfirm}
+        />
+      )}
+      {droppableCollections.length > 0 && (
+        <DropDatabaseDialog
+          open={dropDialogOpen}
+          onOpenChange={(open) => {
+            setDropDialogOpen(open);
+            if (!open) setDroppableCollections([]);
+          }}
+          dbName={dbName}
+          collections={droppableCollections}
+          onConfirm={handleDropConfirm}
         />
       )}
     </>

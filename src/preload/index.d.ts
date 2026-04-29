@@ -3,6 +3,7 @@ import type {
   Result,
   DbInfo,
   CollectionInfo,
+  DropCollectionsResult,
   FindOpts,
   FindResult,
   SavedConnection,
@@ -63,6 +64,7 @@ interface MongoApi {
   ): Promise<Result<Record<string, unknown>>>;
   deleteOne(db: string, collection: string, id: unknown): Promise<Result<undefined>>;
   dropCollection(db: string, collection: string): Promise<Result<undefined>>;
+  dropCollections(db: string, names: string[]): Promise<Result<DropCollectionsResult>>;
   listConnections(): Promise<SavedConnection[]>;
   saveConnection(conn: SavedConnection): Promise<void>;
   deleteConnection(name: string): Promise<void>;

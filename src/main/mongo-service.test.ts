@@ -393,6 +393,55 @@ describe('MongoService', () => {
     });
   });
 
+  describe('dropCollections', () => {
+    it('drops every name when all succeed', async () => {
+      const result = await service.dropCollections('testdb', ['users', 'orders', 'logs']);
+
+      expect(result).toEqual({
+        ok: true,
+        data: { dropped: ['users', 'orders', 'logs'], failed: [] },
+      });
+      expect(mockClient.db).toHaveBeenCalledWith('testdb');
+      expect(mockDb.dropCollection).toHaveBeenCalledTimes(3);
+      expect(mockDb.dropCollection).toHaveBeenNthCalledWith(1, 'users');
+      expect(mockDb.dropCollection).toHaveBeenNthCalledWith(2, 'orders');
+      expect(mockDb.dropCollection).toHaveBeenNthCalledWith(3, 'logs');
+    });
+
+    it('continues on error and lists failures separately', async () => {
+      mockDb.dropCollection
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('not authorized'))
+        .mockResolvedValueOnce(undefined);
+
+      const result = await service.dropCollections('testdb', ['users', 'orders', 'logs']);
+
+      expect(result).toEqual({
+        ok: true,
+        data: {
+          dropped: ['users', 'logs'],
+          failed: [{ name: 'orders', error: 'not authorized' }],
+        },
+      });
+      expect(mockDb.dropCollection).toHaveBeenCalledTimes(3);
+    });
+
+    it('returns empty result for empty input without calling driver', async () => {
+      const result = await service.dropCollections('testdb', []);
+
+      expect(result).toEqual({ ok: true, data: { dropped: [], failed: [] } });
+      expect(mockDb.dropCollection).not.toHaveBeenCalled();
+    });
+
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
+      const result = await service.dropCollections('testdb', ['users']);
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+  });
+
   describe('exportCollection', () => {
     const makeCursor = (
       docs: Record<string, unknown>[]

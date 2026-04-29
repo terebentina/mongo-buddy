@@ -79,6 +79,11 @@ export interface IndexInfo {
   [k: string]: unknown;
 }
 
+export interface DropCollectionsResult {
+  dropped: string[];
+  failed: { name: string; error: string }[];
+}
+
 export type ConnectionState =
   | { status: 'disconnected' }
   | { status: 'connecting'; uri: string }

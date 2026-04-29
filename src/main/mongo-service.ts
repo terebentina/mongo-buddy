@@ -6,6 +6,7 @@ import type {
   Result,
   DbInfo,
   CollectionInfo,
+  DropCollectionsResult,
   FindOpts,
   FindResult,
   ImportOptions,
@@ -406,6 +407,26 @@ export class MongoService {
       const client = this.conn.requireClient();
       await client.db(dbName).dropCollection(collName);
       return { ok: true, data: undefined };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async dropCollections(dbName: string, names: string[]): Promise<Result<DropCollectionsResult>> {
+    try {
+      const client = this.conn.requireClient();
+      const db = client.db(dbName);
+      const dropped: string[] = [];
+      const failed: { name: string; error: string }[] = [];
+      for (const name of names) {
+        try {
+          await db.dropCollection(name);
+          dropped.push(name);
+        } catch (err) {
+          failed.push({ name, error: (err as Error).message });
+        }
+      }
+      return { ok: true, data: { dropped, failed } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
