@@ -220,7 +220,15 @@ export class MongoService {
   ): Promise<Result<{ inserted: number; skipped: number }>> {
     try {
       const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const db = client.db(dbName);
+      const collection = db.collection(collName);
+
+      try {
+        await db.createCollection(collName);
+      } catch (err) {
+        // 48 = NamespaceExists; collection already exists, which is fine.
+        if ((err as { code?: unknown }).code !== 48) throw err;
+      }
 
       if (options.clearFirst) {
         await collection.deleteMany({});

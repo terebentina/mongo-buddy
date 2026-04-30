@@ -15,6 +15,7 @@ describe('MongoService', () => {
     collection: ReturnType<typeof vi.fn>;
     admin: ReturnType<typeof vi.fn>;
     dropCollection: ReturnType<typeof vi.fn>;
+    createCollection: ReturnType<typeof vi.fn>;
   };
   let mockCollection: {
     find: ReturnType<typeof vi.fn>;
@@ -52,6 +53,7 @@ describe('MongoService', () => {
       collection: vi.fn().mockReturnValue(mockCollection),
       admin: vi.fn(),
       dropCollection: vi.fn().mockResolvedValue(undefined),
+      createCollection: vi.fn().mockResolvedValue(undefined),
     };
     mockClient = {
       close: vi.fn().mockResolvedValue(undefined),
@@ -739,6 +741,75 @@ describe('MongoService', () => {
         new AbortController().signal
       );
       expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+
+    it('calls db.createCollection at start, before deleteMany and insertMany', async () => {
+      mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
+
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf([{ a: 1 }]),
+        { onDuplicate: 'fail', clearFirst: true },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result.ok).toBe(true);
+      expect(mockDb.createCollection).toHaveBeenCalledWith('users');
+      const createOrder = mockDb.createCollection.mock.invocationCallOrder[0];
+      const deleteOrder = mockCollection.deleteMany.mock.invocationCallOrder[0];
+      const insertOrder = mockCollection.insertMany.mock.invocationCallOrder[0];
+      expect(createOrder).toBeLessThan(deleteOrder);
+      expect(createOrder).toBeLessThan(insertOrder);
+    });
+
+    it('swallows NamespaceExists (code 48) from createCollection', async () => {
+      mockDb.createCollection.mockRejectedValue(Object.assign(new Error('ns exists'), { code: 48 }));
+      mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
+
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf([{ a: 1 }]),
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result).toEqual({ ok: true, data: { inserted: 1, skipped: 0 } });
+      expect(mockCollection.insertMany).toHaveBeenCalled();
+    });
+
+    it('propagates non-NamespaceExists errors from createCollection as failure', async () => {
+      mockDb.createCollection.mockRejectedValue(new Error('boom'));
+
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf([{ a: 1 }]),
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result).toEqual({ ok: false, error: 'boom' });
+      expect(mockCollection.insertMany).not.toHaveBeenCalled();
+    });
+
+    it('empty stream still creates the collection', async () => {
+      const result = await service.importCollection(
+        'testdb',
+        'users',
+        streamOf([]),
+        { onDuplicate: 'fail', clearFirst: false },
+        vi.fn(),
+        new AbortController().signal
+      );
+
+      expect(result).toEqual({ ok: true, data: { inserted: 0, skipped: 0 } });
+      expect(mockDb.createCollection).toHaveBeenCalledWith('users');
+      expect(mockCollection.insertMany).not.toHaveBeenCalled();
     });
   });
 
