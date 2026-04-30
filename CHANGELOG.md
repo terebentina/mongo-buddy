@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.34.1](https://github.com/terebentina/mongo-buddy/compare/v1.34.0...v1.34.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* **import:** create target collection so empty imports succeed ([8b6136e](https://github.com/terebentina/mongo-buddy/commit/8b6136e8fa8186b2a35d42d7784d115076e980f0))
+
 ## [1.34.0](https://github.com/terebentina/mongo-buddy/compare/v1.33.0...v1.34.0) (2026-04-29)
 
 
