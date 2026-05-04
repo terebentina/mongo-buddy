@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.35.0](https://github.com/terebentina/mongo-buddy/compare/v1.34.1...v1.35.0) (2026-05-04)
+
+
+### Features
+
+* **indexes:** drop indexes from the indexes modal ([0cddf4c](https://github.com/terebentina/mongo-buddy/commit/0cddf4c78b3ee6eef245f6bffff62c0d2415a18d))
+
 ## [1.34.1](https://github.com/terebentina/mongo-buddy/compare/v1.34.0...v1.34.1) (2026-04-30)
 
 
