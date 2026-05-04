@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.36.0](https://github.com/terebentina/mongo-buddy/compare/v1.35.0...v1.36.0) (2026-05-04)
+
+
+### Features
+
+* **query:** add Explain button to run query plan diagnostics ([9204cd9](https://github.com/terebentina/mongo-buddy/commit/9204cd9320c016bba26e91e2b184ea97ad3ace44))
+
 ## [1.35.0](https://github.com/terebentina/mongo-buddy/compare/v1.34.1...v1.35.0) (2026-05-04)
 
 
