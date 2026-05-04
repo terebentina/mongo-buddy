@@ -420,6 +420,19 @@ export class MongoService {
     }
   }
 
+  async dropIndex(dbName: string, collName: string, indexName: string): Promise<Result<undefined>> {
+    if (indexName === '_id_') {
+      return { ok: false, error: 'Cannot drop the _id_ index' };
+    }
+    try {
+      const client = this.conn.requireClient();
+      await client.db(dbName).collection(collName).dropIndex(indexName);
+      return { ok: true, data: undefined };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
   async dropCollections(dbName: string, names: string[]): Promise<Result<DropCollectionsResult>> {
     try {
       const client = this.conn.requireClient();

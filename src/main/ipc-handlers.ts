@@ -132,6 +132,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     wrap((db: unknown, coll: unknown, id: unknown) => service.deleteOne(db as string, coll as string, id))
   );
   ipcMain.handle(
+    'mongo:drop-index',
+    wrap((db: unknown, coll: unknown, name: unknown) => service.dropIndex(db as string, coll as string, name as string))
+  );
+  ipcMain.handle(
     'mongo:drop-collection',
     wrap((db: unknown, coll: unknown) => service.dropCollection(db as string, coll as string))
   );

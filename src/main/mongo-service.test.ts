@@ -30,6 +30,7 @@ describe('MongoService', () => {
     deleteOne: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
     indexes: ReturnType<typeof vi.fn>;
+    dropIndex: ReturnType<typeof vi.fn>;
   };
   let requireClient: ReturnType<typeof vi.fn<() => MongoClient>>;
 
@@ -47,6 +48,7 @@ describe('MongoService', () => {
       deleteOne: vi.fn(),
       distinct: vi.fn(),
       indexes: vi.fn(),
+      dropIndex: vi.fn().mockResolvedValue(undefined),
     };
     mockDb = {
       listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
@@ -886,6 +888,36 @@ describe('MongoService', () => {
       mockCollection.indexes.mockRejectedValue(new Error('ns not found'));
       const result = await service.listIndexes('testdb', 'users');
       expect(result).toEqual({ ok: false, error: 'ns not found' });
+    });
+  });
+
+  describe('dropIndex', () => {
+    it('refuses to drop the _id_ index without calling the driver', async () => {
+      const result = await service.dropIndex('testdb', 'users', '_id_');
+      expect(result).toEqual({ ok: false, error: 'Cannot drop the _id_ index' });
+      expect(mockCollection.dropIndex).not.toHaveBeenCalled();
+    });
+
+    it('drops the named index and returns ok', async () => {
+      const result = await service.dropIndex('testdb', 'users', 'email_1');
+      expect(mockClient.db).toHaveBeenCalledWith('testdb');
+      expect(mockDb.collection).toHaveBeenCalledWith('users');
+      expect(mockCollection.dropIndex).toHaveBeenCalledWith('email_1');
+      expect(result).toEqual({ ok: true, data: undefined });
+    });
+
+    it('surfaces driver errors verbatim', async () => {
+      mockCollection.dropIndex.mockRejectedValue(new Error('index not found with name [foo]'));
+      const result = await service.dropIndex('testdb', 'users', 'foo');
+      expect(result).toEqual({ ok: false, error: 'index not found with name [foo]' });
+    });
+
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
+      const result = await service.dropIndex('testdb', 'users', 'email_1');
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 

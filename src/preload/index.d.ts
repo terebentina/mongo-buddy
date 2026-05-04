@@ -65,6 +65,7 @@ interface MongoApi {
   deleteOne(db: string, collection: string, id: unknown): Promise<Result<undefined>>;
   dropCollection(db: string, collection: string): Promise<Result<undefined>>;
   dropCollections(db: string, names: string[]): Promise<Result<DropCollectionsResult>>;
+  dropIndex(db: string, collection: string, name: string): Promise<Result<undefined>>;
   listConnections(): Promise<SavedConnection[]>;
   saveConnection(conn: SavedConnection): Promise<void>;
   deleteConnection(name: string): Promise<void>;

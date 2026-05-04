@@ -33,7 +33,7 @@ interface CollectionRowProps {
 }
 
 function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps) {
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [dropDialogOpen, setDropDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
   const [indexesOpen, setIndexesOpen] = useState(false);
 
@@ -68,14 +68,14 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
     await exp.cancel();
   };
 
-  const handleDelete = async (): Promise<void> => {
+  const handleDrop = async (): Promise<void> => {
     const result = await window.api.dropCollection(dbName, coll.name);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
     toast.success(`Dropped collection "${coll.name}"`);
-    setDeleteDialogOpen(false);
+    setDropDialogOpen(false);
     setConfirmText('');
 
     if (selectedCollection === coll.name) {
@@ -161,11 +161,11 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
                       className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setDeleteDialogOpen(true);
+                        setDropDialogOpen(true);
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
-                      Delete
+                      Drop
                     </Menu.Item>
                   </Menu.Popup>
                 </Menu.Positioner>
@@ -175,18 +175,18 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
         </span>
       </div>
       <Dialog
-        open={deleteDialogOpen}
+        open={dropDialogOpen}
         onOpenChange={(open) => {
-          setDeleteDialogOpen(open);
+          setDropDialogOpen(open);
           if (!open) setConfirmText('');
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete collection</DialogTitle>
+            <DialogTitle>Drop collection</DialogTitle>
             <DialogDescription>
-              This will permanently delete <strong>{coll.name}</strong> and all its documents. Type the collection name
-              to confirm.
+              This will permanently drop <strong>{coll.name}</strong> and all its documents. Type the collection name to
+              confirm.
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -196,11 +196,11 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDropDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" disabled={confirmText !== coll.name} onClick={handleDelete}>
-              Delete
+            <Button variant="destructive" disabled={confirmText !== coll.name} onClick={handleDrop}>
+              Drop
             </Button>
           </DialogFooter>
         </DialogContent>

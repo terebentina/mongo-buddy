@@ -28,6 +28,14 @@ _Avoid_: live connection, mongo session, client wrapper.
 The opaque per-connection identity string, derived from the URI. Used to scope per-connection storage (query history today; possibly favorites or saved queries later). Currently typed as `string`.
 _Avoid_: connection id, uri hash.
 
+### Verbs
+
+**drop**:
+The verb for destructive removal of a MongoDB object (collection, index, eventually database, view…). Used everywhere: backend service methods (`dropIndex`, `dropCollection`), IPC channels (`mongo:drop-index`), UI labels ("Drop index", "Drop collection"), confirmation dialogs, button labels, internal state and handler names (`dropDialogOpen`, `handleDrop`), and toasts ("Dropped index 'X'").
+_Avoid_: delete, remove. We say "drop" because that is the MongoDB driver's word and the cost is meaningfully higher than a row-level delete — choosing one verb across the stack prevents drift between UI copy and backend vocabulary.
+
+Note: `deleteOne` (single-document removal) is unaffected — that is a different operation with a different driver verb.
+
 ### MongoDB operations
 
 **MongoService**:
@@ -35,6 +43,16 @@ The namespace of MongoDB operations on the main process. Each method takes an **
 
 **MCP tool**:
 A read-only operation exposed to external MCP clients (Claude, Cursor, etc.). All current tools dispatch through **MongoService**.
+
+### Indexes
+
+**IndexInfo**:
+The read-side shape — what `collection.indexes()` returns. Carries driver-managed fields (`v`, `ns`, `textIndexVersion`, etc.) and always includes the `_id_` index. Consumed by the list view and the drop-index flow.
+
+**IndexSpec**:
+The write-side shape — what we hand to `collection.createIndexes()` and what we serialize to an exported sidecar JSON. Sanitized: driver-only fields stripped, `_id_` excluded.
+
+Currently `IndexSpec = IndexInfo` (alias in `src/main/index-spec.ts`). The names exist so a future structural split has a place to slot into; do not pass a raw **IndexInfo** to `createIndexes()` even though the types align — go through `sanitizeForExport()` or treat the value as already sanitized.
 
 ### Operations (export/import)
 

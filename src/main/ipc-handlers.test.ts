@@ -39,6 +39,7 @@ describe('IPC Handlers', () => {
     deleteOne: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
     listIndexes: ReturnType<typeof vi.fn>;
+    dropIndex: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>;
@@ -105,6 +106,7 @@ describe('IPC Handlers', () => {
       deleteOne: vi.fn(),
       distinct: vi.fn(),
       listIndexes: vi.fn(),
+      dropIndex: vi.fn(),
     };
 
     mockConnStore = {
@@ -177,6 +179,7 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:insert-one']).toBeDefined();
     expect(handlers['mongo:update-one']).toBeDefined();
     expect(handlers['mongo:delete-one']).toBeDefined();
+    expect(handlers['mongo:drop-index']).toBeDefined();
     expect(handlers['connections:list']).toBeDefined();
     expect(handlers['connections:save']).toBeDefined();
     expect(handlers['connections:delete']).toBeDefined();
@@ -348,6 +351,26 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:delete-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', '123');
       expect(mockService.deleteOne).toHaveBeenCalledWith('testdb', 'users', '123');
       expect(result).toEqual({ ok: true, data: undefined });
+    });
+  });
+
+  describe('mongo:drop-index', () => {
+    it('calls MongoService.dropIndex with db, collection, and index name', async () => {
+      mockService.dropIndex.mockResolvedValue({ ok: true, data: undefined });
+      const result = await handlers['mongo:drop-index'](
+        {} as Electron.IpcMainInvokeEvent,
+        'testdb',
+        'users',
+        'email_1'
+      );
+      expect(mockService.dropIndex).toHaveBeenCalledWith('testdb', 'users', 'email_1');
+      expect(result).toEqual({ ok: true, data: undefined });
+    });
+
+    it('forwards service error result', async () => {
+      mockService.dropIndex.mockResolvedValue({ ok: false, error: 'Cannot drop the _id_ index' });
+      const result = await handlers['mongo:drop-index']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', '_id_');
+      expect(result).toEqual({ ok: false, error: 'Cannot drop the _id_ index' });
     });
   });
 
