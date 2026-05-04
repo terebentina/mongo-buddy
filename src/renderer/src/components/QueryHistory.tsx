@@ -60,7 +60,7 @@ export function QueryHistory() {
                     className="flex items-start gap-2 px-3 py-2 text-left text-sm hover:bg-accent transition-colors border-b last:border-b-0"
                     onClick={() => handleClick(entry)}
                   >
-                    {entry.type === 'filter' ? (
+                    {entry.queryMode === 'filter' ? (
                       <Filter className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
                     ) : (
                       <Layers className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />

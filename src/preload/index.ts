@@ -16,6 +16,7 @@ import type {
   OperationId,
   OperationRecord,
   McpStatus,
+  QueryMode,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
@@ -52,6 +53,13 @@ export function createApi(ipc: IpcLike) {
       pipeline: Record<string, unknown>[]
     ): Promise<Result<Record<string, unknown>[]>> =>
       ipc.invoke('mongo:aggregate', db, collection, pipeline) as Promise<Result<Record<string, unknown>[]>>,
+    explain: (
+      db: string,
+      collection: string,
+      queryMode: QueryMode,
+      query: Record<string, unknown> | Record<string, unknown>[]
+    ): Promise<Result<Record<string, unknown>>> =>
+      ipc.invoke('mongo:explain', db, collection, queryMode, query) as Promise<Result<Record<string, unknown>>>,
     sampleFields: (db: string, collection: string): Promise<Result<string[]>> =>
       ipc.invoke('mongo:sample-fields', db, collection) as Promise<Result<string[]>>,
     distinct: (

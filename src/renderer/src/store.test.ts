@@ -74,7 +74,7 @@ beforeEach(() => {
 describe('store', () => {
   it('connect(uri) applies ConnectedSession atomically in one setState', async () => {
     const historyEntries = [
-      { id: '1', type: 'filter' as const, query: '{}', db: 'test', collection: 'users', timestamp: 1000 },
+      { id: '1', queryMode: 'filter' as const, query: '{}', db: 'test', collection: 'users', timestamp: 1000 },
     ];
     mockApi.connect.mockResolvedValue({
       ok: true,
@@ -328,7 +328,7 @@ describe('store', () => {
 
     const state = useStore.getState();
     expect(state.queryHistory).toHaveLength(1);
-    expect(state.queryHistory[0].type).toBe('filter');
+    expect(state.queryHistory[0].queryMode).toBe('filter');
     expect(state.queryHistory[0].query).toBe('{"name":"Alice"}');
     expect(state.queryHistory[0].db).toBe('testdb');
     expect(state.queryHistory[0].collection).toBe('users');
@@ -429,7 +429,7 @@ describe('store', () => {
 describe('addToHistory', () => {
   const makeEntry = (overrides = {}) => ({
     id: 'test-id',
-    type: 'filter' as const,
+    queryMode: 'filter' as const,
     query: '{"name":"Alice"}',
     db: 'testdb',
     collection: 'users',
@@ -498,7 +498,7 @@ describe('switchCollection', () => {
 describe('restoreFromHistory', () => {
   const makeEntry = (overrides = {}) => ({
     id: 'test-id',
-    type: 'filter' as const,
+    queryMode: 'filter' as const,
     query: '{"name":"Alice"}',
     db: 'testdb',
     collection: 'users',
@@ -541,7 +541,7 @@ describe('restoreFromHistory', () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
     mockApi.aggregate.mockResolvedValue({ ok: true, data: [{ _id: 1 }] });
 
-    await useStore.getState().restoreFromHistory(makeEntry({ type: 'aggregate', query: '[{"$match":{}}]' }));
+    await useStore.getState().restoreFromHistory(makeEntry({ queryMode: 'aggregate', query: '[{"$match":{}}]' }));
 
     const state = useStore.getState();
     expect(state.pendingQueryMode).toBe('aggregate');
@@ -564,7 +564,7 @@ describe('restoreFromHistory', () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
     mockApi.aggregate.mockResolvedValue({ ok: true, data: [] });
 
-    await useStore.getState().restoreFromHistory(makeEntry({ type: 'aggregate', query: '[{"$match":{}}]' }));
+    await useStore.getState().restoreFromHistory(makeEntry({ queryMode: 'aggregate', query: '[{"$match":{}}]' }));
 
     expect(useStore.getState().filter).toEqual({});
   });

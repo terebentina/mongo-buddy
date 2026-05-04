@@ -19,6 +19,7 @@ import type {
   OperationRecord,
   OperationProgress,
   McpStatus,
+  QueryMode,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
 
@@ -48,6 +49,12 @@ interface MongoApi {
     collection: string,
     pipeline: Record<string, unknown>[]
   ): Promise<Result<Record<string, unknown>[]>>;
+  explain(
+    db: string,
+    collection: string,
+    queryMode: QueryMode,
+    query: Record<string, unknown> | Record<string, unknown>[]
+  ): Promise<Result<Record<string, unknown>>>;
   sampleFields(db: string, collection: string): Promise<Result<string[]>>;
   distinct(
     db: string,

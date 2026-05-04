@@ -9,6 +9,7 @@ const EXPECTED_TOOL_NAMES = [
   'aggregate',
   'count',
   'distinct',
+  'explain',
   'find',
   'list_collections',
   'list_databases',

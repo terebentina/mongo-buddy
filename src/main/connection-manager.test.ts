@@ -92,7 +92,7 @@ describe('ConnectionManager', () => {
         estimatedCountImpl: async (_db, coll) => (coll === 'users' ? 10 : 20),
       });
       const history: QueryHistoryEntry[] = [
-        { id: 'h1', type: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 },
+        { id: 'h1', queryMode: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 },
       ];
       const built = makeDeps({ client, getAll: () => history });
       mgr = createConnectionManager(built.deps);
@@ -107,7 +107,7 @@ describe('ConnectionManager', () => {
         uri: 'mongodb://localhost/',
         connectionKey: 'key:mongodb://localhost/',
         databases: [{ name: 'mydb', sizeOnDisk: 1024, empty: false }],
-        queryHistory: [{ id: 'h1', type: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 }],
+        queryHistory: [{ id: 'h1', queryMode: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 }],
         autoSelectedDb: 'mydb',
         collections: [
           { name: 'users', type: 'collection', count: 10 },

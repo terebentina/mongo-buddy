@@ -35,9 +35,11 @@ export interface ExportProgress {
   count: number;
 }
 
+export type QueryMode = 'filter' | 'aggregate';
+
 export interface QueryHistoryEntry {
   id: string;
-  type: 'filter' | 'aggregate';
+  queryMode: QueryMode;
   query: string;
   db: string;
   collection: string;

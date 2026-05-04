@@ -42,7 +42,7 @@ describe('QueryHistoryStore', () => {
 
   const entry = {
     id: '1',
-    type: 'filter' as const,
+    queryMode: 'filter' as const,
     query: '{ name: "test" }',
     db: 'testdb',
     collection: 'users',

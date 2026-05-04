@@ -36,6 +36,16 @@ _Avoid_: delete, remove. We say "drop" because that is the MongoDB driver's word
 
 Note: `deleteOne` (single-document removal) is unaffected — that is a different operation with a different driver verb.
 
+**explain**:
+The verb for MongoDB's read-only diagnostic operation that returns a query plan plus execution stats. Used end-to-end: UI button label ("Explain"), IPC channel `mongo:explain`, MCP tool `explain`, service method `MongoService.explain`, store action `runExplain`. Verbosity is hardcoded to `executionStats` — we don't expose other levels (`queryPlanner`, `allPlansExecution`).
+_Avoid_: analyze, profile. Those terms have specific meanings in MongoDB ("profile" = the database profiler, a separate feature) and would mislead.
+
+### Query types
+
+**QueryMode**:
+The discriminator between the two query shapes the user can run against a collection: `'filter'` (a find filter document) or `'aggregate'` (an aggregation pipeline). Defined in `shared/types.ts` as `type QueryMode = 'filter' | 'aggregate'`. Used as the field name `queryMode` everywhere it appears: store state, `QueryHistoryEntry.queryMode`, `MongoService.explain` parameter, MCP tool input, IPC handler, preload API.
+_Avoid_: `mode`, `type` (as a field name on a query/history entry), `kind`. The single canonical name keeps the discriminator the same word at every layer.
+
 ### MongoDB operations
 
 **MongoService**:

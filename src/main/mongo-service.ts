@@ -12,6 +12,7 @@ import type {
   ImportOptions,
   DistinctResult,
   IndexInfo,
+  QueryMode,
 } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
@@ -96,6 +97,29 @@ export class MongoService {
       const rawDocs = await collection.aggregate(deserializedPipeline).toArray();
       const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
       return { ok: true, data: docs };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
+  }
+
+  async explain(
+    dbName: string,
+    collName: string,
+    queryMode: QueryMode,
+    query: Record<string, unknown> | Record<string, unknown>[]
+  ): Promise<Result<Record<string, unknown>>> {
+    try {
+      const client = this.conn.requireClient();
+      const collection = client.db(dbName).collection(collName);
+      let plan: unknown;
+      if (queryMode === 'aggregate') {
+        const pipeline = EJSON.deserialize(query as Record<string, unknown>[]) as Record<string, unknown>[];
+        plan = await collection.aggregate(pipeline).explain('executionStats');
+      } else {
+        const filter = EJSON.deserialize(query as Record<string, unknown>) as Record<string, unknown>;
+        plan = await collection.find(filter).explain('executionStats');
+      }
+      return { ok: true, data: EJSON.serialize(plan) as Record<string, unknown> };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

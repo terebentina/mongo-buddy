@@ -35,6 +35,7 @@ vi.mock('@codemirror/view', () => {
 vi.mock('@codemirror/state', () => ({
   EditorState: {
     create: vi.fn(() => ({ doc: { toString: () => mockEditorContent } })),
+    readOnly: { of: vi.fn(() => []) },
   },
   Compartment: vi.fn().mockImplementation(function () {
     return {
@@ -47,6 +48,14 @@ vi.mock('@codemirror/autocomplete', () => ({
   autocompletion: vi.fn(() => []),
   CompletionContext: vi.fn(),
 }));
+vi.mock('@codemirror/language', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@codemirror/language')>();
+  return {
+    ...actual,
+    foldGutter: vi.fn(() => []),
+    foldKeymap: [],
+  };
+});
 
 const mockApi = {
   connect: vi.fn(),
@@ -56,6 +65,7 @@ const mockApi = {
   find: vi.fn(),
   count: vi.fn(),
   aggregate: vi.fn(),
+  explain: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
@@ -136,6 +146,48 @@ describe('QueryEditor', () => {
     await userEvent.click(filterButton);
 
     expect(useStore.getState().queryMode).toBe('filter');
+  });
+
+  it('renders an Explain button between Clear and Run', () => {
+    render(<QueryEditor />);
+    const buttons = screen.getAllByRole('button');
+    const labels = buttons.map((b) => b.textContent);
+    const clearIdx = labels.indexOf('Clear');
+    const explainIdx = labels.indexOf('Explain');
+    const runIdx = labels.indexOf('Run');
+    expect(clearIdx).toBeGreaterThanOrEqual(0);
+    expect(explainIdx).toBe(clearIdx + 1);
+    expect(runIdx).toBe(explainIdx + 1);
+  });
+
+  it('Explain button calls api.explain with filter mode and {} default', async () => {
+    mockApi.explain.mockResolvedValue({ ok: true, data: { queryPlanner: {} } });
+    render(<QueryEditor />);
+    const explainButton = screen.getByRole('button', { name: /explain/i });
+    await userEvent.click(explainButton);
+    await waitFor(() => {
+      expect(mockApi.explain).toHaveBeenCalledWith('testdb', 'users', 'filter', {});
+    });
+  });
+
+  it('Explain in aggregate mode passes pipeline to api.explain', async () => {
+    useStore.setState({ queryMode: 'aggregate' });
+    mockApi.explain.mockResolvedValue({ ok: true, data: {} });
+    const result = await useStore.getState().runExplain('[{"$match":{"a":1}}]');
+    expect(mockApi.explain).toHaveBeenCalledWith('testdb', 'users', 'aggregate', [{ $match: { a: 1 } }]);
+    expect(result).toEqual({ ok: true, data: {} });
+  });
+
+  it('successful explain does not mutate docs/totalCount', async () => {
+    useStore.setState({ docs: [{ _id: 'keep' }], totalCount: 5 });
+    mockApi.explain.mockResolvedValue({ ok: true, data: { queryPlanner: {} } });
+    render(<QueryEditor />);
+    await userEvent.click(screen.getByRole('button', { name: /explain/i }));
+    await waitFor(() => {
+      expect(mockApi.explain).toHaveBeenCalled();
+    });
+    expect(useStore.getState().docs).toEqual([{ _id: 'keep' }]);
+    expect(useStore.getState().totalCount).toBe(5);
   });
 
   it('aggregate mode calls store.runQuery which calls aggregate API', async () => {

@@ -38,6 +38,7 @@ function createServiceMock(): {
     aggregate: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
     listIndexes: ReturnType<typeof vi.fn>;
+    explain: ReturnType<typeof vi.fn>;
   };
 } {
   const mocks = {
@@ -49,6 +50,7 @@ function createServiceMock(): {
     aggregate: vi.fn(),
     distinct: vi.fn(),
     listIndexes: vi.fn(),
+    explain: vi.fn(),
   };
   return { service: mocks as unknown as MongoService, mocks };
 }
@@ -66,13 +68,14 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service);
   });
 
-  it('registers exactly 8 tools', () => {
+  it('registers exactly 9 tools', () => {
     const names = Object.keys(registered(server)).sort();
     expect(names).toEqual(
       [
         'aggregate',
         'count',
         'distinct',
+        'explain',
         'find',
         'list_collections',
         'list_databases',
@@ -228,6 +231,33 @@ describe('registerMcpTools', () => {
     it('rewrites "Not connected" error', async () => {
       mocks.listIndexes.mockResolvedValue({ ok: false, error: 'Not connected' });
       const result = await getHandler(server, 'list_indexes')({ db: 'd', collection: 'c' });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
+    });
+  });
+
+  describe('explain', () => {
+    it('filter mode passes args through and returns plan', async () => {
+      const plan = { queryPlanner: { winningPlan: { stage: 'IXSCAN' } } };
+      mocks.explain.mockResolvedValue({ ok: true, data: plan });
+      const result = await getHandler(
+        server,
+        'explain'
+      )({ db: 'd', collection: 'c', queryMode: 'filter', query: { name: 'Alice' } });
+      expect(mocks.explain).toHaveBeenCalledWith('d', 'c', 'filter', { name: 'Alice' });
+      expect(JSON.parse(result.content[0].text)).toEqual(plan);
+    });
+
+    it('aggregate mode passes pipeline through', async () => {
+      mocks.explain.mockResolvedValue({ ok: true, data: { stages: [] } });
+      const pipeline = [{ $match: { x: 1 } }];
+      await getHandler(server, 'explain')({ db: 'd', collection: 'c', queryMode: 'aggregate', query: pipeline });
+      expect(mocks.explain).toHaveBeenCalledWith('d', 'c', 'aggregate', pipeline);
+    });
+
+    it('rewrites disconnect error', async () => {
+      mocks.explain.mockResolvedValue({ ok: false, error: 'Not connected' });
+      const result = await getHandler(server, 'explain')({ db: 'd', collection: 'c', queryMode: 'filter', query: {} });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
     });

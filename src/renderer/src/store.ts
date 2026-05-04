@@ -5,6 +5,7 @@ import type {
   CollectionInfo,
   SavedConnection,
   QueryHistoryEntry,
+  QueryMode,
   DistinctResult,
   Result,
   ConnectionState,
@@ -27,12 +28,12 @@ export interface StoreState {
   error: string | null;
   loading: boolean;
   savedConnections: SavedConnection[];
-  queryMode: 'filter' | 'aggregate';
+  queryMode: QueryMode;
   fieldNames: string[];
   sort: Record<string, 1 | -1> | null;
   pendingFilterText: string | null;
   queryHistory: QueryHistoryEntry[];
-  pendingQueryMode: 'filter' | 'aggregate' | null;
+  pendingQueryMode: QueryMode | null;
   mcpStatus: McpStatus;
 
   connect: (uri: string) => Promise<void>;
@@ -43,7 +44,8 @@ export interface StoreState {
   selectCollection: (db: string, collection: string) => Promise<void>;
   fetchPage: (skip: number) => Promise<void>;
   runQuery: (queryText: string) => Promise<string | null>;
-  setQueryMode: (mode: 'filter' | 'aggregate') => void;
+  runExplain: (queryText: string) => Promise<Result<Record<string, unknown>> | null>;
+  setQueryMode: (mode: QueryMode) => void;
   setSort: (field: string) => void;
   setLimit: (newLimit: number) => void;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
@@ -176,7 +178,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     });
     get().addToHistory({
       id: crypto.randomUUID(),
-      type: 'filter',
+      queryMode: 'filter',
       query: '{}',
       db,
       collection,
@@ -214,7 +216,7 @@ export const useStore = create<StoreState>()((set, get) => ({
 
     get().addToHistory({
       id: crypto.randomUUID(),
-      type: queryMode,
+      queryMode,
       query: queryText,
       db: selectedDb,
       collection: selectedCollection,
@@ -249,7 +251,33 @@ export const useStore = create<StoreState>()((set, get) => ({
     return null;
   },
 
-  setQueryMode: (mode: 'filter' | 'aggregate') => {
+  runExplain: async (queryText: string) => {
+    const { selectedDb, selectedCollection, queryMode } = get();
+    if (!selectedDb || !selectedCollection) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON5.parse(queryText);
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' };
+    }
+
+    if (queryMode === 'aggregate' && !Array.isArray(parsed)) {
+      return { ok: false, error: 'Aggregate pipeline must be a JSON array' };
+    }
+
+    set({ loading: true });
+    const result = await window.api.explain(
+      selectedDb,
+      selectedCollection,
+      queryMode,
+      parsed as Record<string, unknown> | Record<string, unknown>[]
+    );
+    set({ loading: false });
+    return result;
+  },
+
+  setQueryMode: (mode: QueryMode) => {
     set({ queryMode: mode });
   },
 
@@ -338,7 +366,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       top.query === entry.query &&
       top.db === entry.db &&
       top.collection === entry.collection &&
-      top.type === entry.type
+      top.queryMode === entry.queryMode
     ) {
       return;
     }
@@ -361,8 +389,8 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({
       filter: {},
       pendingFilterText: entry.query,
-      pendingQueryMode: entry.type,
-      queryMode: entry.type,
+      pendingQueryMode: entry.queryMode,
+      queryMode: entry.queryMode,
     });
     await get().runQuery(entry.query);
   },
@@ -406,7 +434,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     get().fetchPage(0);
     get().addToHistory({
       id: crypto.randomUUID(),
-      type: 'filter',
+      queryMode: 'filter',
       query: JSON.stringify(newFilter, null, 2),
       db: get().selectedDb!,
       collection: get().selectedCollection!,

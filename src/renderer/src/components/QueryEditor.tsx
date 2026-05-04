@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { EditorView, placeholder } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { autocompletion, CompletionContext } from '@codemirror/autocomplete';
@@ -6,6 +6,7 @@ import { baseExtensions } from '../lib/editor';
 import { useStore } from '../store';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
+import { ExplainDialog } from './ExplainDialog';
 
 const autocompleteConf = new Compartment();
 
@@ -47,7 +48,9 @@ export function QueryEditor() {
   const queryMode = useStore((s) => s.queryMode);
   const setQueryMode = useStore((s) => s.setQueryMode);
   const runQuery = useStore((s) => s.runQuery);
+  const runExplain = useStore((s) => s.runExplain);
   const loading = useStore((s) => s.loading);
+  const [explainOutput, setExplainOutput] = useState<Record<string, unknown> | null>(null);
   const filter = useStore((s) => s.filter);
   const fieldNames = useStore((s) => s.fieldNames);
   const pendingFilterText = useStore((s) => s.pendingFilterText);
@@ -68,6 +71,17 @@ export function QueryEditor() {
       toast.error(error);
     }
   }, [getEditorText, queryMode, runQuery]);
+
+  const handleExplain = useCallback(async () => {
+    const text = getEditorText() || (queryMode === 'filter' ? '{}' : '[]');
+    const result = await runExplain(text);
+    if (!result) return;
+    if (result.ok) {
+      setExplainOutput(result.data);
+    } else {
+      toast.error(result.error);
+    }
+  }, [getEditorText, queryMode, runExplain]);
 
   const hasActiveFilter = Object.keys(filter).length > 0 || queryMode === 'aggregate';
 
@@ -161,6 +175,9 @@ export function QueryEditor() {
         <Button size="sm" variant="outline" onClick={handleClear} disabled={!hasActiveFilter || loading}>
           Clear
         </Button>
+        <Button size="sm" variant="outline" onClick={handleExplain} disabled={loading}>
+          Explain
+        </Button>
         <Button size="sm" onClick={handleRun} disabled={loading}>
           Run
         </Button>
@@ -169,6 +186,13 @@ export function QueryEditor() {
         data-testid="query-editor"
         ref={editorRef}
         className="min-h-[80px] border border-border rounded overflow-hidden"
+      />
+      <ExplainDialog
+        open={explainOutput !== null}
+        onOpenChange={(o) => {
+          if (!o) setExplainOutput(null);
+        }}
+        output={explainOutput}
       />
     </div>
   );

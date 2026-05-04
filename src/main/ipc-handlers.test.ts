@@ -429,7 +429,7 @@ describe('IPC Handlers', () => {
     });
 
     it('load reads connection key from manager and returns entries', () => {
-      const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
+      const entries = [{ id: '1', queryMode: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       mockHistoryStore.getAll.mockReturnValue(entries);
       const result = handlers['history:load']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.getConnectionKey).toHaveBeenCalled();
@@ -438,7 +438,7 @@ describe('IPC Handlers', () => {
     });
 
     it('save passes connection key (from manager) to QueryHistoryStore', () => {
-      const entries = [{ id: '1', type: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
+      const entries = [{ id: '1', queryMode: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       handlers['history:save']({} as Electron.IpcMainInvokeEvent, entries);
       expect(mockHistoryStore.save).toHaveBeenCalledWith(key, entries);
     });

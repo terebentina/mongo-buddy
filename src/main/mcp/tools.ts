@@ -129,6 +129,23 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
   );
 
   server.registerTool(
+    'explain',
+    {
+      description: `Run MongoDB explain (verbosity: executionStats) on a query and return the query plan plus execution stats (winning plan, index used, docs/keys examined, executionTimeMillis). Use for diagnosing slow queries or verifying index usage. ${EJSON_HINT}`,
+      inputSchema: {
+        db: z.string().describe('Database name'),
+        collection: z.string().describe('Collection name'),
+        queryMode: z.enum(['filter', 'aggregate']).describe('"filter" for find queries, "aggregate" for pipelines'),
+        query: z
+          .union([z.record(z.string(), z.unknown()), z.array(z.record(z.string(), z.unknown()))])
+          .describe('EJSON filter object (queryMode=filter) or pipeline array (queryMode=aggregate)'),
+      },
+    },
+    async ({ db, collection, queryMode, query }) =>
+      toToolResult(await service.explain(db, collection, queryMode, query))
+  );
+
+  server.registerTool(
     'list_indexes',
     {
       description: 'List all indexes on a collection (raw spec from MongoDB)',

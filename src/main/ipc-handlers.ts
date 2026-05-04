@@ -15,6 +15,7 @@ import type {
   OperationParams,
   OperationId,
   McpStatus,
+  QueryMode,
 } from '../shared/types';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
@@ -95,6 +96,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'mongo:aggregate',
     wrap((db: unknown, coll: unknown, pipeline: unknown) =>
       service.aggregate(db as string, coll as string, pipeline as Record<string, unknown>[])
+    )
+  );
+  ipcMain.handle(
+    'mongo:explain',
+    wrap((db: unknown, coll: unknown, queryMode: unknown, query: unknown) =>
+      service.explain(
+        db as string,
+        coll as string,
+        queryMode as QueryMode,
+        query as Record<string, unknown> | Record<string, unknown>[]
+      )
     )
   );
   ipcMain.handle(

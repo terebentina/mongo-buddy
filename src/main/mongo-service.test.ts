@@ -231,6 +231,85 @@ describe('MongoService', () => {
     });
   });
 
+  describe('explain', () => {
+    it('filter mode calls find().explain with executionStats and returns serialized plan', async () => {
+      const objectId = new ObjectId('507f1f77bcf86cd799439011');
+      const plan = {
+        queryPlanner: { winningPlan: { stage: 'IXSCAN' }, indexFilterSet: false },
+        executionStats: { nReturned: 1, totalDocsExamined: 1, executionTimeMillis: 0, sourceId: objectId },
+      };
+      const mockCursor = {
+        explain: vi.fn().mockResolvedValue(plan),
+      };
+      mockCollection.find.mockReturnValue(mockCursor);
+
+      const result = await service.explain('testdb', 'users', 'filter', { name: 'Alice' });
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data.queryPlanner).toEqual({ winningPlan: { stage: 'IXSCAN' }, indexFilterSet: false });
+        // EJSON-serialized ObjectId nested inside plan
+        expect((result.data.executionStats as Record<string, unknown>).sourceId).toEqual({
+          $oid: '507f1f77bcf86cd799439011',
+        });
+      }
+      expect(mockCollection.find).toHaveBeenCalledWith({ name: 'Alice' });
+      expect(mockCursor.explain).toHaveBeenCalledWith('executionStats');
+    });
+
+    it('filter mode deserializes EJSON $oid before explain', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
+      const mockCursor = { explain: vi.fn().mockResolvedValue({}) };
+      mockCollection.find.mockReturnValue(mockCursor);
+
+      await service.explain('testdb', 'users', 'filter', { _id: { $oid: '507f1f77bcf86cd799439011' } });
+
+      expect(mockCollection.find).toHaveBeenCalledWith({ _id: oid });
+    });
+
+    it('aggregate mode calls aggregate().explain with executionStats', async () => {
+      const plan = { stages: [{ $cursor: { queryPlanner: { stage: 'COLLSCAN' } } }] };
+      const mockCursor = { explain: vi.fn().mockResolvedValue(plan) };
+      mockCollection.aggregate.mockReturnValue(mockCursor);
+
+      const result = await service.explain('testdb', 'users', 'aggregate', [{ $match: {} }]);
+
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toEqual(plan);
+      }
+      expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $match: {} }]);
+      expect(mockCursor.explain).toHaveBeenCalledWith('executionStats');
+    });
+
+    it('aggregate mode deserializes EJSON inside pipeline', async () => {
+      const oid = new ObjectId('507f1f77bcf86cd799439011');
+      const mockCursor = { explain: vi.fn().mockResolvedValue({}) };
+      mockCollection.aggregate.mockReturnValue(mockCursor);
+
+      await service.explain('testdb', 'users', 'aggregate', [
+        { $match: { _id: { $oid: '507f1f77bcf86cd799439011' } } },
+      ]);
+
+      expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $match: { _id: oid } }]);
+    });
+
+    it('when not connected returns error', async () => {
+      requireClient.mockImplementation(() => {
+        throw new Error('Not connected');
+      });
+      const result = await service.explain('testdb', 'users', 'filter', {});
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+    });
+
+    it('when explain throws returns error', async () => {
+      const mockCursor = { explain: vi.fn().mockRejectedValue(new Error('boom')) };
+      mockCollection.find.mockReturnValue(mockCursor);
+      const result = await service.explain('testdb', 'users', 'filter', {});
+      expect(result).toEqual({ ok: false, error: 'boom' });
+    });
+  });
+
   describe('insertOne', () => {
     it('inserts a document and returns EJSON serialized result', async () => {
       const insertedId = new ObjectId('507f1f77bcf86cd799439011');
