@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.37.0](https://github.com/terebentina/mongo-buddy/compare/v1.36.0...v1.37.0) (2026-05-04)
+
+
+### Features
+
+* **query:** resizable query editor via drag handle ([4e58421](https://github.com/terebentina/mongo-buddy/commit/4e58421349b81347c09fa3024fa335c0ab06de4f))
+
 ## [1.36.0](https://github.com/terebentina/mongo-buddy/compare/v1.35.0...v1.36.0) (2026-05-04)
 
 
