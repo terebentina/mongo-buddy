@@ -11,7 +11,7 @@ import { ExplainDialog } from './ExplainDialog';
 const autocompleteConf = new Compartment();
 
 const editorTheme = EditorView.theme({
-  '&': { minHeight: '80px' },
+  '&': { height: '100%' },
   '.cm-scroller': { overflow: 'auto' },
 });
 
@@ -42,6 +42,9 @@ function fieldCompletion(fieldNames: string[]) {
   });
 }
 
+const MIN_EDITOR_HEIGHT = 80;
+const MIN_RESULTS_HEIGHT = 200;
+
 export function QueryEditor() {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -56,6 +59,47 @@ export function QueryEditor() {
   const pendingFilterText = useStore((s) => s.pendingFilterText);
   const pendingQueryMode = useStore((s) => s.pendingQueryMode);
   const clearPendingFilterText = useStore((s) => s.clearPendingFilterText);
+  const [editorHeight, setEditorHeight] = useState(MIN_EDITOR_HEIGHT);
+  const heightRef = useRef(MIN_EDITOR_HEIGHT);
+  const dragging = useRef(false);
+  const dragStart = useRef({ y: 0, height: MIN_EDITOR_HEIGHT, top: 0 });
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!editorRef.current) return;
+    e.preventDefault();
+    dragging.current = true;
+    dragStart.current = {
+      y: e.clientY,
+      height: heightRef.current,
+      top: editorRef.current.getBoundingClientRect().top,
+    };
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent): void => {
+      if (!dragging.current) return;
+      const proposed = dragStart.current.height + (e.clientY - dragStart.current.y);
+      const available = window.innerHeight - MIN_RESULTS_HEIGHT - dragStart.current.top;
+      const max = Math.max(MIN_EDITOR_HEIGHT, available);
+      const next = Math.max(MIN_EDITOR_HEIGHT, Math.min(proposed, max));
+      heightRef.current = next;
+      setEditorHeight(next);
+    };
+    const onUp = (): void => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   const getEditorText = useCallback((): string => {
     if (viewRef.current) {
@@ -155,7 +199,7 @@ export function QueryEditor() {
   }, [fieldNames]);
 
   return (
-    <div className="border-b border-border p-2 flex flex-col gap-2">
+    <div className="p-2 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <Button
           size="sm"
@@ -185,7 +229,13 @@ export function QueryEditor() {
       <div
         data-testid="query-editor"
         ref={editorRef}
-        className="min-h-[80px] border border-border rounded overflow-hidden"
+        className="border border-border rounded overflow-hidden"
+        style={{ height: editorHeight }}
+      />
+      <div
+        onMouseDown={handleResizeMouseDown}
+        className="h-1 -mx-2 -mb-2 cursor-row-resize bg-border hover:bg-primary/20 active:bg-primary/40"
+        data-testid="query-editor-resize-handle"
       />
       <ExplainDialog
         open={explainOutput !== null}
