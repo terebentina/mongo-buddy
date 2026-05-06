@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.38.0](https://github.com/terebentina/mongo-buddy/compare/v1.37.0...v1.38.0) (2026-05-06)
+
+
+### Features
+
+* **history:** add prev/next navigation around History button ([732f0d4](https://github.com/terebentina/mongo-buddy/commit/732f0d43ee6e458251ee3e815d205ca8ed0a93c4))
+
 ## [1.37.0](https://github.com/terebentina/mongo-buddy/compare/v1.36.0...v1.37.0) (2026-05-04)
 
 
