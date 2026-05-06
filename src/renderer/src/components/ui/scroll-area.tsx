@@ -10,7 +10,9 @@ function ScrollArea({
 }: React.ComponentPropsWithoutRef<typeof BaseScrollArea.Root> & { ref?: React.Ref<HTMLDivElement> }) {
   return (
     <BaseScrollArea.Root ref={ref} className={cn('relative overflow-hidden', className)} {...props}>
-      <BaseScrollArea.Viewport className="h-full w-full rounded-[inherit]">{children}</BaseScrollArea.Viewport>
+      <BaseScrollArea.Viewport className="h-full w-full max-h-[inherit] rounded-[inherit]">
+        {children}
+      </BaseScrollArea.Viewport>
       <ScrollBar orientation="vertical" />
       <BaseScrollArea.Corner />
     </BaseScrollArea.Root>
@@ -35,7 +37,7 @@ function ScrollBar({
       )}
       {...props}
     >
-      <BaseScrollArea.Thumb className="relative flex-1 rounded-full bg-border" />
+      <BaseScrollArea.Thumb className="w-full rounded-full bg-border" />
     </BaseScrollArea.Scrollbar>
   );
 }
