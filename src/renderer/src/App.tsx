@@ -54,6 +54,7 @@ function App() {
           <>
             <div className="flex items-center gap-2 px-4 py-2 border-b">
               <DocumentEditor />
+              <div className="flex-1" />
               <QueryHistory />
             </div>
             <QueryEditor />

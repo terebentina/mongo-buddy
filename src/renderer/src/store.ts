@@ -33,6 +33,7 @@ export interface StoreState {
   sort: Record<string, 1 | -1> | null;
   pendingFilterText: string | null;
   queryHistory: QueryHistoryEntry[];
+  historyIndex: number | null;
   pendingQueryMode: QueryMode | null;
   mcpStatus: McpStatus;
 
@@ -43,7 +44,7 @@ export interface StoreState {
   selectDb: (db: string) => Promise<void>;
   selectCollection: (db: string, collection: string) => Promise<void>;
   fetchPage: (skip: number) => Promise<void>;
-  runQuery: (queryText: string) => Promise<string | null>;
+  runQuery: (queryText: string, opts?: { skipHistory?: boolean }) => Promise<string | null>;
   runExplain: (queryText: string) => Promise<Result<Record<string, unknown>> | null>;
   setQueryMode: (mode: QueryMode) => void;
   setSort: (field: string) => void;
@@ -58,6 +59,7 @@ export interface StoreState {
   addToHistory: (entry: QueryHistoryEntry) => void;
   switchCollection: (db: string, collection: string) => Promise<void>;
   restoreFromHistory: (entry: QueryHistoryEntry) => Promise<void>;
+  navigateHistory: (direction: -1 | 1) => Promise<void>;
   addFilterValue: (column: string, value: unknown) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
@@ -90,6 +92,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   sort: null,
   pendingFilterText: null,
   queryHistory: [],
+  historyIndex: null,
   pendingQueryMode: null,
   mcpStatus: { running: false, port: null },
 
@@ -203,7 +206,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount });
   },
 
-  runQuery: async (queryText: string) => {
+  runQuery: async (queryText: string, opts?: { skipHistory?: boolean }) => {
     const { selectedDb, selectedCollection, limit, queryMode } = get();
     if (!selectedDb || !selectedCollection) return null;
 
@@ -214,14 +217,16 @@ export const useStore = create<StoreState>()((set, get) => ({
       return e instanceof Error ? e.message : 'Invalid JSON';
     }
 
-    get().addToHistory({
-      id: crypto.randomUUID(),
-      queryMode,
-      query: queryText,
-      db: selectedDb,
-      collection: selectedCollection,
-      timestamp: Date.now(),
-    });
+    if (!opts?.skipHistory) {
+      get().addToHistory({
+        id: crypto.randomUUID(),
+        queryMode,
+        query: queryText,
+        db: selectedDb,
+        collection: selectedCollection,
+        timestamp: Date.now(),
+      });
+    }
 
     set({ loading: true, skip: 0, error: null, sort: null });
 
@@ -368,10 +373,11 @@ export const useStore = create<StoreState>()((set, get) => ({
       top.collection === entry.collection &&
       top.queryMode === entry.queryMode
     ) {
+      set({ historyIndex: 0 });
       return;
     }
     const updated = [entry, ...queryHistory].slice(0, 50);
-    set({ queryHistory: updated });
+    set({ queryHistory: updated, historyIndex: 0 });
     window.api.saveHistory(updated);
   },
 
@@ -382,7 +388,8 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   restoreFromHistory: async (entry: QueryHistoryEntry) => {
-    const { selectedDb, selectedCollection } = get();
+    const { selectedDb, selectedCollection, queryHistory } = get();
+    const idx = queryHistory.findIndex((e) => e.id === entry.id);
     if (entry.db !== selectedDb || entry.collection !== selectedCollection) {
       await get().switchCollection(entry.db, entry.collection);
     }
@@ -392,7 +399,17 @@ export const useStore = create<StoreState>()((set, get) => ({
       pendingQueryMode: entry.queryMode,
       queryMode: entry.queryMode,
     });
-    await get().runQuery(entry.query);
+    await get().runQuery(entry.query, { skipHistory: true });
+    set({ historyIndex: idx >= 0 ? idx : null });
+  },
+
+  navigateHistory: async (direction: -1 | 1) => {
+    const { queryHistory, historyIndex } = get();
+    if (queryHistory.length === 0) return;
+    const current = historyIndex === null ? (direction === 1 ? -1 : 0) : historyIndex;
+    const target = Math.min(Math.max(current + direction, 0), queryHistory.length - 1);
+    if (target === historyIndex) return;
+    await get().restoreFromHistory(queryHistory[target]);
   },
 
   addFilterValue: (column: string, value: unknown) => {

@@ -65,6 +65,7 @@ beforeEach(() => {
     fieldNames: [],
     pendingFilterText: null,
     queryHistory: [],
+    historyIndex: null,
     pendingQueryMode: null,
     mcpStatus: { running: false, port: null },
   });
@@ -462,6 +463,194 @@ describe('addToHistory', () => {
     }
 
     expect(useStore.getState().queryHistory).toHaveLength(50);
+  });
+});
+
+describe('historyIndex + navigateHistory', () => {
+  const makeEntry = (
+    overrides = {}
+  ): {
+    id: string;
+    queryMode: 'filter' | 'aggregate';
+    query: string;
+    db: string;
+    collection: string;
+    timestamp: number;
+  } => ({
+    id: 'test-id',
+    queryMode: 'filter' as const,
+    query: '{"name":"Alice"}',
+    db: 'testdb',
+    collection: 'users',
+    timestamp: 1000,
+    ...overrides,
+  });
+
+  it('historyIndex defaults to null', () => {
+    expect(useStore.getState().historyIndex).toBeNull();
+  });
+
+  it('addToHistory sets historyIndex to 0 on new entry', () => {
+    useStore.setState({ historyIndex: 5 });
+    useStore.getState().addToHistory(makeEntry({ id: '1' }));
+    expect(useStore.getState().historyIndex).toBe(0);
+  });
+
+  it('addToHistory sets historyIndex to 0 on dedup early-return', () => {
+    useStore.getState().addToHistory(makeEntry({ id: '1' }));
+    useStore.setState({ historyIndex: 3 });
+    useStore.getState().addToHistory(makeEntry({ id: '2' }));
+    expect(useStore.getState().historyIndex).toBe(0);
+    expect(useStore.getState().queryHistory).toHaveLength(1);
+  });
+
+  it('runQuery with { skipHistory: true } does NOT prepend to history', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().runQuery('{"name":"Alice"}', { skipHistory: true });
+
+    expect(useStore.getState().queryHistory).toHaveLength(0);
+  });
+
+  it('runQuery without flag still prepends', async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().runQuery('{"name":"Alice"}');
+
+    expect(useStore.getState().queryHistory).toHaveLength(1);
+  });
+
+  it('restoreFromHistory sets historyIndex to the entry array position', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    const b = makeEntry({ id: 'b', query: '{"b":2}' });
+    const c = makeEntry({ id: 'c', query: '{"c":3}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a, b, c],
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().restoreFromHistory(b);
+
+    expect(useStore.getState().historyIndex).toBe(1);
+  });
+
+  it('restoreFromHistory does NOT add a duplicate entry when restoring index > 0', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    const b = makeEntry({ id: 'b', query: '{"b":2}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a, b],
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().restoreFromHistory(b);
+
+    expect(useStore.getState().queryHistory).toHaveLength(2);
+    expect(useStore.getState().queryHistory[0].id).toBe('a');
+    expect(useStore.getState().queryHistory[1].id).toBe('b');
+  });
+
+  it('navigateHistory(1) from null with non-empty history restores index 0', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a],
+      historyIndex: null,
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().navigateHistory(1);
+
+    expect(useStore.getState().historyIndex).toBe(0);
+    expect(useStore.getState().pendingFilterText).toBe('{"a":1}');
+  });
+
+  it('navigateHistory(1) from index 0 moves to index 1', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    const b = makeEntry({ id: 'b', query: '{"b":2}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a, b],
+      historyIndex: 0,
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().navigateHistory(1);
+
+    expect(useStore.getState().historyIndex).toBe(1);
+    expect(useStore.getState().pendingFilterText).toBe('{"b":2}');
+  });
+
+  it('navigateHistory(-1) from index 1 moves to index 0', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    const b = makeEntry({ id: 'b', query: '{"b":2}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a, b],
+      historyIndex: 1,
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().navigateHistory(-1);
+
+    expect(useStore.getState().historyIndex).toBe(0);
+    expect(useStore.getState().pendingFilterText).toBe('{"a":1}');
+  });
+
+  it('navigateHistory(1) clamps at last index (no underflow past oldest)', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    const b = makeEntry({ id: 'b', query: '{"b":2}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a, b],
+      historyIndex: 1,
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().navigateHistory(1);
+
+    expect(useStore.getState().historyIndex).toBe(1);
+    expect(mockApi.find).not.toHaveBeenCalled();
+  });
+
+  it('navigateHistory(-1) clamps at index 0', async () => {
+    const a = makeEntry({ id: 'a', query: '{"a":1}' });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a],
+      historyIndex: 0,
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    await useStore.getState().navigateHistory(-1);
+
+    expect(useStore.getState().historyIndex).toBe(0);
+    expect(mockApi.find).not.toHaveBeenCalled();
+  });
+
+  it('navigateHistory is a no-op on empty history', async () => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [],
+      historyIndex: null,
+    });
+
+    await useStore.getState().navigateHistory(1);
+
+    expect(useStore.getState().historyIndex).toBeNull();
+    expect(useStore.getState().queryHistory).toEqual([]);
+    expect(mockApi.find).not.toHaveBeenCalled();
   });
 });
 
