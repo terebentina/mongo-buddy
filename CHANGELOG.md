@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.38.1](https://github.com/terebentina/mongo-buddy/compare/v1.38.0...v1.38.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* **ui:** show scrollbar in ScrollArea when only max-h is set ([85888f3](https://github.com/terebentina/mongo-buddy/commit/85888f332f3f6be1d1d721c0f54eb067c4e17df2))
+
 ## [1.38.0](https://github.com/terebentina/mongo-buddy/compare/v1.37.0...v1.38.0) (2026-05-06)
 
 
