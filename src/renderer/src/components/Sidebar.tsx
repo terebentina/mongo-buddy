@@ -18,6 +18,7 @@ import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
 import { useOperation, waitForTerminal } from '../hooks/use-operation';
 import type { CollectionInfo, ImportOptions, PickedFile } from '../../../shared/types';
+import { byNameInsensitive } from '../../../shared/sort';
 
 interface SidebarProps {
   width: number;
@@ -566,17 +567,15 @@ function DatabaseRow({
             {collections.length === 0 && !loading && (
               <p className="text-xs text-muted-foreground px-2 py-2">No collections</p>
             )}
-            {[...collections]
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((coll) => (
-                <CollectionRow
-                  key={coll.name}
-                  dbName={dbName}
-                  coll={coll}
-                  isSelected={selectedCollection === coll.name}
-                  onSelect={() => onSelectCollection(dbName, coll.name)}
-                />
-              ))}
+            {collections.map((coll) => (
+              <CollectionRow
+                key={coll.name}
+                dbName={dbName}
+                coll={coll}
+                isSelected={selectedCollection === coll.name}
+                onSelect={() => onSelectCollection(dbName, coll.name)}
+              />
+            ))}
           </div>
         </CollapsibleContent>
       </Collapsible>
@@ -642,7 +641,7 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
   const displayDatabases: { name: string; isGhost: boolean }[] = [
     ...databases.map((d) => ({ name: d.name, isGhost: false })),
     ...ghostDatabases.filter((g) => !realNames.has(g)).map((name) => ({ name, isGhost: true })),
-  ].sort((a, b) => a.name.localeCompare(b.name));
+  ].sort(byNameInsensitive);
 
   const existingNames = [...databases.map((d) => d.name), ...ghostDatabases];
 

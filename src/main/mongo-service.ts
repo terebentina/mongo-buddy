@@ -16,6 +16,7 @@ import type {
 } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
+import { byNameInsensitive } from '../shared/sort';
 
 export interface MongoServiceDeps {
   conn: Pick<ConnectionManager, 'requireClient'>;
@@ -32,11 +33,13 @@ export class MongoService {
     try {
       const client = this.conn.requireClient();
       const result = await client.db().admin().listDatabases();
-      const databases: DbInfo[] = result.databases.map((db) => ({
-        name: db.name,
-        sizeOnDisk: db.sizeOnDisk ?? 0,
-        empty: db.empty ?? false,
-      }));
+      const databases: DbInfo[] = result.databases
+        .map((db) => ({
+          name: db.name,
+          sizeOnDisk: db.sizeOnDisk ?? 0,
+          empty: db.empty ?? false,
+        }))
+        .sort(byNameInsensitive);
       return { ok: true, data: databases };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
@@ -59,6 +62,7 @@ export class MongoService {
           return { name: c.name, type: c.type ?? 'collection', count };
         })
       );
+      data.sort(byNameInsensitive);
       return { ok: true, data };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

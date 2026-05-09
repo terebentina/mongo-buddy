@@ -78,15 +78,30 @@ describe('MongoService', () => {
   });
 
   describe('listDatabases', () => {
-    it('returns DbInfo[]', async () => {
+    it('returns DbInfo[] sorted alphabetically', async () => {
       const result = await service.listDatabases();
       expect(result).toEqual({
         ok: true,
         data: [
-          { name: 'testdb', sizeOnDisk: 1024, empty: false },
           { name: 'admin', sizeOnDisk: 512, empty: false },
+          { name: 'testdb', sizeOnDisk: 1024, empty: false },
         ],
       });
+    });
+
+    it('sorts case-insensitively with numeric ordering', async () => {
+      mockDb.admin.mockReturnValue({
+        listDatabases: vi.fn().mockResolvedValue({
+          databases: [
+            { name: 'log10', sizeOnDisk: 0, empty: false },
+            { name: 'Users_2', sizeOnDisk: 0, empty: false },
+            { name: 'log2', sizeOnDisk: 0, empty: false },
+            { name: 'users_10', sizeOnDisk: 0, empty: false },
+          ],
+        }),
+      });
+      const result = await service.listDatabases();
+      expect(result.ok && result.data.map((d) => d.name)).toEqual(['log2', 'log10', 'Users_2', 'users_10']);
     });
 
     it('when not connected returns error', async () => {
@@ -99,7 +114,7 @@ describe('MongoService', () => {
   });
 
   describe('listCollections', () => {
-    it('returns CollectionInfo[]', async () => {
+    it('returns CollectionInfo[] sorted alphabetically', async () => {
       mockDb.listCollections.mockReturnValue({
         toArray: vi.fn().mockResolvedValue([
           { name: 'users', type: 'collection' },
@@ -111,10 +126,23 @@ describe('MongoService', () => {
       expect(result).toEqual({
         ok: true,
         data: [
-          { name: 'users', type: 'collection' },
           { name: 'orders', type: 'collection' },
+          { name: 'users', type: 'collection' },
         ],
       });
+    });
+
+    it('sorts case-insensitively with numeric ordering', async () => {
+      mockDb.listCollections.mockReturnValue({
+        toArray: vi.fn().mockResolvedValue([
+          { name: 'log10', type: 'collection' },
+          { name: 'Events_2', type: 'collection' },
+          { name: 'log2', type: 'collection' },
+          { name: 'events_10', type: 'collection' },
+        ]),
+      });
+      const result = await service.listCollections('testdb');
+      expect(result.ok && result.data.map((c) => c.name)).toEqual(['Events_2', 'events_10', 'log2', 'log10']);
     });
   });
 
