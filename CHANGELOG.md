@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [1.39.0](https://github.com/terebentina/mongo-buddy/compare/v1.38.1...v1.39.0) (2026-05-09)
+
+
+### Features
+
+* **sort:** alphabetize database and collection lists ([97f2ee8](https://github.com/terebentina/mongo-buddy/commit/97f2ee8331b7bd665d9a1ad2d33b64f4184c4992))
+
 ## [1.38.1](https://github.com/terebentina/mongo-buddy/compare/v1.38.0...v1.38.1) (2026-05-06)
 
 
