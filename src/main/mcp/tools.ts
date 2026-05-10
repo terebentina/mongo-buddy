@@ -120,26 +120,6 @@ export function registerMcpTools(server: McpServer, service: MongoService, manag
   );
 
   server.registerTool(
-    'count',
-    {
-      description: `Count documents matching a filter. ${EJSON_HINT}`,
-      inputSchema: {
-        db: z.string().describe('Database name'),
-        collection: z.string().describe('Collection name'),
-        filter: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe('MongoDB query filter in EJSON. Defaults to {} (count all).'),
-      },
-    },
-    async ({ db, collection, filter }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await service.count(active, db, collection, filter ?? {}));
-    }
-  );
-
-  server.registerTool(
     'aggregate',
     {
       description: `Run an aggregation pipeline against a collection. Returns the resulting documents. ${EJSON_HINT}`,

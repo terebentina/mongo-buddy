@@ -1,0 +1,16 @@
+import type { z } from 'zod';
+import { countCommand } from '../commands/count';
+import type { McpToolEntry } from './mongo-tools';
+
+const EJSON_HINT =
+  'Filters and pipelines must be MongoDB Extended JSON (EJSON). Use {"$oid": "..."} for ObjectId, {"$date": "..."} for Date, {"$numberLong": "..."} for Long, etc.';
+
+const NOT_CONNECTED_MESSAGE = 'Not connected. Connect via the mongo-buddy GUI first.';
+
+export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
+  {
+    command: countCommand,
+    description: `Count documents matching a filter. ${EJSON_HINT}`,
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+];

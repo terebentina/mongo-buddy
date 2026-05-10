@@ -197,22 +197,6 @@ describe('MongoService', () => {
     });
   });
 
-  describe('count', () => {
-    it('returns number', async () => {
-      mockCollection.countDocuments.mockResolvedValue(42);
-      const result = await service.count(active, 'testdb', 'users', { active: true });
-      expect(result).toEqual({ ok: true, data: 42 });
-      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true });
-    });
-
-    it('deserializes EJSON $oid in filter to ObjectId', async () => {
-      const oid = new ObjectId('507f1f77bcf86cd799439011');
-      mockCollection.countDocuments.mockResolvedValue(1);
-      await service.count(active, 'testdb', 'users', { _id: { $oid: '507f1f77bcf86cd799439011' } });
-      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ _id: oid });
-    });
-  });
-
   describe('aggregate', () => {
     it('returns EJSON serialized docs from pipeline', async () => {
       const objectId = new ObjectId('507f1f77bcf86cd799439011');

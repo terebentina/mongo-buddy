@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, Menu } from 'electron';
+import { app, shell, BrowserWindow, Menu, ipcMain } from 'electron';
 import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
@@ -10,6 +10,10 @@ import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore, connectionKeyFromUri } from './query-history-store';
 import { createConnectionManager } from './connection-manager';
 import { registerIpcHandlers } from './ipc-handlers';
+import { createDispatcher } from './commands/dispatch';
+import { countCommand } from './commands/count';
+import { registerMongoIpcCommands } from './ipc-mongo-adapter';
+import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
 import { createFsSinkAdapter } from './adapters/fs-sink';
 import { createDialogProviderAdapter } from './adapters/dialog-provider';
@@ -54,6 +58,10 @@ registerIpcHandlers({
   mcpStatus: mcpStatusEmitter,
   broadcast,
 });
+
+const dispatch = createDispatcher(connectionManager);
+const mongoCommands = [countCommand];
+registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -104,7 +112,13 @@ app.whenReady().then(async () => {
   });
 
   if (mcpArgs.enabled) {
-    mcpHandle = await startMcpServer({ service: mongoService, manager: connectionManager, port: mcpArgs.port });
+    mcpHandle = await startMcpServer({
+      service: mongoService,
+      manager: connectionManager,
+      dispatch,
+      mongoTools: MCP_TOOLS,
+      port: mcpArgs.port,
+    });
     if (mcpHandle) {
       console.log(`MCP server listening on http://${mcpHandle.address}:${mcpHandle.actualPort}/mcp`);
       mcpStatusEmitter.set({ running: true, port: mcpHandle.actualPort });

@@ -3,6 +3,8 @@ import { createServer as createHttpServer, type Server } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { startMcpServer } from './server';
+import { createDispatcher } from '../commands/dispatch';
+import { MCP_TOOLS } from './mongo-tool-entries';
 import type { MongoService } from '../mongo-service';
 import type { ConnectionManager } from '../connection-manager';
 
@@ -50,8 +52,15 @@ describe('startMcpServer', () => {
     }
   });
 
-  it('round-trips initialize + tools/list and returns all 7 tool names', async () => {
-    const handle = await startMcpServer({ service: mockService(), manager: mockManager(), port: 0 });
+  it('round-trips initialize + tools/list and returns all expected tool names', async () => {
+    const manager = mockManager();
+    const handle = await startMcpServer({
+      service: mockService(),
+      manager,
+      dispatch: createDispatcher(manager),
+      mongoTools: MCP_TOOLS,
+      port: 0,
+    });
     expect(handle).not.toBeNull();
     if (!handle) return;
     restore.push(() => handle.close());
@@ -77,13 +86,27 @@ describe('startMcpServer', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     restore.push(() => errSpy.mockRestore());
 
-    const handle = await startMcpServer({ service: mockService(), manager: mockManager(), port: blocker.port });
+    const manager = mockManager();
+    const handle = await startMcpServer({
+      service: mockService(),
+      manager,
+      dispatch: createDispatcher(manager),
+      mongoTools: MCP_TOOLS,
+      port: blocker.port,
+    });
     expect(handle).toBeNull();
     expect(errSpy).toHaveBeenCalled();
   });
 
   it('close() stops accepting connections', async () => {
-    const handle = await startMcpServer({ service: mockService(), manager: mockManager(), port: 0 });
+    const manager = mockManager();
+    const handle = await startMcpServer({
+      service: mockService(),
+      manager,
+      dispatch: createDispatcher(manager),
+      mongoTools: MCP_TOOLS,
+      port: 0,
+    });
     if (!handle) throw new Error('expected handle');
     const port = handle.actualPort;
     await handle.close();

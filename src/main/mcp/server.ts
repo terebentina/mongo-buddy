@@ -1,9 +1,12 @@
 import { createServer as createHttpServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { z } from 'zod';
 import { registerMcpTools } from './tools';
+import { registerMongoMcpTools, type McpToolEntry } from './mongo-tools';
 import type { MongoService } from '../mongo-service';
 import type { ConnectionManager } from '../connection-manager';
+import type { Dispatch } from '../commands/dispatch';
 
 const HOST = '0.0.0.0';
 const MCP_PATH = '/mcp';
@@ -11,6 +14,8 @@ const MCP_PATH = '/mcp';
 export interface StartMcpServerOptions {
   service: MongoService;
   manager: ConnectionManager;
+  dispatch: Dispatch;
+  mongoTools: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[];
   port: number;
 }
 
@@ -59,6 +64,7 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
 
     const mcpServer = new McpServer({ name: 'mongo-buddy', version: '1.0.0' }, { capabilities: { tools: {} } });
     registerMcpTools(mcpServer, options.service, options.manager);
+    registerMongoMcpTools({ server: mcpServer, dispatch: options.dispatch, tools: options.mongoTools });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
     const cleanup = (): void => {

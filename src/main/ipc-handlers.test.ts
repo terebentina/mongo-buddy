@@ -38,7 +38,6 @@ describe('IPC Handlers', () => {
     listDatabases: ReturnType<typeof vi.fn>;
     listCollections: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
-    count: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     insertOne: ReturnType<typeof vi.fn>;
     updateOne: ReturnType<typeof vi.fn>;
@@ -103,7 +102,6 @@ describe('IPC Handlers', () => {
       listDatabases: vi.fn(),
       listCollections: vi.fn(),
       find: vi.fn(),
-      count: vi.fn(),
       aggregate: vi.fn(),
       insertOne: vi.fn(),
       updateOne: vi.fn(),
@@ -178,7 +176,6 @@ describe('IPC Handlers', () => {
     expect(handlers['mongo:list-collections']).toBeDefined();
     expect(handlers['mongo:list-indexes']).toBeDefined();
     expect(handlers['mongo:find']).toBeDefined();
-    expect(handlers['mongo:count']).toBeDefined();
     expect(handlers['mongo:aggregate']).toBeDefined();
     expect(handlers['mongo:insert-one']).toBeDefined();
     expect(handlers['mongo:update-one']).toBeDefined();
@@ -296,17 +293,6 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:find']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', opts);
       expect(mockService.find).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', opts);
       expect(result).toEqual({ ok: true, data: findResult });
-    });
-  });
-
-  describe('mongo:count', () => {
-    it('calls MongoService.count with db, collection, and filter', async () => {
-      mockService.count.mockResolvedValue({ ok: true, data: 42 });
-      const result = await handlers['mongo:count']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', {
-        active: true,
-      });
-      expect(mockService.count).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', { active: true });
-      expect(result).toEqual({ ok: true, data: 42 });
     });
   });
 

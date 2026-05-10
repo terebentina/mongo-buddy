@@ -116,22 +116,6 @@ export class MongoService {
     }
   }
 
-  async count(
-    active: ActiveConnection,
-    dbName: string,
-    collName: string,
-    filter: Record<string, unknown> = {}
-  ): Promise<Result<number>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const deserialized = EJSON.deserialize(filter) as Record<string, unknown>;
-      const count = await collection.countDocuments(deserialized);
-      return { ok: true, data: count };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async insertOne(
     active: ActiveConnection,
     dbName: string,

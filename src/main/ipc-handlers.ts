@@ -113,13 +113,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     )
   );
   ipcMain.handle(
-    'mongo:count',
-    wrap((db: unknown, coll: unknown, filter: unknown) =>
-      service.count(requireActive(), db as string, coll as string, filter as Record<string, unknown>)
-    )
-  );
-
-  ipcMain.handle(
     'mongo:distinct',
     wrap((db: unknown, coll: unknown, field: unknown, filter: unknown) =>
       service.distinct(

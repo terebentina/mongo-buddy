@@ -41,7 +41,6 @@ function createServiceMock(): {
     listCollections: ReturnType<typeof vi.fn>;
     sampleFields: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
-    count: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
     listIndexes: ReturnType<typeof vi.fn>;
@@ -53,7 +52,6 @@ function createServiceMock(): {
     listCollections: vi.fn(),
     sampleFields: vi.fn(),
     find: vi.fn(),
-    count: vi.fn(),
     aggregate: vi.fn(),
     distinct: vi.fn(),
     listIndexes: vi.fn(),
@@ -77,12 +75,11 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 9 tools', () => {
+  it('registers exactly 8 tools', () => {
     const names = Object.keys(registered(server)).sort();
     expect(names).toEqual(
       [
         'aggregate',
-        'count',
         'distinct',
         'explain',
         'find',
@@ -191,22 +188,6 @@ describe('registerMcpTools', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
       expect(mocks.find).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('count', () => {
-    it('passes filter through and returns count', async () => {
-      mocks.count.mockResolvedValue({ ok: true, data: 12 });
-      const filter = { active: true };
-      const result = await getHandler(server, 'count')({ db: 'd', collection: 'c', filter });
-      expect(mocks.count).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', filter);
-      expect(JSON.parse(result.content[0].text)).toBe(12);
-    });
-
-    it('defaults filter to {} when omitted', async () => {
-      mocks.count.mockResolvedValue({ ok: true, data: 0 });
-      await getHandler(server, 'count')({ db: 'd', collection: 'c' });
-      expect(mocks.count).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', {});
     });
   });
 
