@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { MongoClient } from 'mongodb';
 import { registerMcpTools } from './tools';
 import type { MongoService } from '../mongo-service';
+import type { ActiveConnection, ConnectionManager } from '../connection-manager';
+
+const TEST_ACTIVE: ActiveConnection = {
+  client: {} as unknown as MongoClient,
+  key: 'localhost:27017',
+};
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: 'text'; text: string }[];
@@ -59,13 +66,15 @@ describe('registerMcpTools', () => {
   let server: McpServer;
   let service: MongoService;
   let mocks: ReturnType<typeof createServiceMock>['mocks'];
+  let manager: { getActive: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     server = createServer();
     const built = createServiceMock();
     service = built.service;
     mocks = built.mocks;
-    registerMcpTools(server, service);
+    manager = { getActive: vi.fn().mockReturnValue(TEST_ACTIVE) };
+    registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
   it('registers exactly 9 tools', () => {
@@ -101,36 +110,38 @@ describe('registerMcpTools', () => {
       expect(result.content[0].text).toBe('boom');
     });
 
-    it('rewrites "Not connected" error', async () => {
-      mocks.listDatabases.mockResolvedValue({ ok: false, error: 'Not connected' });
+    it('returns disconnect message and skips service when manager has no active connection', async () => {
+      manager.getActive.mockReturnValue(null);
       const result = await getHandler(server, 'list_databases')({});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
+      expect(mocks.listDatabases).not.toHaveBeenCalled();
     });
   });
 
   describe('list_collections', () => {
-    it('calls service with db arg and returns data', async () => {
+    it('calls service with active and db arg, returns data', async () => {
       const data = [{ name: 'c1', type: 'collection' }];
       mocks.listCollections.mockResolvedValue({ ok: true, data });
       const result = await getHandler(server, 'list_collections')({ db: 'mydb' });
-      expect(mocks.listCollections).toHaveBeenCalledWith('mydb');
+      expect(mocks.listCollections).toHaveBeenCalledWith(TEST_ACTIVE, 'mydb');
       expect(JSON.parse(result.content[0].text)).toEqual(data);
     });
 
-    it('rewrites disconnect error', async () => {
-      mocks.listCollections.mockResolvedValue({ ok: false, error: 'Not connected' });
+    it('returns disconnect message when not connected', async () => {
+      manager.getActive.mockReturnValue(null);
       const result = await getHandler(server, 'list_collections')({ db: 'mydb' });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
+      expect(mocks.listCollections).not.toHaveBeenCalled();
     });
   });
 
   describe('sample_fields', () => {
-    it('calls service with db and collection', async () => {
+    it('calls service with active, db and collection', async () => {
       mocks.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
       const result = await getHandler(server, 'sample_fields')({ db: 'd', collection: 'c' });
-      expect(mocks.sampleFields).toHaveBeenCalledWith('d', 'c');
+      expect(mocks.sampleFields).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c');
       expect(JSON.parse(result.content[0].text)).toEqual(['_id', 'name']);
     });
   });
@@ -140,19 +151,19 @@ describe('registerMcpTools', () => {
       mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
       await getHandler(server, 'find')({ db: 'd', collection: 'c' });
       const call = mocks.find.mock.calls[0];
-      expect(call[2].limit).toBe(50);
+      expect(call[3].limit).toBe(50);
     });
 
     it('clamps limit above 200 to 200', async () => {
       mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
       await getHandler(server, 'find')({ db: 'd', collection: 'c', limit: 999 });
-      expect(mocks.find.mock.calls[0][2].limit).toBe(200);
+      expect(mocks.find.mock.calls[0][3].limit).toBe(200);
     });
 
     it('respects a limit within range', async () => {
       mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
       await getHandler(server, 'find')({ db: 'd', collection: 'c', limit: 10 });
-      expect(mocks.find.mock.calls[0][2].limit).toBe(10);
+      expect(mocks.find.mock.calls[0][3].limit).toBe(10);
     });
 
     it('passes filter, sort, skip through', async () => {
@@ -160,7 +171,7 @@ describe('registerMcpTools', () => {
       const filter = { _id: { $oid: '507f1f77bcf86cd799439011' } };
       const sort = { name: 1 as const };
       await getHandler(server, 'find')({ db: 'd', collection: 'c', filter, sort, skip: 5 });
-      const opts = mocks.find.mock.calls[0][2];
+      const opts = mocks.find.mock.calls[0][3];
       expect(opts.filter).toEqual(filter);
       expect(opts.sort).toEqual(sort);
       expect(opts.skip).toBe(5);
@@ -174,11 +185,12 @@ describe('registerMcpTools', () => {
       expect(parsed.docs).toEqual([{ a: 1 }]);
     });
 
-    it('rewrites disconnect error', async () => {
-      mocks.find.mockResolvedValue({ ok: false, error: 'Not connected' });
+    it('returns disconnect message when not connected', async () => {
+      manager.getActive.mockReturnValue(null);
       const result = await getHandler(server, 'find')({ db: 'd', collection: 'c' });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
+      expect(mocks.find).not.toHaveBeenCalled();
     });
   });
 
@@ -187,14 +199,14 @@ describe('registerMcpTools', () => {
       mocks.count.mockResolvedValue({ ok: true, data: 12 });
       const filter = { active: true };
       const result = await getHandler(server, 'count')({ db: 'd', collection: 'c', filter });
-      expect(mocks.count).toHaveBeenCalledWith('d', 'c', filter);
+      expect(mocks.count).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', filter);
       expect(JSON.parse(result.content[0].text)).toBe(12);
     });
 
     it('defaults filter to {} when omitted', async () => {
       mocks.count.mockResolvedValue({ ok: true, data: 0 });
       await getHandler(server, 'count')({ db: 'd', collection: 'c' });
-      expect(mocks.count).toHaveBeenCalledWith('d', 'c', {});
+      expect(mocks.count).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', {});
     });
   });
 
@@ -203,7 +215,7 @@ describe('registerMcpTools', () => {
       mocks.aggregate.mockResolvedValue({ ok: true, data: [{ _id: 'x', count: 2 }] });
       const pipeline = [{ $match: { x: 1 } }, { $group: { _id: '$x', count: { $sum: 1 } } }];
       const result = await getHandler(server, 'aggregate')({ db: 'd', collection: 'c', pipeline });
-      expect(mocks.aggregate).toHaveBeenCalledWith('d', 'c', pipeline);
+      expect(mocks.aggregate).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', pipeline);
       expect(JSON.parse(result.content[0].text)).toEqual([{ _id: 'x', count: 2 }]);
     });
   });
@@ -216,7 +228,7 @@ describe('registerMcpTools', () => {
       ];
       mocks.listIndexes.mockResolvedValue({ ok: true, data });
       const result = await getHandler(server, 'list_indexes')({ db: 'd', collection: 'c' });
-      expect(mocks.listIndexes).toHaveBeenCalledWith('d', 'c');
+      expect(mocks.listIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c');
       expect(result.isError).toBeUndefined();
       expect(JSON.parse(result.content[0].text)).toEqual(data);
     });
@@ -228,11 +240,12 @@ describe('registerMcpTools', () => {
       expect(result.content[0].text).toBe('ns not found');
     });
 
-    it('rewrites "Not connected" error', async () => {
-      mocks.listIndexes.mockResolvedValue({ ok: false, error: 'Not connected' });
+    it('returns disconnect message when not connected', async () => {
+      manager.getActive.mockReturnValue(null);
       const result = await getHandler(server, 'list_indexes')({ db: 'd', collection: 'c' });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
+      expect(mocks.listIndexes).not.toHaveBeenCalled();
     });
   });
 
@@ -244,7 +257,7 @@ describe('registerMcpTools', () => {
         server,
         'explain'
       )({ db: 'd', collection: 'c', queryMode: 'filter', query: { name: 'Alice' } });
-      expect(mocks.explain).toHaveBeenCalledWith('d', 'c', 'filter', { name: 'Alice' });
+      expect(mocks.explain).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', 'filter', { name: 'Alice' });
       expect(JSON.parse(result.content[0].text)).toEqual(plan);
     });
 
@@ -252,14 +265,15 @@ describe('registerMcpTools', () => {
       mocks.explain.mockResolvedValue({ ok: true, data: { stages: [] } });
       const pipeline = [{ $match: { x: 1 } }];
       await getHandler(server, 'explain')({ db: 'd', collection: 'c', queryMode: 'aggregate', query: pipeline });
-      expect(mocks.explain).toHaveBeenCalledWith('d', 'c', 'aggregate', pipeline);
+      expect(mocks.explain).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', 'aggregate', pipeline);
     });
 
-    it('rewrites disconnect error', async () => {
-      mocks.explain.mockResolvedValue({ ok: false, error: 'Not connected' });
+    it('returns disconnect message when not connected', async () => {
+      manager.getActive.mockReturnValue(null);
       const result = await getHandler(server, 'explain')({ db: 'd', collection: 'c', queryMode: 'filter', query: {} });
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
+      expect(mocks.explain).not.toHaveBeenCalled();
     });
   });
 
@@ -275,14 +289,14 @@ describe('registerMcpTools', () => {
         field: 'status',
         filter: { active: true },
       });
-      expect(mocks.distinct).toHaveBeenCalledWith('d', 'c', 'status', { active: true });
+      expect(mocks.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', 'status', { active: true });
       expect(JSON.parse(result.content[0].text)).toEqual({ values: ['a', 'b'], truncated: false });
     });
 
     it('defaults filter to {}', async () => {
       mocks.distinct.mockResolvedValue({ ok: true, data: { values: [], truncated: false } });
       await getHandler(server, 'distinct')({ db: 'd', collection: 'c', field: 'status' });
-      expect(mocks.distinct).toHaveBeenCalledWith('d', 'c', 'status', {});
+      expect(mocks.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', 'status', {});
     });
   });
 });

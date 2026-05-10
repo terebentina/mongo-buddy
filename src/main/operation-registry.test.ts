@@ -1,21 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Writable, Readable } from 'stream';
+import type { MongoClient } from 'mongodb';
 import { createOperationRegistry } from './operation-registry';
 import type { MongoServicePort } from './operation-registry';
 import type { IndexSpec } from './index-spec';
 import { MongoService } from './mongo-service';
+import type { ActiveConnection } from './connection-manager';
 import type { OperationRecord, OperationParams, Result, ImportOptions, CollectionInfo } from '../shared/types';
 
 // Compile-time check: existing MongoService structurally satisfies MongoServicePort
 // (no wrapper needed). If this breaks, the port interface drifted from the service.
-const _portCheck: MongoServicePort = new MongoService({
-  conn: {
-    requireClient: () => {
-      throw new Error('port check only');
-    },
-  },
-});
+const _portCheck: MongoServicePort = new MongoService();
 void _portCheck;
+
+const TEST_ACTIVE: ActiveConnection = {
+  client: {} as unknown as MongoClient,
+  key: 'localhost:27017',
+};
 
 type ExportCall = {
   db: string;
@@ -137,6 +138,7 @@ function makeMongoPort(
   return {
     exportCollection: vi.fn(
       (
+        _active: ActiveConnection,
         db: string,
         coll: string,
         output: Writable,
@@ -159,6 +161,7 @@ function makeMongoPort(
     ),
     importCollection: vi.fn(
       (
+        _active: ActiveConnection,
         db: string,
         coll: string,
         input: Readable,
@@ -176,16 +179,22 @@ function makeMongoPort(
         })();
       }
     ),
-    listCollections: vi.fn((db: string): Promise<Result<CollectionInfo[]>> => {
+    listCollections: vi.fn((_active: ActiveConnection, db: string): Promise<Result<CollectionInfo[]>> => {
       if (overrides.listCollections) return overrides.listCollections(db);
       return Promise.resolve({ ok: true, data: [] });
     }),
-    getExportableIndexes: vi.fn((db: string, coll: string): Promise<Result<IndexSpec[]>> => {
+    getExportableIndexes: vi.fn((_active: ActiveConnection, db: string, coll: string): Promise<Result<IndexSpec[]>> => {
       if (overrides.getExportableIndexes) return overrides.getExportableIndexes(db, coll);
       return Promise.resolve({ ok: true, data: [] });
     }),
     applyImportedIndexes: vi.fn(
-      (db: string, coll: string, specs: IndexSpec[], opts: { dropExisting: boolean }): Promise<Result<undefined>> => {
+      (
+        _active: ActiveConnection,
+        db: string,
+        coll: string,
+        specs: IndexSpec[],
+        opts: { dropExisting: boolean }
+      ): Promise<Result<undefined>> => {
         if (overrides.applyImportedIndexes) return overrides.applyImportedIndexes(db, coll, specs, opts);
         return Promise.resolve({ ok: true, data: undefined });
       }
@@ -233,7 +242,7 @@ describe('OperationRegistry', () => {
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
       const params: OperationParams = { kind: 'export-collection', db: 'mydb', collection: 'users' };
-      const res = registry.start(params);
+      const res = registry.start(params, TEST_ACTIVE);
       expect(res.ok).toBe(true);
       const id = res.ok ? res.data : '';
       expect(typeof id).toBe('string');
@@ -269,8 +278,9 @@ describe('OperationRegistry', () => {
       // mongo called with correct db/coll
       expect(mongo.exportCollection).toHaveBeenCalledTimes(1);
       const callArgs = mongo.exportCollection.mock.calls[0];
-      expect(callArgs[0]).toBe('mydb');
-      expect(callArgs[1]).toBe('users');
+      expect(callArgs[0]).toBe(TEST_ACTIVE);
+      expect(callArgs[1]).toBe('mydb');
+      expect(callArgs[2]).toBe('users');
     });
   });
 
@@ -287,7 +297,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
       expect(terminal.warning).toBeUndefined();
@@ -296,7 +306,7 @@ describe('OperationRegistry', () => {
       expect(fs._sidecarWrites[0].filePath).toBe('/tmp/users.indexes.json');
       const parsed = JSON.parse(fs._sidecarWrites[0].json);
       expect(parsed).toEqual([{ key: { email: 1 }, name: 'email_1', unique: true }]);
-      expect(mongo.getExportableIndexes).toHaveBeenCalledWith('mydb', 'users');
+      expect(mongo.getExportableIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'mydb', 'users');
     });
 
     it('skips sidecar write when user cancelled the save dialog', async () => {
@@ -306,7 +316,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
       expect(fs._sidecarWrites).toHaveLength(0);
@@ -326,7 +336,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
       expect(terminal.warning).toMatch(/EACCES/);
@@ -343,7 +353,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' });
+      registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
       expect(terminal.warning).toMatch(/ns not found/);
@@ -373,7 +383,7 @@ describe('OperationRegistry', () => {
         filePath: '/tmp/input.bson.gz',
         options: { onDuplicate: 'skip', clearFirst: false },
       };
-      const res = registry.start(params);
+      const res = registry.start(params, TEST_ACTIVE);
       expect(res.ok).toBe(true);
 
       const terminal = await waitForTerminal(emits);
@@ -400,9 +410,10 @@ describe('OperationRegistry', () => {
 
       expect(mongo.importCollection).toHaveBeenCalledTimes(1);
       const args = mongo.importCollection.mock.calls[0];
-      expect(args[0]).toBe('mydb');
-      expect(args[1]).toBe('users');
-      expect(args[3]).toEqual({ onDuplicate: 'skip', clearFirst: false });
+      expect(args[0]).toBe(TEST_ACTIVE);
+      expect(args[1]).toBe('mydb');
+      expect(args[2]).toBe('users');
+      expect(args[4]).toEqual({ onDuplicate: 'skip', clearFirst: false });
     });
   });
 
@@ -422,7 +433,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams());
+      registry.start(importParams(), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -441,17 +452,18 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams({ clearFirst: true }));
+      registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
       expect(terminal.warning).toBeUndefined();
       expect(mongo.applyImportedIndexes).toHaveBeenCalledTimes(1);
       const callArgs = mongo.applyImportedIndexes.mock.calls[0];
-      expect(callArgs[0]).toBe('mydb');
-      expect(callArgs[1]).toBe('users');
-      expect(callArgs[2]).toEqual(specs);
-      expect(callArgs[3]).toEqual({ dropExisting: true });
+      expect(callArgs[0]).toBe(TEST_ACTIVE);
+      expect(callArgs[1]).toBe('mydb');
+      expect(callArgs[2]).toBe('users');
+      expect(callArgs[3]).toEqual(specs);
+      expect(callArgs[4]).toEqual({ dropExisting: true });
     });
 
     it('valid sidecar with clearFirst=false: applies indexes with dropExisting=false', async () => {
@@ -462,11 +474,11 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams({ clearFirst: false }));
+      registry.start(importParams({ clearFirst: false }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
       expect(mongo.applyImportedIndexes).toHaveBeenCalledTimes(1);
-      expect(mongo.applyImportedIndexes.mock.calls[0][3]).toEqual({ dropExisting: false });
+      expect(mongo.applyImportedIndexes.mock.calls[0][4]).toEqual({ dropExisting: false });
     });
 
     it('malformed sidecar: fails before any data operation runs', async () => {
@@ -476,7 +488,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams({ clearFirst: true }));
+      registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -493,7 +505,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams({ clearFirst: true }));
+      registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -511,7 +523,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams({ clearFirst: false }));
+      registry.start(importParams({ clearFirst: false }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -529,7 +541,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams());
+      registry.start(importParams(), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -548,7 +560,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start(importParams({ clearFirst: true }));
+      registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -579,7 +591,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      const res = registry.start({ kind: 'export-database', db: 'mydb' });
+      const res = registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
 
       const terminal = await waitForTerminal(emits);
@@ -639,7 +651,7 @@ describe('OperationRegistry', () => {
 
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
-      const res = registry.start({ kind: 'export-database', db: 'mydb' });
+      const res = registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
       const id = res.ok ? res.data : '';
       cancelFn = () => registry.cancel(id);
@@ -676,11 +688,11 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'c'] });
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'c'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
 
-      const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[1]);
+      const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[2]);
       expect(exportedNames).toEqual(['a', 'c']);
       expect(fs._sinks.map((s) => s.filePath)).toEqual(['/tmp/out/a.bson.gz', '/tmp/out/c.bson.gz']);
     });
@@ -701,11 +713,11 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'ghost'] });
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'ghost'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
 
-      const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[1]);
+      const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[2]);
       expect(exportedNames).toEqual(['a']);
     });
 
@@ -725,7 +737,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb' });
+      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('succeeded');
 
@@ -754,7 +766,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb' });
+      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -792,7 +804,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb' });
+      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -828,7 +840,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb' });
+      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -858,7 +870,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb' });
+      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -885,7 +897,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-database', db: 'mydb' });
+      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -911,13 +923,13 @@ describe('OperationRegistry', () => {
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
       const params: OperationParams = { kind: 'export-collection', db: 'd', collection: 'c' };
-      const first = registry.start(params);
+      const first = registry.start(params, TEST_ACTIVE);
       expect(first.ok).toBe(true);
 
       // Wait for runner to enter mongo.exportCollection (in-flight guard active)
       await vi.waitFor(() => expect(mongo.exportCollection).toHaveBeenCalledTimes(1));
 
-      const second = registry.start(params);
+      const second = registry.start(params, TEST_ACTIVE);
       expect(second.ok).toBe(false);
       if (!second.ok) expect(second.error).toMatch(/already running/i);
 
@@ -926,7 +938,7 @@ describe('OperationRegistry', () => {
       await waitForTerminal(emits);
 
       // Now the same scope accepts a new op
-      const third = registry.start(params);
+      const third = registry.start(params, TEST_ACTIVE);
       expect(third.ok).toBe(true);
 
       // Let the third runner finish to avoid async leakage into later tests
@@ -953,7 +965,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      const res = registry.start({ kind: 'export-collection', db: 'd', collection: 'c' });
+      const res = registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
       const id = res.ok ? res.data : '';
       cancelFn = () => registry.cancel(id);
@@ -966,7 +978,7 @@ describe('OperationRegistry', () => {
       expect(fs._sinks[0].finalized).toBe(false);
 
       // In-flight released: same scope key can start again
-      const again = registry.start({ kind: 'export-collection', db: 'd', collection: 'c' });
+      const again = registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
       expect(again.ok).toBe(true);
     });
   });
@@ -984,7 +996,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit });
 
-      registry.start({ kind: 'export-collection', db: 'd', collection: 'c' });
+      registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -1008,11 +1020,11 @@ describe('OperationRegistry', () => {
 
       registry.subscribe((rec: OperationRecord) => {
         if (rec.status === 'succeeded' && rec.params.kind === 'export-collection' && restartResult === null) {
-          restartResult = registry.start(params);
+          restartResult = registry.start(params, TEST_ACTIVE);
         }
       });
 
-      registry.start(params);
+      registry.start(params, TEST_ACTIVE);
       // wait for both terminals
       await vi.waitFor(() => {
         expect(restartResult).not.toBeNull();

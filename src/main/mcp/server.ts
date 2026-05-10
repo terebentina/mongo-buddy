@@ -3,12 +3,14 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { registerMcpTools } from './tools';
 import type { MongoService } from '../mongo-service';
+import type { ConnectionManager } from '../connection-manager';
 
 const HOST = '0.0.0.0';
 const MCP_PATH = '/mcp';
 
 export interface StartMcpServerOptions {
   service: MongoService;
+  manager: ConnectionManager;
   port: number;
 }
 
@@ -56,7 +58,7 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
     }
 
     const mcpServer = new McpServer({ name: 'mongo-buddy', version: '1.0.0' }, { capabilities: { tools: {} } });
-    registerMcpTools(mcpServer, options.service);
+    registerMcpTools(mcpServer, options.service, options.manager);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
     const cleanup = (): void => {

@@ -1,7 +1,7 @@
 import { MongoBulkWriteError } from 'mongodb';
 import { BSON, EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
-import type { ConnectionManager } from './connection-manager';
+import type { ActiveConnection } from './connection-manager';
 import type {
   Result,
   DbInfo,
@@ -18,21 +18,10 @@ import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
 import { byNameInsensitive } from '../shared/sort';
 
-export interface MongoServiceDeps {
-  conn: Pick<ConnectionManager, 'requireClient'>;
-}
-
 export class MongoService {
-  private readonly conn: Pick<ConnectionManager, 'requireClient'>;
-
-  constructor(deps: MongoServiceDeps) {
-    this.conn = deps.conn;
-  }
-
-  async listDatabases(): Promise<Result<DbInfo[]>> {
+  async listDatabases(active: ActiveConnection): Promise<Result<DbInfo[]>> {
     try {
-      const client = this.conn.requireClient();
-      const result = await client.db().admin().listDatabases();
+      const result = await active.client.db().admin().listDatabases();
       const databases: DbInfo[] = result.databases
         .map((db) => ({
           name: db.name,
@@ -46,10 +35,9 @@ export class MongoService {
     }
   }
 
-  async listCollections(dbName: string): Promise<Result<CollectionInfo[]>> {
+  async listCollections(active: ActiveConnection, dbName: string): Promise<Result<CollectionInfo[]>> {
     try {
-      const client = this.conn.requireClient();
-      const db = client.db(dbName);
+      const db = active.client.db(dbName);
       const collections = await db.listCollections().toArray();
       const data: CollectionInfo[] = await Promise.all(
         collections.map(async (c) => {
@@ -69,10 +57,9 @@ export class MongoService {
     }
   }
 
-  async find(dbName: string, collName: string, opts: FindOpts): Promise<Result<FindResult>> {
+  async find(active: ActiveConnection, dbName: string, collName: string, opts: FindOpts): Promise<Result<FindResult>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const filter = EJSON.deserialize(opts.filter ?? {}) as Record<string, unknown>;
       const cursor = collection.find(filter);
       if (opts.sort) cursor.sort(opts.sort);
@@ -90,13 +77,13 @@ export class MongoService {
   }
 
   async aggregate(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     pipeline: Record<string, unknown>[]
   ): Promise<Result<Record<string, unknown>[]>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const deserializedPipeline = EJSON.deserialize(pipeline) as Record<string, unknown>[];
       const rawDocs = await collection.aggregate(deserializedPipeline).toArray();
       const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
@@ -107,14 +94,14 @@ export class MongoService {
   }
 
   async explain(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     queryMode: QueryMode,
     query: Record<string, unknown> | Record<string, unknown>[]
   ): Promise<Result<Record<string, unknown>>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       let plan: unknown;
       if (queryMode === 'aggregate') {
         const pipeline = EJSON.deserialize(query as Record<string, unknown>[]) as Record<string, unknown>[];
@@ -129,10 +116,14 @@ export class MongoService {
     }
   }
 
-  async count(dbName: string, collName: string, filter: Record<string, unknown> = {}): Promise<Result<number>> {
+  async count(
+    active: ActiveConnection,
+    dbName: string,
+    collName: string,
+    filter: Record<string, unknown> = {}
+  ): Promise<Result<number>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(filter) as Record<string, unknown>;
       const count = await collection.countDocuments(deserialized);
       return { ok: true, data: count };
@@ -142,13 +133,13 @@ export class MongoService {
   }
 
   async insertOne(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     doc: Record<string, unknown>
   ): Promise<Result<Record<string, unknown>>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
       const result = await collection.insertOne(deserialized);
       const inserted = await collection.findOne({ _id: result.insertedId });
@@ -159,14 +150,14 @@ export class MongoService {
   }
 
   async updateOne(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     id: unknown,
     doc: Record<string, unknown>
   ): Promise<Result<Record<string, unknown>>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
       const { _id, ...updateFields } = deserialized;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -179,10 +170,9 @@ export class MongoService {
     }
   }
 
-  async sampleFields(dbName: string, collName: string): Promise<Result<string[]>> {
+  async sampleFields(active: ActiveConnection, dbName: string, collName: string): Promise<Result<string[]>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const docs = await collection.find({}).limit(50).toArray();
       const keySet = new Set<string>();
       for (const doc of docs) {
@@ -198,6 +188,7 @@ export class MongoService {
   }
 
   async exportCollection(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     output: Writable,
@@ -205,8 +196,7 @@ export class MongoService {
     signal: AbortSignal
   ): Promise<Result<number>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const cursor = collection.find({});
       let count = 0;
       let lastProgressTime = 0;
@@ -239,6 +229,7 @@ export class MongoService {
   }
 
   async importCollection(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     input: Readable,
@@ -247,8 +238,7 @@ export class MongoService {
     signal: AbortSignal
   ): Promise<Result<{ inserted: number; skipped: number }>> {
     try {
-      const client = this.conn.requireClient();
-      const db = client.db(dbName);
+      const db = active.client.db(dbName);
       const collection = db.collection(collName);
 
       try {
@@ -362,6 +352,7 @@ export class MongoService {
   }
 
   async distinct(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     field: string,
@@ -369,8 +360,7 @@ export class MongoService {
     maxValues = 1000
   ): Promise<Result<DistinctResult>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const deserialized = EJSON.deserialize(filter) as Record<string, unknown>;
       const rawValues = await collection.distinct(field, deserialized);
       const truncated = rawValues.length > maxValues;
@@ -382,10 +372,9 @@ export class MongoService {
     }
   }
 
-  async listIndexes(dbName: string, collName: string): Promise<Result<IndexInfo[]>> {
+  async listIndexes(active: ActiveConnection, dbName: string, collName: string): Promise<Result<IndexInfo[]>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const rawIndexes = await collection.indexes();
       const data = rawIndexes.map((idx) => EJSON.serialize(idx) as unknown as IndexInfo);
       return { ok: true, data };
@@ -394,10 +383,9 @@ export class MongoService {
     }
   }
 
-  async getExportableIndexes(dbName: string, collName: string): Promise<Result<IndexSpec[]>> {
+  async getExportableIndexes(active: ActiveConnection, dbName: string, collName: string): Promise<Result<IndexSpec[]>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       const rawIndexes = await collection.indexes();
       const data = sanitizeForExport(rawIndexes as Record<string, unknown>[]);
       return { ok: true, data };
@@ -407,14 +395,14 @@ export class MongoService {
   }
 
   async applyImportedIndexes(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     specs: IndexSpec[],
     opts: { dropExisting: boolean }
   ): Promise<Result<undefined>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
 
       let toCreate: IndexSpec[];
       if (opts.dropExisting) {
@@ -438,33 +426,39 @@ export class MongoService {
     }
   }
 
-  async dropCollection(dbName: string, collName: string): Promise<Result<undefined>> {
+  async dropCollection(active: ActiveConnection, dbName: string, collName: string): Promise<Result<undefined>> {
     try {
-      const client = this.conn.requireClient();
-      await client.db(dbName).dropCollection(collName);
+      await active.client.db(dbName).dropCollection(collName);
       return { ok: true, data: undefined };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
   }
 
-  async dropIndex(dbName: string, collName: string, indexName: string): Promise<Result<undefined>> {
+  async dropIndex(
+    active: ActiveConnection,
+    dbName: string,
+    collName: string,
+    indexName: string
+  ): Promise<Result<undefined>> {
     if (indexName === '_id_') {
       return { ok: false, error: 'Cannot drop the _id_ index' };
     }
     try {
-      const client = this.conn.requireClient();
-      await client.db(dbName).collection(collName).dropIndex(indexName);
+      await active.client.db(dbName).collection(collName).dropIndex(indexName);
       return { ok: true, data: undefined };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
   }
 
-  async dropCollections(dbName: string, names: string[]): Promise<Result<DropCollectionsResult>> {
+  async dropCollections(
+    active: ActiveConnection,
+    dbName: string,
+    names: string[]
+  ): Promise<Result<DropCollectionsResult>> {
     try {
-      const client = this.conn.requireClient();
-      const db = client.db(dbName);
+      const db = active.client.db(dbName);
       const dropped: string[] = [];
       const failed: { name: string; error: string }[] = [];
       for (const name of names) {
@@ -481,10 +475,9 @@ export class MongoService {
     }
   }
 
-  async deleteOne(dbName: string, collName: string, id: unknown): Promise<Result<undefined>> {
+  async deleteOne(active: ActiveConnection, dbName: string, collName: string, id: unknown): Promise<Result<undefined>> {
     try {
-      const client = this.conn.requireClient();
-      const collection = client.db(dbName).collection(collName);
+      const collection = active.client.db(dbName).collection(collName);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const filterid = (EJSON.deserialize({ _id: id }) as Record<string, unknown>)._id as any;
       await collection.deleteOne({ _id: filterid });

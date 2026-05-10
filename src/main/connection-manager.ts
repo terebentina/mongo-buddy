@@ -11,6 +11,9 @@ import type {
 
 export type { ConnectionState, ConnectedSession, ConnectOptions };
 
+export type ConnectionKey = string;
+export type ActiveConnection = { client: MongoClient; key: ConnectionKey };
+
 export interface ConnectionStorePort {
   setLastUsed(uri: string): void;
 }
@@ -27,8 +30,7 @@ export interface ConnectionManager {
   connect(uri: string, opts?: ConnectOptions): Promise<Result<ConnectedSession>>;
   disconnect(): Promise<Result<undefined>>;
   getState(): ConnectionState;
-  getConnectionKey(): string | null;
-  requireClient(): MongoClient;
+  getActive(): ActiveConnection | null;
   onStateChange(cb: (s: ConnectionState) => void): () => void;
 }
 
@@ -152,10 +154,9 @@ export function createConnectionManager(deps: ConnectionManagerDeps): Connection
     connect,
     disconnect,
     getState: () => state,
-    getConnectionKey: () => (state.status === 'connected' ? state.connectionKey : null),
-    requireClient: () => {
-      if (!client) throw new Error('Not connected');
-      return client;
+    getActive: () => {
+      if (!client || state.status !== 'connected') return null;
+      return { client, key: state.connectionKey };
     },
     onStateChange: (cb) => {
       subscribers.add(cb);

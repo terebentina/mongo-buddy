@@ -11,9 +11,11 @@ import type {
   Result,
 } from '../shared/types';
 import { parseAndValidateSidecar, type IndexSpec } from './index-spec';
+import type { ActiveConnection } from './connection-manager';
 
 export interface MongoServicePort {
   exportCollection(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     output: Writable,
@@ -21,6 +23,7 @@ export interface MongoServicePort {
     signal: AbortSignal
   ): Promise<Result<number>>;
   importCollection(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     input: Readable,
@@ -28,9 +31,10 @@ export interface MongoServicePort {
     onProgress: (count: number) => void,
     signal: AbortSignal
   ): Promise<Result<{ inserted: number; skipped: number }>>;
-  listCollections(dbName: string): Promise<Result<CollectionInfo[]>>;
-  getExportableIndexes(dbName: string, collName: string): Promise<Result<IndexSpec[]>>;
+  listCollections(active: ActiveConnection, dbName: string): Promise<Result<CollectionInfo[]>>;
+  getExportableIndexes(active: ActiveConnection, dbName: string, collName: string): Promise<Result<IndexSpec[]>>;
   applyImportedIndexes(
+    active: ActiveConnection,
     dbName: string,
     collName: string,
     specs: IndexSpec[],
@@ -64,7 +68,7 @@ export interface DialogProviderPort {
 }
 
 export interface OperationRegistry {
-  start(params: OperationParams): Result<OperationId>;
+  start(params: OperationParams, active: ActiveConnection): Result<OperationId>;
   cancel(id: OperationId): Result<undefined>;
   get(id: OperationId): OperationRecord | undefined;
   list(): OperationRecord[];
@@ -124,7 +128,8 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     id: OperationId,
     params: Extract<OperationParams, { kind: 'export-collection' }>,
     ac: AbortController,
-    key: string
+    key: string,
+    active: ActiveConnection
   ): Promise<void> => {
     emitUpdate(id, { status: 'running' });
 
@@ -146,6 +151,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
 
     try {
       const result = await deps.mongo.exportCollection(
+        active,
         params.db,
         params.collection,
         sink.writable,
@@ -182,7 +188,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     let warning: string | undefined;
     if (!failed) {
       try {
-        const indexesRes = await deps.mongo.getExportableIndexes(params.db, params.collection);
+        const indexesRes = await deps.mongo.getExportableIndexes(active, params.db, params.collection);
         if (!indexesRes.ok) {
           warning = `Exported data but failed to read indexes: ${indexesRes.error}`;
         } else {
@@ -217,7 +223,8 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     id: OperationId,
     params: Extract<OperationParams, { kind: 'import-collection' }>,
     ac: AbortController,
-    key: string
+    key: string,
+    active: ActiveConnection
   ): Promise<void> => {
     emitUpdate(id, { status: 'running' });
 
@@ -246,6 +253,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
 
     try {
       const result = await deps.mongo.importCollection(
+        active,
         params.db,
         params.collection,
         source.readable,
@@ -284,7 +292,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     if (sidecarSpecs === null) {
       warning = 'No indexes were restored (sidecar file not found).';
     } else {
-      const applyRes = await deps.mongo.applyImportedIndexes(params.db, params.collection, sidecarSpecs, {
+      const applyRes = await deps.mongo.applyImportedIndexes(active, params.db, params.collection, sidecarSpecs, {
         dropExisting: params.options.clearFirst,
       });
       if (!applyRes.ok) {
@@ -309,7 +317,8 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     id: OperationId,
     params: Extract<OperationParams, { kind: 'export-database' }>,
     ac: AbortController,
-    key: string
+    key: string,
+    active: ActiveConnection
   ): Promise<void> => {
     emitUpdate(id, { status: 'running' });
 
@@ -323,7 +332,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       return;
     }
 
-    const listRes = await deps.mongo.listCollections(params.db);
+    const listRes = await deps.mongo.listCollections(active, params.db);
     if (!listRes.ok) {
       inFlight.delete(key);
       emitUpdate(id, { status: 'failed', error: listRes.error });
@@ -363,6 +372,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       let collFailed = false;
       try {
         const r = await deps.mongo.exportCollection(
+          active,
           params.db,
           coll.name,
           sink.writable,
@@ -408,7 +418,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       // Sidecar write is best-effort per collection. A single bad collection
       // must not abort a long DB export — accumulate the name and continue.
       try {
-        const indexesRes = await deps.mongo.getExportableIndexes(params.db, coll.name);
+        const indexesRes = await deps.mongo.getExportableIndexes(active, params.db, coll.name);
         if (!indexesRes.ok) {
           sidecarErrorCollections.push(coll.name);
         } else {
@@ -443,7 +453,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     }
   };
 
-  const start = (params: OperationParams): Result<OperationId> => {
+  const start = (params: OperationParams, active: ActiveConnection): Result<OperationId> => {
     const key = scopeKey(params);
     if (inFlight.has(key)) {
       return { ok: false, error: 'already running' };
@@ -464,11 +474,11 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     // Kick off async runner without blocking start()
     queueMicrotask(() => {
       if (params.kind === 'export-collection') {
-        void runExportCollection(id, params, ac, key);
+        void runExportCollection(id, params, ac, key, active);
       } else if (params.kind === 'import-collection') {
-        void runImportCollection(id, params, ac, key);
+        void runImportCollection(id, params, ac, key, active);
       } else {
-        void runExportDatabase(id, params, ac, key);
+        void runExportDatabase(id, params, ac, key, active);
       }
     });
 

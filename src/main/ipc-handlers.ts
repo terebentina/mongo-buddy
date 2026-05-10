@@ -2,7 +2,7 @@ import { ipcMain, dialog } from 'electron';
 import path from 'path';
 import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
-import type { ConnectionManager, ConnectOptions } from './connection-manager';
+import type { ActiveConnection, ConnectionManager, ConnectOptions } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
 import type { OperationRegistry } from './operation-registry';
 import type { McpStatusEmitter } from './mcp/status';
@@ -71,37 +71,40 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     wrap(() => manager.disconnect())
   );
 
-  const requireConnectionKey = (): string => {
-    const key = manager.getConnectionKey();
-    if (!key) throw new Error('Not connected');
-    return key;
+  const requireActive = (): ActiveConnection => {
+    const active = manager.getActive();
+    if (!active) throw new Error('Not connected');
+    return active;
   };
   ipcMain.handle(
     'mongo:list-databases',
-    wrap(() => service.listDatabases())
+    wrap(() => service.listDatabases(requireActive()))
   );
   ipcMain.handle(
     'mongo:list-collections',
-    wrap((db: unknown) => service.listCollections(db as string))
+    wrap((db: unknown) => service.listCollections(requireActive(), db as string))
   );
   ipcMain.handle(
     'mongo:list-indexes',
-    wrap((db: unknown, coll: unknown) => service.listIndexes(db as string, coll as string))
+    wrap((db: unknown, coll: unknown) => service.listIndexes(requireActive(), db as string, coll as string))
   );
   ipcMain.handle(
     'mongo:find',
-    wrap((db: unknown, coll: unknown, opts: unknown) => service.find(db as string, coll as string, opts as FindOpts))
+    wrap((db: unknown, coll: unknown, opts: unknown) =>
+      service.find(requireActive(), db as string, coll as string, opts as FindOpts)
+    )
   );
   ipcMain.handle(
     'mongo:aggregate',
     wrap((db: unknown, coll: unknown, pipeline: unknown) =>
-      service.aggregate(db as string, coll as string, pipeline as Record<string, unknown>[])
+      service.aggregate(requireActive(), db as string, coll as string, pipeline as Record<string, unknown>[])
     )
   );
   ipcMain.handle(
     'mongo:explain',
     wrap((db: unknown, coll: unknown, queryMode: unknown, query: unknown) =>
       service.explain(
+        requireActive(),
         db as string,
         coll as string,
         queryMode as QueryMode,
@@ -112,48 +115,58 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(
     'mongo:count',
     wrap((db: unknown, coll: unknown, filter: unknown) =>
-      service.count(db as string, coll as string, filter as Record<string, unknown>)
+      service.count(requireActive(), db as string, coll as string, filter as Record<string, unknown>)
     )
   );
 
   ipcMain.handle(
     'mongo:distinct',
     wrap((db: unknown, coll: unknown, field: unknown, filter: unknown) =>
-      service.distinct(db as string, coll as string, field as string, filter as Record<string, unknown> | undefined)
+      service.distinct(
+        requireActive(),
+        db as string,
+        coll as string,
+        field as string,
+        filter as Record<string, unknown> | undefined
+      )
     )
   );
   ipcMain.handle(
     'mongo:sample-fields',
-    wrap((db: unknown, coll: unknown) => service.sampleFields(db as string, coll as string))
+    wrap((db: unknown, coll: unknown) => service.sampleFields(requireActive(), db as string, coll as string))
   );
 
   ipcMain.handle(
     'mongo:insert-one',
     wrap((db: unknown, coll: unknown, doc: unknown) =>
-      service.insertOne(db as string, coll as string, doc as Record<string, unknown>)
+      service.insertOne(requireActive(), db as string, coll as string, doc as Record<string, unknown>)
     )
   );
   ipcMain.handle(
     'mongo:update-one',
     wrap((db: unknown, coll: unknown, id: unknown, doc: unknown) =>
-      service.updateOne(db as string, coll as string, id, doc as Record<string, unknown>)
+      service.updateOne(requireActive(), db as string, coll as string, id, doc as Record<string, unknown>)
     )
   );
   ipcMain.handle(
     'mongo:delete-one',
-    wrap((db: unknown, coll: unknown, id: unknown) => service.deleteOne(db as string, coll as string, id))
+    wrap((db: unknown, coll: unknown, id: unknown) =>
+      service.deleteOne(requireActive(), db as string, coll as string, id)
+    )
   );
   ipcMain.handle(
     'mongo:drop-index',
-    wrap((db: unknown, coll: unknown, name: unknown) => service.dropIndex(db as string, coll as string, name as string))
+    wrap((db: unknown, coll: unknown, name: unknown) =>
+      service.dropIndex(requireActive(), db as string, coll as string, name as string)
+    )
   );
   ipcMain.handle(
     'mongo:drop-collection',
-    wrap((db: unknown, coll: unknown) => service.dropCollection(db as string, coll as string))
+    wrap((db: unknown, coll: unknown) => service.dropCollection(requireActive(), db as string, coll as string))
   );
   ipcMain.handle(
     'mongo:drop-collections',
-    wrap((db: unknown, names: unknown) => service.dropCollections(db as string, names as string[]))
+    wrap((db: unknown, names: unknown) => service.dropCollections(requireActive(), db as string, names as string[]))
   );
 
   ipcMain.handle(
@@ -179,15 +192,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(
     'history:load',
-    wrapSync(() => historyStore.getAll(requireConnectionKey()))
+    wrapSync(() => historyStore.getAll(requireActive().key))
   );
   ipcMain.handle(
     'history:save',
-    wrapSync((entries: unknown) => historyStore.save(requireConnectionKey(), entries as QueryHistoryEntry[]))
+    wrapSync((entries: unknown) => historyStore.save(requireActive().key, entries as QueryHistoryEntry[]))
   );
   ipcMain.handle(
     'history:clear',
-    wrapSync(() => historyStore.clear(requireConnectionKey()))
+    wrapSync(() => historyStore.clear(requireActive().key))
   );
 
   ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile[] | null>> => {
@@ -210,7 +223,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(
     'operation:start',
-    wrapSync((params: unknown): Result<OperationId> => registry.start(params as OperationParams))
+    wrapSync((params: unknown): Result<OperationId> => {
+      const active = manager.getActive();
+      if (!active) return { ok: false, error: 'Not connected' };
+      return registry.start(params as OperationParams, active);
+    })
   );
   ipcMain.handle(
     'operation:cancel',

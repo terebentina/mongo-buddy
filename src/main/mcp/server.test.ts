@@ -4,6 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { startMcpServer } from './server';
 import type { MongoService } from '../mongo-service';
+import type { ConnectionManager } from '../connection-manager';
 
 const EXPECTED_TOOL_NAMES = [
   'aggregate',
@@ -19,6 +20,10 @@ const EXPECTED_TOOL_NAMES = [
 
 function mockService(): MongoService {
   return {} as MongoService;
+}
+
+function mockManager(): ConnectionManager {
+  return { getActive: () => null } as unknown as ConnectionManager;
 }
 
 async function listenBlocker(): Promise<{ server: Server; port: number }> {
@@ -46,7 +51,7 @@ describe('startMcpServer', () => {
   });
 
   it('round-trips initialize + tools/list and returns all 7 tool names', async () => {
-    const handle = await startMcpServer({ service: mockService(), port: 0 });
+    const handle = await startMcpServer({ service: mockService(), manager: mockManager(), port: 0 });
     expect(handle).not.toBeNull();
     if (!handle) return;
     restore.push(() => handle.close());
@@ -72,13 +77,13 @@ describe('startMcpServer', () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     restore.push(() => errSpy.mockRestore());
 
-    const handle = await startMcpServer({ service: mockService(), port: blocker.port });
+    const handle = await startMcpServer({ service: mockService(), manager: mockManager(), port: blocker.port });
     expect(handle).toBeNull();
     expect(errSpy).toHaveBeenCalled();
   });
 
   it('close() stops accepting connections', async () => {
-    const handle = await startMcpServer({ service: mockService(), port: 0 });
+    const handle = await startMcpServer({ service: mockService(), manager: mockManager(), port: 0 });
     if (!handle) throw new Error('expected handle');
     const port = handle.actualPort;
     await handle.close();

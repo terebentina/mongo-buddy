@@ -26,7 +26,7 @@ const connectionManager = createConnectionManager({
   historyStore: queryHistoryStore,
   connectionKeyFromUri,
 });
-const mongoService = new MongoService({ conn: connectionManager });
+const mongoService = new MongoService();
 const mcpArgs = parseMcpArgs(process.argv);
 const mcpStatusEmitter = createMcpStatusEmitter();
 let mcpHandle: McpServerHandle | null = null;
@@ -104,7 +104,7 @@ app.whenReady().then(async () => {
   });
 
   if (mcpArgs.enabled) {
-    mcpHandle = await startMcpServer({ service: mongoService, port: mcpArgs.port });
+    mcpHandle = await startMcpServer({ service: mongoService, manager: connectionManager, port: mcpArgs.port });
     if (mcpHandle) {
       console.log(`MCP server listening on http://${mcpHandle.address}:${mcpHandle.actualPort}/mcp`);
       mcpStatusEmitter.set({ running: true, port: mcpHandle.actualPort });

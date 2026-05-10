@@ -3,9 +3,11 @@ import { MongoClient, MongoBulkWriteError, ObjectId } from 'mongodb';
 import { BSON } from 'bson';
 import { Readable, Writable } from 'stream';
 import { MongoService } from './mongo-service';
+import type { ActiveConnection } from './connection-manager';
 
 describe('MongoService', () => {
   let service: MongoService;
+  let active: ActiveConnection;
   let mockClient: {
     close: ReturnType<typeof vi.fn>;
     db: ReturnType<typeof vi.fn>;
@@ -32,7 +34,6 @@ describe('MongoService', () => {
     indexes: ReturnType<typeof vi.fn>;
     dropIndex: ReturnType<typeof vi.fn>;
   };
-  let requireClient: ReturnType<typeof vi.fn<() => MongoClient>>;
 
   beforeEach(() => {
     mockCollection = {
@@ -69,8 +70,8 @@ describe('MongoService', () => {
         ],
       }),
     });
-    requireClient = vi.fn().mockReturnValue(mockClient as unknown as MongoClient);
-    service = new MongoService({ conn: { requireClient: () => requireClient() } });
+    active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
+    service = new MongoService();
   });
 
   afterEach(() => {
@@ -79,7 +80,7 @@ describe('MongoService', () => {
 
   describe('listDatabases', () => {
     it('returns DbInfo[] sorted alphabetically', async () => {
-      const result = await service.listDatabases();
+      const result = await service.listDatabases(active);
       expect(result).toEqual({
         ok: true,
         data: [
@@ -100,16 +101,8 @@ describe('MongoService', () => {
           ],
         }),
       });
-      const result = await service.listDatabases();
+      const result = await service.listDatabases(active);
       expect(result.ok && result.data.map((d) => d.name)).toEqual(['log2', 'log10', 'Users_2', 'users_10']);
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.listDatabases();
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -121,7 +114,7 @@ describe('MongoService', () => {
           { name: 'orders', type: 'collection' },
         ]),
       });
-      const result = await service.listCollections('testdb');
+      const result = await service.listCollections(active, 'testdb');
       expect(mockClient.db).toHaveBeenCalledWith('testdb');
       expect(result).toEqual({
         ok: true,
@@ -141,7 +134,7 @@ describe('MongoService', () => {
           { name: 'events_10', type: 'collection' },
         ]),
       });
-      const result = await service.listCollections('testdb');
+      const result = await service.listCollections(active, 'testdb');
       expect(result.ok && result.data.map((c) => c.name)).toEqual(['Events_2', 'events_10', 'log2', 'log10']);
     });
   });
@@ -163,7 +156,7 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(mockCursor);
       mockCollection.countDocuments.mockResolvedValue(2);
 
-      const result = await service.find('testdb', 'users', {
+      const result = await service.find(active, 'testdb', 'users', {
         filter: { name: 'Alice' },
         sort: { name: 1 },
         skip: 0,
@@ -195,7 +188,7 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(mockCursor);
       mockCollection.countDocuments.mockResolvedValue(0);
 
-      await service.find('testdb', 'users', {
+      await service.find(active, 'testdb', 'users', {
         filter: { _id: { $oid: '507f1f77bcf86cd799439011' } },
       });
 
@@ -207,7 +200,7 @@ describe('MongoService', () => {
   describe('count', () => {
     it('returns number', async () => {
       mockCollection.countDocuments.mockResolvedValue(42);
-      const result = await service.count('testdb', 'users', { active: true });
+      const result = await service.count(active, 'testdb', 'users', { active: true });
       expect(result).toEqual({ ok: true, data: 42 });
       expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true });
     });
@@ -215,7 +208,7 @@ describe('MongoService', () => {
     it('deserializes EJSON $oid in filter to ObjectId', async () => {
       const oid = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.countDocuments.mockResolvedValue(1);
-      await service.count('testdb', 'users', { _id: { $oid: '507f1f77bcf86cd799439011' } });
+      await service.count(active, 'testdb', 'users', { _id: { $oid: '507f1f77bcf86cd799439011' } });
       expect(mockCollection.countDocuments).toHaveBeenCalledWith({ _id: oid });
     });
   });
@@ -229,7 +222,9 @@ describe('MongoService', () => {
       };
       mockCollection.aggregate.mockReturnValue(mockCursor);
 
-      const result = await service.aggregate('testdb', 'users', [{ $group: { _id: null, total: { $sum: 1 } } }]);
+      const result = await service.aggregate(active, 'testdb', 'users', [
+        { $group: { _id: null, total: { $sum: 1 } } },
+      ]);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -245,17 +240,9 @@ describe('MongoService', () => {
       const mockCursor = { toArray: vi.fn().mockResolvedValue([]) };
       mockCollection.aggregate.mockReturnValue(mockCursor);
 
-      await service.aggregate('testdb', 'users', [{ $match: { _id: { $oid: '507f1f77bcf86cd799439011' } } }]);
+      await service.aggregate(active, 'testdb', 'users', [{ $match: { _id: { $oid: '507f1f77bcf86cd799439011' } } }]);
 
       expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $match: { _id: oid } }]);
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.aggregate('testdb', 'users', []);
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -271,7 +258,7 @@ describe('MongoService', () => {
       };
       mockCollection.find.mockReturnValue(mockCursor);
 
-      const result = await service.explain('testdb', 'users', 'filter', { name: 'Alice' });
+      const result = await service.explain(active, 'testdb', 'users', 'filter', { name: 'Alice' });
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -290,7 +277,7 @@ describe('MongoService', () => {
       const mockCursor = { explain: vi.fn().mockResolvedValue({}) };
       mockCollection.find.mockReturnValue(mockCursor);
 
-      await service.explain('testdb', 'users', 'filter', { _id: { $oid: '507f1f77bcf86cd799439011' } });
+      await service.explain(active, 'testdb', 'users', 'filter', { _id: { $oid: '507f1f77bcf86cd799439011' } });
 
       expect(mockCollection.find).toHaveBeenCalledWith({ _id: oid });
     });
@@ -300,7 +287,7 @@ describe('MongoService', () => {
       const mockCursor = { explain: vi.fn().mockResolvedValue(plan) };
       mockCollection.aggregate.mockReturnValue(mockCursor);
 
-      const result = await service.explain('testdb', 'users', 'aggregate', [{ $match: {} }]);
+      const result = await service.explain(active, 'testdb', 'users', 'aggregate', [{ $match: {} }]);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -315,25 +302,17 @@ describe('MongoService', () => {
       const mockCursor = { explain: vi.fn().mockResolvedValue({}) };
       mockCollection.aggregate.mockReturnValue(mockCursor);
 
-      await service.explain('testdb', 'users', 'aggregate', [
+      await service.explain(active, 'testdb', 'users', 'aggregate', [
         { $match: { _id: { $oid: '507f1f77bcf86cd799439011' } } },
       ]);
 
       expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $match: { _id: oid } }]);
     });
 
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.explain('testdb', 'users', 'filter', {});
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
-    });
-
     it('when explain throws returns error', async () => {
       const mockCursor = { explain: vi.fn().mockRejectedValue(new Error('boom')) };
       mockCollection.find.mockReturnValue(mockCursor);
-      const result = await service.explain('testdb', 'users', 'filter', {});
+      const result = await service.explain(active, 'testdb', 'users', 'filter', {});
       expect(result).toEqual({ ok: false, error: 'boom' });
     });
   });
@@ -344,7 +323,7 @@ describe('MongoService', () => {
       mockCollection.insertOne.mockResolvedValue({ insertedId });
       mockCollection.findOne.mockResolvedValue({ _id: insertedId, name: 'Alice' });
 
-      const result = await service.insertOne('testdb', 'users', { name: 'Alice' });
+      const result = await service.insertOne(active, 'testdb', 'users', { name: 'Alice' });
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -352,14 +331,6 @@ describe('MongoService', () => {
         expect(result.data.name).toBe('Alice');
       }
       expect(mockCollection.insertOne).toHaveBeenCalled();
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.insertOne('testdb', 'users', { name: 'Alice' });
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -369,7 +340,13 @@ describe('MongoService', () => {
       mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
       mockCollection.findOne.mockResolvedValue({ _id: oid, name: 'Bob' });
 
-      const result = await service.updateOne('testdb', 'users', { $oid: '507f1f77bcf86cd799439011' }, { name: 'Bob' });
+      const result = await service.updateOne(
+        active,
+        'testdb',
+        'users',
+        { $oid: '507f1f77bcf86cd799439011' },
+        { name: 'Bob' }
+      );
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -383,21 +360,13 @@ describe('MongoService', () => {
       mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
       mockCollection.findOne.mockResolvedValue({ _id: 'my-string-id', name: 'Bob' });
 
-      const result = await service.updateOne('testdb', 'users', 'my-string-id', { name: 'Bob' });
+      const result = await service.updateOne(active, 'testdb', 'users', 'my-string-id', { name: 'Bob' });
 
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.data.name).toBe('Bob');
       }
       expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: 'my-string-id' }, { name: 'Bob' });
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.updateOne('testdb', 'users', '507f1f77bcf86cd799439011', { name: 'Bob' });
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -406,7 +375,7 @@ describe('MongoService', () => {
       const oid = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
-      const result = await service.deleteOne('testdb', 'users', { $oid: '507f1f77bcf86cd799439011' });
+      const result = await service.deleteOne(active, 'testdb', 'users', { $oid: '507f1f77bcf86cd799439011' });
 
       expect(result).toEqual({ ok: true, data: undefined });
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: oid });
@@ -415,18 +384,10 @@ describe('MongoService', () => {
     it('with string id queries with string, not ObjectId', async () => {
       mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
-      const result = await service.deleteOne('testdb', 'users', 'my-string-id');
+      const result = await service.deleteOne(active, 'testdb', 'users', 'my-string-id');
 
       expect(result).toEqual({ ok: true, data: undefined });
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: 'my-string-id' });
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.deleteOne('testdb', 'users', '507f1f77bcf86cd799439011');
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -435,7 +396,7 @@ describe('MongoService', () => {
       const objectId = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.distinct.mockResolvedValue([objectId, 'hello', 42]);
 
-      const result = await service.distinct('testdb', 'users', 'status');
+      const result = await service.distinct(active, 'testdb', 'users', 'status');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -448,7 +409,7 @@ describe('MongoService', () => {
     it('passes filter to collection.distinct when provided', async () => {
       mockCollection.distinct.mockResolvedValue(['active']);
 
-      const result = await service.distinct('testdb', 'users', 'status', { age: { $gt: 18 } });
+      const result = await service.distinct(active, 'testdb', 'users', 'status', { age: { $gt: 18 } });
 
       expect(result.ok).toBe(true);
       expect(mockCollection.distinct).toHaveBeenCalledWith('status', { age: { $gt: 18 } });
@@ -458,24 +419,16 @@ describe('MongoService', () => {
       const oid = new ObjectId('507f1f77bcf86cd799439011');
       mockCollection.distinct.mockResolvedValue([]);
 
-      await service.distinct('testdb', 'users', 'status', { _id: { $oid: '507f1f77bcf86cd799439011' } });
+      await service.distinct(active, 'testdb', 'users', 'status', { _id: { $oid: '507f1f77bcf86cd799439011' } });
 
       expect(mockCollection.distinct).toHaveBeenCalledWith('status', { _id: oid });
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.distinct('testdb', 'users', 'status');
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
 
     it('truncates at maxValues and sets truncated to true', async () => {
       const values = Array.from({ length: 15 }, (_, i) => `val${i}`);
       mockCollection.distinct.mockResolvedValue(values);
 
-      const result = await service.distinct('testdb', 'users', 'status', {}, 10);
+      const result = await service.distinct(active, 'testdb', 'users', 'status', {}, 10);
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -487,7 +440,7 @@ describe('MongoService', () => {
     it('sets truncated to false when under limit', async () => {
       mockCollection.distinct.mockResolvedValue(['a', 'b', 'c']);
 
-      const result = await service.distinct('testdb', 'users', 'status');
+      const result = await service.distinct(active, 'testdb', 'users', 'status');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -498,7 +451,7 @@ describe('MongoService', () => {
     it('handles MongoDB errors gracefully', async () => {
       mockCollection.distinct.mockRejectedValue(new Error('Query failed'));
 
-      const result = await service.distinct('testdb', 'users', 'status');
+      const result = await service.distinct(active, 'testdb', 'users', 'status');
 
       expect(result).toEqual({ ok: false, error: 'Query failed' });
     });
@@ -506,7 +459,7 @@ describe('MongoService', () => {
 
   describe('dropCollections', () => {
     it('drops every name when all succeed', async () => {
-      const result = await service.dropCollections('testdb', ['users', 'orders', 'logs']);
+      const result = await service.dropCollections(active, 'testdb', ['users', 'orders', 'logs']);
 
       expect(result).toEqual({
         ok: true,
@@ -525,7 +478,7 @@ describe('MongoService', () => {
         .mockRejectedValueOnce(new Error('not authorized'))
         .mockResolvedValueOnce(undefined);
 
-      const result = await service.dropCollections('testdb', ['users', 'orders', 'logs']);
+      const result = await service.dropCollections(active, 'testdb', ['users', 'orders', 'logs']);
 
       expect(result).toEqual({
         ok: true,
@@ -538,18 +491,10 @@ describe('MongoService', () => {
     });
 
     it('returns empty result for empty input without calling driver', async () => {
-      const result = await service.dropCollections('testdb', []);
+      const result = await service.dropCollections(active, 'testdb', []);
 
       expect(result).toEqual({ ok: true, data: { dropped: [], failed: [] } });
       expect(mockDb.dropCollection).not.toHaveBeenCalled();
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.dropCollections('testdb', ['users']);
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -583,7 +528,14 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(makeCursor(docs));
       const { writable, chunks } = collectingWritable();
 
-      const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), new AbortController().signal);
+      const result = await service.exportCollection(
+        active,
+        'testdb',
+        'users',
+        writable,
+        vi.fn(),
+        new AbortController().signal
+      );
 
       expect(result).toEqual({ ok: true, data: 3 });
       expect(chunks).toHaveLength(3);
@@ -612,6 +564,7 @@ describe('MongoService', () => {
 
       try {
         const result = await service.exportCollection(
+          active,
           'testdb',
           'users',
           writable,
@@ -639,7 +592,7 @@ describe('MongoService', () => {
       const onProgress = vi.fn();
 
       try {
-        await service.exportCollection('testdb', 'users', writable, onProgress, new AbortController().signal);
+        await service.exportCollection(active, 'testdb', 'users', writable, onProgress, new AbortController().signal);
       } finally {
         spy.mockRestore();
       }
@@ -660,19 +613,10 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(cursor);
       const { writable } = collectingWritable();
 
-      const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), controller.signal);
+      const result = await service.exportCollection(active, 'testdb', 'users', writable, vi.fn(), controller.signal);
 
       expect(result).toEqual({ ok: false, error: 'Export cancelled' });
       expect(cursor.close).toHaveBeenCalled();
-    });
-
-    it('returns error when not connected', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const { writable } = collectingWritable();
-      const result = await service.exportCollection('testdb', 'users', writable, vi.fn(), new AbortController().signal);
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -688,6 +632,7 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 1000 });
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf(docs),
@@ -709,6 +654,7 @@ describe('MongoService', () => {
       const onProgress = vi.fn();
 
       await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf(docs),
@@ -731,6 +677,7 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 0 });
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         stream,
@@ -751,6 +698,7 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockRejectedValue(err);
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf(docs),
@@ -768,6 +716,7 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockRejectedValue(new Error('duplicate key'));
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf(docs),
@@ -787,6 +736,7 @@ describe('MongoService', () => {
       mockCollection.bulkWrite.mockResolvedValue({ upsertedCount: 1, modifiedCount: 1 });
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf(docs),
@@ -803,6 +753,7 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
 
       await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf([{ a: 1 }]),
@@ -821,6 +772,7 @@ describe('MongoService', () => {
       const stream = Readable.from([badBuf]);
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         stream,
@@ -837,25 +789,11 @@ describe('MongoService', () => {
       }
     });
 
-    it('returns error when not connected', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.importCollection(
-        'testdb',
-        'users',
-        streamOf([{ a: 1 }]),
-        { onDuplicate: 'fail', clearFirst: false },
-        vi.fn(),
-        new AbortController().signal
-      );
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
-    });
-
     it('calls db.createCollection at start, before deleteMany and insertMany', async () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf([{ a: 1 }]),
@@ -878,6 +816,7 @@ describe('MongoService', () => {
       mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf([{ a: 1 }]),
@@ -894,6 +833,7 @@ describe('MongoService', () => {
       mockDb.createCollection.mockRejectedValue(new Error('boom'));
 
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf([{ a: 1 }]),
@@ -908,6 +848,7 @@ describe('MongoService', () => {
 
     it('empty stream still creates the collection', async () => {
       const result = await service.importCollection(
+        active,
         'testdb',
         'users',
         streamOf([]),
@@ -930,7 +871,7 @@ describe('MongoService', () => {
       ];
       mockCollection.indexes.mockResolvedValue(indexes);
 
-      const result = await service.listIndexes('testdb', 'users');
+      const result = await service.listIndexes(active, 'testdb', 'users');
 
       expect(mockClient.db).toHaveBeenCalledWith('testdb');
       expect(mockDb.collection).toHaveBeenCalledWith('users');
@@ -956,7 +897,7 @@ describe('MongoService', () => {
       ];
       mockCollection.indexes.mockResolvedValue(indexes);
 
-      const result = await service.listIndexes('testdb', 'users');
+      const result = await service.listIndexes(active, 'testdb', 'users');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -973,7 +914,7 @@ describe('MongoService', () => {
       ];
       mockCollection.indexes.mockResolvedValue(indexes);
 
-      const result = await service.listIndexes('testdb', 'places');
+      const result = await service.listIndexes(active, 'testdb', 'places');
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -983,30 +924,22 @@ describe('MongoService', () => {
       }
     });
 
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.listIndexes('testdb', 'users');
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
-    });
-
     it('surfaces driver errors verbatim', async () => {
       mockCollection.indexes.mockRejectedValue(new Error('ns not found'));
-      const result = await service.listIndexes('testdb', 'users');
+      const result = await service.listIndexes(active, 'testdb', 'users');
       expect(result).toEqual({ ok: false, error: 'ns not found' });
     });
   });
 
   describe('dropIndex', () => {
     it('refuses to drop the _id_ index without calling the driver', async () => {
-      const result = await service.dropIndex('testdb', 'users', '_id_');
+      const result = await service.dropIndex(active, 'testdb', 'users', '_id_');
       expect(result).toEqual({ ok: false, error: 'Cannot drop the _id_ index' });
       expect(mockCollection.dropIndex).not.toHaveBeenCalled();
     });
 
     it('drops the named index and returns ok', async () => {
-      const result = await service.dropIndex('testdb', 'users', 'email_1');
+      const result = await service.dropIndex(active, 'testdb', 'users', 'email_1');
       expect(mockClient.db).toHaveBeenCalledWith('testdb');
       expect(mockDb.collection).toHaveBeenCalledWith('users');
       expect(mockCollection.dropIndex).toHaveBeenCalledWith('email_1');
@@ -1015,16 +948,8 @@ describe('MongoService', () => {
 
     it('surfaces driver errors verbatim', async () => {
       mockCollection.dropIndex.mockRejectedValue(new Error('index not found with name [foo]'));
-      const result = await service.dropIndex('testdb', 'users', 'foo');
+      const result = await service.dropIndex(active, 'testdb', 'users', 'foo');
       expect(result).toEqual({ ok: false, error: 'index not found with name [foo]' });
-    });
-
-    it('when not connected returns error', async () => {
-      requireClient.mockImplementation(() => {
-        throw new Error('Not connected');
-      });
-      const result = await service.dropIndex('testdb', 'users', 'email_1');
-      expect(result).toEqual({ ok: false, error: 'Not connected' });
     });
   });
 
@@ -1042,7 +967,7 @@ describe('MongoService', () => {
       mockCollection.find.mockReturnValue(mockCursor);
       mockCollection.countDocuments.mockResolvedValue(1);
 
-      const result = await service.find('testdb', 'users', {});
+      const result = await service.find(active, 'testdb', 'users', {});
 
       expect(result.ok).toBe(true);
       if (result.ok) {

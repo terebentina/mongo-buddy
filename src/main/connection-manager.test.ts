@@ -232,48 +232,32 @@ describe('ConnectionManager', () => {
     });
   });
 
-  describe('connection key lifecycle', () => {
-    it('getConnectionKey is null before connect, set after, null after disconnect', async () => {
+  describe('getActive', () => {
+    it('returns null before connect', () => {
+      mgr = createConnectionManager(makeDeps().deps);
+      expect(mgr.getActive()).toBeNull();
+    });
+
+    it('returns { client, key } after successful connect', async () => {
       const client = makeFakeClient({
         listDatabasesImpl: async () => ({ databases: [{ name: 'db1' }, { name: 'db2' }] }),
       });
       mgr = createConnectionManager(makeDeps({ client, connectionKeyFromUri: (uri) => new URL(uri).host }).deps);
-
-      expect(mgr.getConnectionKey()).toBeNull();
-
       await mgr.connect('mongodb://localhost:27017/');
-      expect(mgr.getConnectionKey()).toBe('localhost:27017');
-
-      await mgr.disconnect();
-      expect(mgr.getConnectionKey()).toBeNull();
-      expect(mgr.getState()).toEqual({ status: 'disconnected' });
-      expect(client.close).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('requireClient', () => {
-    it('throws before connect', () => {
-      mgr = createConnectionManager(makeDeps().deps);
-      expect(() => mgr.requireClient()).toThrow('Not connected');
+      const active = mgr.getActive();
+      expect(active).not.toBeNull();
+      expect(active?.client).toBe(client);
+      expect(active?.key).toBe('localhost:27017');
     });
 
-    it('returns the client after successful connect', async () => {
-      const client = makeFakeClient({
-        listDatabasesImpl: async () => ({ databases: [{ name: 'db1' }, { name: 'db2' }] }),
-      });
-      mgr = createConnectionManager(makeDeps({ client }).deps);
-      await mgr.connect('mongodb://localhost/');
-      expect(mgr.requireClient()).toBe(client);
-    });
-
-    it('throws after disconnect', async () => {
+    it('returns null after disconnect', async () => {
       const client = makeFakeClient({
         listDatabasesImpl: async () => ({ databases: [{ name: 'db1' }, { name: 'db2' }] }),
       });
       mgr = createConnectionManager(makeDeps({ client }).deps);
       await mgr.connect('mongodb://localhost/');
       await mgr.disconnect();
-      expect(() => mgr.requireClient()).toThrow('Not connected');
+      expect(mgr.getActive()).toBeNull();
     });
   });
 

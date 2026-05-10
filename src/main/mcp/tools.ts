@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { MongoService } from '../mongo-service';
+import type { ActiveConnection, ConnectionManager } from '../connection-manager';
 import type { Result } from '../../shared/types';
 
 const DEFAULT_LIMIT = 50;
@@ -15,8 +16,11 @@ function toToolResult<T>(result: Result<T>): CallToolResult {
   if (result.ok) {
     return { content: [{ type: 'text', text: JSON.stringify(result.data) }] };
   }
-  const message = result.error === 'Not connected' ? DISCONNECT_MESSAGE : result.error;
-  return { isError: true, content: [{ type: 'text', text: message }] };
+  return { isError: true, content: [{ type: 'text', text: result.error }] };
+}
+
+function notConnectedResult(): CallToolResult {
+  return { isError: true, content: [{ type: 'text', text: DISCONNECT_MESSAGE }] };
 }
 
 function clampLimit(value: number | undefined): number {
@@ -25,7 +29,15 @@ function clampLimit(value: number | undefined): number {
   return value;
 }
 
-export function registerMcpTools(server: McpServer, service: MongoService): void {
+export function registerMcpTools(server: McpServer, service: MongoService, manager: ConnectionManager): void {
+  const withActive = <T>(fn: (active: ActiveConnection) => Promise<Result<T>>) => {
+    return async (): Promise<CallToolResult> => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await fn(active));
+    };
+  };
+
   server.registerTool(
     'list_databases',
     {
@@ -33,7 +45,7 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
         'List all databases on the currently connected MongoDB server with name, size on disk, and empty flag.',
       inputSchema: {},
     },
-    async () => toToolResult(await service.listDatabases())
+    withActive((active) => service.listDatabases(active))
   );
 
   server.registerTool(
@@ -44,7 +56,11 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
         db: z.string().describe('Database name'),
       },
     },
-    async ({ db }) => toToolResult(await service.listCollections(db))
+    async ({ db }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.listCollections(active, db));
+    }
   );
 
   server.registerTool(
@@ -57,7 +73,11 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
         collection: z.string().describe('Collection name'),
       },
     },
-    async ({ db, collection }) => toToolResult(await service.sampleFields(db, collection))
+    async ({ db, collection }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.sampleFields(active, db, collection));
+    }
   );
 
   server.registerTool(
@@ -87,13 +107,15 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
       },
     },
     async ({ db, collection, filter, sort, skip, limit }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
       const opts = {
         filter,
         sort,
         skip,
         limit: clampLimit(limit),
       };
-      return toToolResult(await service.find(db, collection, opts));
+      return toToolResult(await service.find(active, db, collection, opts));
     }
   );
 
@@ -110,7 +132,11 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
           .describe('MongoDB query filter in EJSON. Defaults to {} (count all).'),
       },
     },
-    async ({ db, collection, filter }) => toToolResult(await service.count(db, collection, filter ?? {}))
+    async ({ db, collection, filter }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.count(active, db, collection, filter ?? {}));
+    }
   );
 
   server.registerTool(
@@ -125,7 +151,11 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
           .describe('Aggregation pipeline in EJSON, e.g. [{"$match": {...}}, {"$group": {...}}]'),
       },
     },
-    async ({ db, collection, pipeline }) => toToolResult(await service.aggregate(db, collection, pipeline))
+    async ({ db, collection, pipeline }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.aggregate(active, db, collection, pipeline));
+    }
   );
 
   server.registerTool(
@@ -141,8 +171,11 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
           .describe('EJSON filter object (queryMode=filter) or pipeline array (queryMode=aggregate)'),
       },
     },
-    async ({ db, collection, queryMode, query }) =>
-      toToolResult(await service.explain(db, collection, queryMode, query))
+    async ({ db, collection, queryMode, query }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.explain(active, db, collection, queryMode, query));
+    }
   );
 
   server.registerTool(
@@ -154,7 +187,11 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
         collection: z.string().describe('Collection name'),
       },
     },
-    async ({ db, collection }) => toToolResult(await service.listIndexes(db, collection))
+    async ({ db, collection }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.listIndexes(active, db, collection));
+    }
   );
 
   server.registerTool(
@@ -168,7 +205,10 @@ export function registerMcpTools(server: McpServer, service: MongoService): void
         filter: z.record(z.string(), z.unknown()).optional().describe('Optional EJSON filter. Defaults to {}.'),
       },
     },
-    async ({ db, collection, field, filter }) =>
-      toToolResult(await service.distinct(db, collection, field, filter ?? {}))
+    async ({ db, collection, field, filter }) => {
+      const active = manager.getActive();
+      if (!active) return notConnectedResult();
+      return toToolResult(await service.distinct(active, db, collection, field, filter ?? {}));
+    }
   );
 }

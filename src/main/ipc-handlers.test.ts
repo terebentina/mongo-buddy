@@ -1,13 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ipcMain } from 'electron';
+import type { MongoClient } from 'mongodb';
 import { registerIpcHandlers } from './ipc-handlers';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
-import type { ConnectionManager, ConnectedSession, ConnectionState } from './connection-manager';
+import type { ActiveConnection, ConnectionManager, ConnectedSession, ConnectionState } from './connection-manager';
 import type { OperationRegistry } from './operation-registry';
 import type { OperationParams } from '../shared/types';
 import type { Broadcast } from './ipc-handlers';
+
+const TEST_ACTIVE: ActiveConnection = {
+  client: {} as unknown as MongoClient,
+  key: 'localhost:27017',
+};
 
 const mockShowOpenDialog = vi.fn();
 
@@ -57,8 +63,7 @@ describe('IPC Handlers', () => {
     connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
     getState: ReturnType<typeof vi.fn>;
-    getConnectionKey: ReturnType<typeof vi.fn>;
-    requireClient: ReturnType<typeof vi.fn>;
+    getActive: ReturnType<typeof vi.fn>;
     onStateChange: ReturnType<typeof vi.fn>;
   };
   let mockBroadcast: ReturnType<typeof vi.fn<Broadcast>>;
@@ -84,8 +89,7 @@ describe('IPC Handlers', () => {
       connect: vi.fn(),
       disconnect: vi.fn(),
       getState: vi.fn(),
-      getConnectionKey: vi.fn(),
-      requireClient: vi.fn(),
+      getActive: vi.fn().mockReturnValue(TEST_ACTIVE),
       onStateChange: vi.fn((cb: (s: ConnectionState) => void) => {
         stateChangeCb = cb;
         return () => {
@@ -263,7 +267,7 @@ describe('IPC Handlers', () => {
       const colls = [{ name: 'users', type: 'collection' }];
       mockService.listCollections.mockResolvedValue({ ok: true, data: colls });
       const result = await handlers['mongo:list-collections']({} as Electron.IpcMainInvokeEvent, 'testdb');
-      expect(mockService.listCollections).toHaveBeenCalledWith('testdb');
+      expect(mockService.listCollections).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb');
       expect(result).toEqual({ ok: true, data: colls });
     });
   });
@@ -273,7 +277,7 @@ describe('IPC Handlers', () => {
       const indexes = [{ v: 2, key: { _id: 1 }, name: '_id_' }];
       mockService.listIndexes.mockResolvedValue({ ok: true, data: indexes });
       const result = await handlers['mongo:list-indexes']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
-      expect(mockService.listIndexes).toHaveBeenCalledWith('testdb', 'users');
+      expect(mockService.listIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users');
       expect(result).toEqual({ ok: true, data: indexes });
     });
 
@@ -290,7 +294,7 @@ describe('IPC Handlers', () => {
       mockService.find.mockResolvedValue({ ok: true, data: findResult });
       const opts = { filter: { name: 'Alice' }, skip: 0, limit: 20 };
       const result = await handlers['mongo:find']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', opts);
-      expect(mockService.find).toHaveBeenCalledWith('testdb', 'users', opts);
+      expect(mockService.find).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', opts);
       expect(result).toEqual({ ok: true, data: findResult });
     });
   });
@@ -301,7 +305,7 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:count']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', {
         active: true,
       });
-      expect(mockService.count).toHaveBeenCalledWith('testdb', 'users', { active: true });
+      expect(mockService.count).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', { active: true });
       expect(result).toEqual({ ok: true, data: 42 });
     });
   });
@@ -312,7 +316,7 @@ describe('IPC Handlers', () => {
       mockService.aggregate.mockResolvedValue({ ok: true, data: aggResult });
       const pipeline = [{ $group: { _id: null, total: { $sum: 1 } } }];
       const result = await handlers['mongo:aggregate']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', pipeline);
-      expect(mockService.aggregate).toHaveBeenCalledWith('testdb', 'users', pipeline);
+      expect(mockService.aggregate).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', pipeline);
       expect(result).toEqual({ ok: true, data: aggResult });
     });
   });
@@ -323,7 +327,7 @@ describe('IPC Handlers', () => {
       const inserted = { _id: { $oid: '123' }, name: 'Alice' };
       mockService.insertOne.mockResolvedValue({ ok: true, data: inserted });
       const result = await handlers['mongo:insert-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', doc);
-      expect(mockService.insertOne).toHaveBeenCalledWith('testdb', 'users', doc);
+      expect(mockService.insertOne).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', doc);
       expect(result).toEqual({ ok: true, data: inserted });
     });
   });
@@ -340,7 +344,7 @@ describe('IPC Handlers', () => {
         '123',
         doc
       );
-      expect(mockService.updateOne).toHaveBeenCalledWith('testdb', 'users', '123', doc);
+      expect(mockService.updateOne).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', '123', doc);
       expect(result).toEqual({ ok: true, data: updated });
     });
   });
@@ -349,7 +353,7 @@ describe('IPC Handlers', () => {
     it('calls MongoService.deleteOne with db, collection, and id', async () => {
       mockService.deleteOne.mockResolvedValue({ ok: true, data: undefined });
       const result = await handlers['mongo:delete-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', '123');
-      expect(mockService.deleteOne).toHaveBeenCalledWith('testdb', 'users', '123');
+      expect(mockService.deleteOne).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', '123');
       expect(result).toEqual({ ok: true, data: undefined });
     });
   });
@@ -363,7 +367,7 @@ describe('IPC Handlers', () => {
         'users',
         'email_1'
       );
-      expect(mockService.dropIndex).toHaveBeenCalledWith('testdb', 'users', 'email_1');
+      expect(mockService.dropIndex).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', 'email_1');
       expect(result).toEqual({ ok: true, data: undefined });
     });
 
@@ -423,16 +427,17 @@ describe('IPC Handlers', () => {
 
   describe('history (per-connection)', () => {
     const key = 'myhost:9999';
+    const active: ActiveConnection = { client: {} as unknown as MongoClient, key };
 
     beforeEach(() => {
-      mockManager.getConnectionKey.mockReturnValue(key);
+      mockManager.getActive.mockReturnValue(active);
     });
 
     it('load reads connection key from manager and returns entries', () => {
       const entries = [{ id: '1', queryMode: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
       mockHistoryStore.getAll.mockReturnValue(entries);
       const result = handlers['history:load']({} as Electron.IpcMainInvokeEvent);
-      expect(mockManager.getConnectionKey).toHaveBeenCalled();
+      expect(mockManager.getActive).toHaveBeenCalled();
       expect(mockHistoryStore.getAll).toHaveBeenCalledWith(key);
       expect(result).toEqual(entries);
     });
@@ -449,19 +454,19 @@ describe('IPC Handlers', () => {
     });
 
     it('load throws when manager reports no active connection', () => {
-      mockManager.getConnectionKey.mockReturnValue(null);
+      mockManager.getActive.mockReturnValue(null);
       expect(() => handlers['history:load']({} as Electron.IpcMainInvokeEvent)).toThrow('Not connected');
       expect(mockHistoryStore.getAll).not.toHaveBeenCalled();
     });
 
     it('save throws when manager reports no active connection', () => {
-      mockManager.getConnectionKey.mockReturnValue(null);
+      mockManager.getActive.mockReturnValue(null);
       expect(() => handlers['history:save']({} as Electron.IpcMainInvokeEvent, [])).toThrow('Not connected');
       expect(mockHistoryStore.save).not.toHaveBeenCalled();
     });
 
     it('clear throws when manager reports no active connection', () => {
-      mockManager.getConnectionKey.mockReturnValue(null);
+      mockManager.getActive.mockReturnValue(null);
       expect(() => handlers['history:clear']({} as Electron.IpcMainInvokeEvent)).toThrow('Not connected');
       expect(mockHistoryStore.clear).not.toHaveBeenCalled();
     });
@@ -508,7 +513,7 @@ describe('IPC Handlers', () => {
       const distinctResult = { values: ['active', 'inactive'], truncated: false };
       mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
       const result = await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status');
-      expect(mockService.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', undefined);
+      expect(mockService.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', 'status', undefined);
       expect(result).toEqual({ ok: true, data: distinctResult });
     });
 
@@ -516,7 +521,7 @@ describe('IPC Handlers', () => {
       const distinctResult = { values: ['active'], truncated: false };
       mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
       await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status', { age: 1 });
-      expect(mockService.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', { age: 1 });
+      expect(mockService.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', 'status', { age: 1 });
     });
 
     it('returns error result on service failure', async () => {
@@ -562,11 +567,11 @@ describe('IPC Handlers', () => {
   });
 
   describe('operation:start', () => {
-    it('delegates to registry.start and returns its result', () => {
+    it('delegates to registry.start with ActiveConnection and returns its result', () => {
       mockRegistry.start.mockReturnValue({ ok: true, data: 'op-123' });
       const params: OperationParams = { kind: 'export-collection', db: 'testdb', collection: 'users' };
       const result = handlers['operation:start']({} as Electron.IpcMainInvokeEvent, params);
-      expect(mockRegistry.start).toHaveBeenCalledWith(params);
+      expect(mockRegistry.start).toHaveBeenCalledWith(params, TEST_ACTIVE);
       expect(result).toEqual({ ok: true, data: 'op-123' });
     });
 
@@ -575,6 +580,14 @@ describe('IPC Handlers', () => {
       const params: OperationParams = { kind: 'export-database', db: 'testdb' };
       const result = handlers['operation:start']({} as Electron.IpcMainInvokeEvent, params);
       expect(result).toEqual({ ok: false, error: 'already running' });
+    });
+
+    it('returns Not connected without calling registry when manager has no active connection', () => {
+      mockManager.getActive.mockReturnValue(null);
+      const params: OperationParams = { kind: 'export-collection', db: 'testdb', collection: 'users' };
+      const result = handlers['operation:start']({} as Electron.IpcMainInvokeEvent, params);
+      expect(result).toEqual({ ok: false, error: 'Not connected' });
+      expect(mockRegistry.start).not.toHaveBeenCalled();
     });
   });
 
