@@ -85,6 +85,13 @@ describe('preload createApi', () => {
       await api.listCollections('d');
       expect(invoke).toHaveBeenCalledWith('mongo:listCollections', { db: 'd' });
     });
+
+    it('listIndexes invokes mongo:listIndexes with {db, collection}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: [] });
+      const api = createApi(ipcRenderer);
+      await api.listIndexes('d', 'c');
+      expect(invoke).toHaveBeenCalledWith('mongo:listIndexes', { db: 'd', collection: 'c' });
+    });
   });
 
   describe('onConnectionState', () => {

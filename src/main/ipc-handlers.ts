@@ -77,10 +77,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return active;
   };
   ipcMain.handle(
-    'mongo:list-indexes',
-    wrap((db: unknown, coll: unknown) => service.listIndexes(requireActive(), db as string, coll as string))
-  );
-  ipcMain.handle(
     'mongo:find',
     wrap((db: unknown, coll: unknown, opts: unknown) =>
       service.find(requireActive(), db as string, coll as string, opts as FindOpts)

@@ -109,22 +109,6 @@ export function registerMcpTools(server: McpServer, service: MongoService, manag
   );
 
   server.registerTool(
-    'list_indexes',
-    {
-      description: 'List all indexes on a collection (raw spec from MongoDB)',
-      inputSchema: {
-        db: z.string().describe('Database name'),
-        collection: z.string().describe('Collection name'),
-      },
-    },
-    async ({ db, collection }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await service.listIndexes(active, db, collection));
-    }
-  );
-
-  server.registerTool(
     'distinct',
     {
       description: `Return the distinct values of a field in a collection. Response includes a "truncated" flag if the result was clipped. ${EJSON_HINT}`,

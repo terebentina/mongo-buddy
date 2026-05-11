@@ -40,7 +40,6 @@ function createServiceMock(): {
     find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
-    listIndexes: ReturnType<typeof vi.fn>;
     explain: ReturnType<typeof vi.fn>;
   };
 } {
@@ -48,7 +47,6 @@ function createServiceMock(): {
     find: vi.fn(),
     aggregate: vi.fn(),
     distinct: vi.fn(),
-    listIndexes: vi.fn(),
     explain: vi.fn(),
   };
   return { service: mocks as unknown as MongoService, mocks };
@@ -69,9 +67,9 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 5 tools', () => {
+  it('registers exactly 4 tools', () => {
     const names = Object.keys(registered(server)).sort();
-    expect(names).toEqual(['aggregate', 'distinct', 'explain', 'find', 'list_indexes'].sort());
+    expect(names).toEqual(['aggregate', 'distinct', 'explain', 'find'].sort());
   });
 
   describe('find', () => {
@@ -129,35 +127,6 @@ describe('registerMcpTools', () => {
       const result = await getHandler(server, 'aggregate')({ db: 'd', collection: 'c', pipeline });
       expect(mocks.aggregate).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', pipeline);
       expect(JSON.parse(result.content[0].text)).toEqual([{ _id: 'x', count: 2 }]);
-    });
-  });
-
-  describe('list_indexes', () => {
-    it('calls service with db and collection and returns serialized data', async () => {
-      const data = [
-        { v: 2, key: { _id: 1 }, name: '_id_' },
-        { v: 2, key: { email: 1 }, name: 'email_1', unique: true },
-      ];
-      mocks.listIndexes.mockResolvedValue({ ok: true, data });
-      const result = await getHandler(server, 'list_indexes')({ db: 'd', collection: 'c' });
-      expect(mocks.listIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c');
-      expect(result.isError).toBeUndefined();
-      expect(JSON.parse(result.content[0].text)).toEqual(data);
-    });
-
-    it('returns isError on failure', async () => {
-      mocks.listIndexes.mockResolvedValue({ ok: false, error: 'ns not found' });
-      const result = await getHandler(server, 'list_indexes')({ db: 'd', collection: 'c' });
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('ns not found');
-    });
-
-    it('returns disconnect message when not connected', async () => {
-      manager.getActive.mockReturnValue(null);
-      const result = await getHandler(server, 'list_indexes')({ db: 'd', collection: 'c' });
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
-      expect(mocks.listIndexes).not.toHaveBeenCalled();
     });
   });
 

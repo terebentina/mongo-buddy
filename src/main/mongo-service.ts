@@ -10,7 +10,6 @@ import type {
   FindResult,
   ImportOptions,
   DistinctResult,
-  IndexInfo,
   QueryMode,
 } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
@@ -304,17 +303,6 @@ export class MongoService {
       const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
       const values = sliced.map((v) => EJSON.serialize(v));
       return { ok: true, data: { values, truncated } };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async listIndexes(active: ActiveConnection, dbName: string, collName: string): Promise<Result<IndexInfo[]>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const rawIndexes = await collection.indexes();
-      const data = rawIndexes.map((idx) => EJSON.serialize(idx) as unknown as IndexInfo);
-      return { ok: true, data };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

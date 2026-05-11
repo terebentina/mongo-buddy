@@ -41,7 +41,6 @@ describe('IPC Handlers', () => {
     updateOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
-    listIndexes: ReturnType<typeof vi.fn>;
     dropIndex: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
@@ -103,7 +102,6 @@ describe('IPC Handlers', () => {
       updateOne: vi.fn(),
       deleteOne: vi.fn(),
       distinct: vi.fn(),
-      listIndexes: vi.fn(),
       dropIndex: vi.fn(),
     };
 
@@ -168,7 +166,6 @@ describe('IPC Handlers', () => {
   it('registers all expected channels', () => {
     expect(handlers['mongo:connect']).toBeDefined();
     expect(handlers['mongo:disconnect']).toBeDefined();
-    expect(handlers['mongo:list-indexes']).toBeDefined();
     expect(handlers['mongo:find']).toBeDefined();
     expect(handlers['mongo:aggregate']).toBeDefined();
     expect(handlers['mongo:insert-one']).toBeDefined();
@@ -240,22 +237,6 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.disconnect).toHaveBeenCalled();
       expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
-  describe('mongo:list-indexes', () => {
-    it('calls MongoService.listIndexes with db and collection', async () => {
-      const indexes = [{ v: 2, key: { _id: 1 }, name: '_id_' }];
-      mockService.listIndexes.mockResolvedValue({ ok: true, data: indexes });
-      const result = await handlers['mongo:list-indexes']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
-      expect(mockService.listIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users');
-      expect(result).toEqual({ ok: true, data: indexes });
-    });
-
-    it('forwards service error result', async () => {
-      mockService.listIndexes.mockResolvedValue({ ok: false, error: 'ns not found' });
-      const result = await handlers['mongo:list-indexes']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users');
-      expect(result).toEqual({ ok: false, error: 'ns not found' });
     });
   });
 

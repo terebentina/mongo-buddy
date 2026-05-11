@@ -42,7 +42,7 @@ export function createApi(ipc: IpcLike) {
     listCollections: (db: string): Promise<Result<CollectionInfo[]>> =>
       ipc.invoke('mongo:listCollections', { db }) as Promise<Result<CollectionInfo[]>>,
     listIndexes: (db: string, collection: string): Promise<Result<IndexInfo[]>> =>
-      ipc.invoke('mongo:list-indexes', db, collection) as Promise<Result<IndexInfo[]>>,
+      ipc.invoke('mongo:listIndexes', { db, collection }) as Promise<Result<IndexInfo[]>>,
     find: (db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>> =>
       ipc.invoke('mongo:find', db, collection, opts) as Promise<Result<FindResult>>,
     count: (db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>> =>

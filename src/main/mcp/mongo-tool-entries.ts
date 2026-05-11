@@ -3,6 +3,7 @@ import { countCommand } from '../commands/count';
 import { listDatabasesCommand } from '../commands/list-databases';
 import { sampleFieldsCommand } from '../commands/sample-fields';
 import { listCollectionsCommand } from '../commands/list-collections';
+import { listIndexesCommand } from '../commands/list-indexes';
 import type { McpToolEntry } from './mongo-tools';
 
 const EJSON_HINT =
@@ -31,6 +32,11 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
   {
     command: listCollectionsCommand,
     description: 'List all collections in the given database, including type and estimated document count.',
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: listIndexesCommand,
+    description: 'List all indexes on a collection (raw spec from MongoDB)',
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];
