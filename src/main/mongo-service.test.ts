@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MongoClient, MongoBulkWriteError, ObjectId } from 'mongodb';
+import { MongoClient, MongoBulkWriteError } from 'mongodb';
 import { BSON } from 'bson';
 import { Readable, Writable } from 'stream';
 import { MongoService } from './mongo-service';
@@ -108,27 +108,6 @@ describe('MongoService', () => {
       });
       const result = await service.listCollections(active, 'testdb');
       expect(result.ok && result.data.map((c) => c.name)).toEqual(['Events_2', 'events_10', 'log2', 'log10']);
-    });
-  });
-
-  describe('deleteOne', () => {
-    it('deletes document by ObjectId', async () => {
-      const oid = new ObjectId('507f1f77bcf86cd799439011');
-      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
-
-      const result = await service.deleteOne(active, 'testdb', 'users', { $oid: '507f1f77bcf86cd799439011' });
-
-      expect(result).toEqual({ ok: true, data: undefined });
-      expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: oid });
-    });
-
-    it('with string id queries with string, not ObjectId', async () => {
-      mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
-
-      const result = await service.deleteOne(active, 'testdb', 'users', 'my-string-id');
-
-      expect(result).toEqual({ ok: true, data: undefined });
-      expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: 'my-string-id' });
     });
   });
 

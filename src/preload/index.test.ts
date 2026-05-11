@@ -115,6 +115,13 @@ describe('preload createApi', () => {
       });
     });
 
+    it('deleteOne invokes mongo:deleteOne with {db, collection, id}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: undefined });
+      const api = createApi(ipcRenderer);
+      await api.deleteOne('d', 'c', '123');
+      expect(invoke).toHaveBeenCalledWith('mongo:deleteOne', { db: 'd', collection: 'c', id: '123' });
+    });
+
     it('updateOne invokes mongo:updateOne with {db, collection, id, doc}', async () => {
       invoke.mockResolvedValue({ ok: true, data: {} });
       const api = createApi(ipcRenderer);

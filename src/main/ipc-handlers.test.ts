@@ -35,7 +35,6 @@ vi.mock('./query-history-store', async (importOriginal) => {
 
 describe('IPC Handlers', () => {
   let mockService: {
-    deleteOne: ReturnType<typeof vi.fn>;
     dropIndex: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
@@ -91,7 +90,6 @@ describe('IPC Handlers', () => {
     mockBroadcast = vi.fn<Broadcast>();
 
     mockService = {
-      deleteOne: vi.fn(),
       dropIndex: vi.fn(),
     };
 
@@ -156,7 +154,6 @@ describe('IPC Handlers', () => {
   it('registers all expected channels', () => {
     expect(handlers['mongo:connect']).toBeDefined();
     expect(handlers['mongo:disconnect']).toBeDefined();
-    expect(handlers['mongo:delete-one']).toBeDefined();
     expect(handlers['mongo:drop-index']).toBeDefined();
     expect(handlers['connections:list']).toBeDefined();
     expect(handlers['connections:save']).toBeDefined();
@@ -221,15 +218,6 @@ describe('IPC Handlers', () => {
       mockManager.disconnect.mockResolvedValue({ ok: true, data: undefined });
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.disconnect).toHaveBeenCalled();
-      expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
-  describe('mongo:delete-one', () => {
-    it('calls MongoService.deleteOne with db, collection, and id', async () => {
-      mockService.deleteOne.mockResolvedValue({ ok: true, data: undefined });
-      const result = await handlers['mongo:delete-one']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', '123');
-      expect(mockService.deleteOne).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', '123');
       expect(result).toEqual({ ok: true, data: undefined });
     });
   });

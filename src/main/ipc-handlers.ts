@@ -75,12 +75,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return active;
   };
   ipcMain.handle(
-    'mongo:delete-one',
-    wrap((db: unknown, coll: unknown, id: unknown) =>
-      service.deleteOne(requireActive(), db as string, coll as string, id)
-    )
-  );
-  ipcMain.handle(
     'mongo:drop-index',
     wrap((db: unknown, coll: unknown, name: unknown) =>
       service.dropIndex(requireActive(), db as string, coll as string, name as string)

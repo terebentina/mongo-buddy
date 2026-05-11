@@ -1,5 +1,5 @@
 import { MongoBulkWriteError } from 'mongodb';
-import { BSON, EJSON } from 'bson';
+import { BSON } from 'bson';
 import type { Readable, Writable } from 'stream';
 import type { ActiveConnection } from './connection-manager';
 import type { Result, CollectionInfo, DropCollectionsResult, ImportOptions } from '../shared/types';
@@ -268,18 +268,6 @@ export class MongoService {
         }
       }
       return { ok: true, data: { dropped, failed } };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async deleteOne(active: ActiveConnection, dbName: string, collName: string, id: unknown): Promise<Result<undefined>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const filterid = (EJSON.deserialize({ _id: id }) as Record<string, unknown>)._id as any;
-      await collection.deleteOne({ _id: filterid });
-      return { ok: true, data: undefined };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

@@ -83,7 +83,7 @@ export function createApi(ipc: IpcLike) {
     ): Promise<Result<Record<string, unknown>>> =>
       ipc.invoke('mongo:updateOne', { db, collection, id, doc }) as Promise<Result<Record<string, unknown>>>,
     deleteOne: (db: string, collection: string, id: unknown): Promise<Result<undefined>> =>
-      ipc.invoke('mongo:delete-one', db, collection, id) as Promise<Result<undefined>>,
+      ipc.invoke('mongo:deleteOne', { db, collection, id }) as Promise<Result<undefined>>,
     dropCollection: (db: string, collection: string): Promise<Result<undefined>> =>
       ipc.invoke('mongo:drop-collection', db, collection) as Promise<Result<undefined>>,
     dropIndex: (db: string, collection: string, name: string): Promise<Result<undefined>> =>
