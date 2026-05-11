@@ -38,7 +38,6 @@ function createServiceMock(): {
   service: MongoService;
   mocks: {
     listCollections: ReturnType<typeof vi.fn>;
-    sampleFields: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
@@ -48,7 +47,6 @@ function createServiceMock(): {
 } {
   const mocks = {
     listCollections: vi.fn(),
-    sampleFields: vi.fn(),
     find: vi.fn(),
     aggregate: vi.fn(),
     distinct: vi.fn(),
@@ -73,11 +71,9 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 7 tools', () => {
+  it('registers exactly 6 tools', () => {
     const names = Object.keys(registered(server)).sort();
-    expect(names).toEqual(
-      ['aggregate', 'distinct', 'explain', 'find', 'list_collections', 'list_indexes', 'sample_fields'].sort()
-    );
+    expect(names).toEqual(['aggregate', 'distinct', 'explain', 'find', 'list_collections', 'list_indexes'].sort());
   });
 
   describe('list_collections', () => {
@@ -95,15 +91,6 @@ describe('registerMcpTools', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
       expect(mocks.listCollections).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('sample_fields', () => {
-    it('calls service with active, db and collection', async () => {
-      mocks.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
-      const result = await getHandler(server, 'sample_fields')({ db: 'd', collection: 'c' });
-      expect(mocks.sampleFields).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c');
-      expect(JSON.parse(result.content[0].text)).toEqual(['_id', 'name']);
     });
   });
 

@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { countCommand } from '../commands/count';
 import { listDatabasesCommand } from '../commands/list-databases';
+import { sampleFieldsCommand } from '../commands/sample-fields';
 import type { McpToolEntry } from './mongo-tools';
 
 const EJSON_HINT =
@@ -18,6 +19,12 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
     command: listDatabasesCommand,
     description:
       'List all databases on the currently connected MongoDB server with name, size on disk, and empty flag.',
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: sampleFieldsCommand,
+    description:
+      'Sample up to 50 documents from a collection and return the union of top-level field names. Use this to discover the shape of a collection before writing a query.',
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];

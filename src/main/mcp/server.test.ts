@@ -17,7 +17,7 @@ const EXPECTED_TOOL_NAMES = [
   'list_collections',
   'listDatabases',
   'list_indexes',
-  'sample_fields',
+  'sampleFields',
 ].sort();
 
 function mockService(): MongoService {

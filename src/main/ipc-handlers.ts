@@ -121,11 +121,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     )
   );
   ipcMain.handle(
-    'mongo:sample-fields',
-    wrap((db: unknown, coll: unknown) => service.sampleFields(requireActive(), db as string, coll as string))
-  );
-
-  ipcMain.handle(
     'mongo:insert-one',
     wrap((db: unknown, coll: unknown, doc: unknown) =>
       service.insertOne(requireActive(), db as string, coll as string, doc as Record<string, unknown>)

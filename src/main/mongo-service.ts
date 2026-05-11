@@ -137,23 +137,6 @@ export class MongoService {
     }
   }
 
-  async sampleFields(active: ActiveConnection, dbName: string, collName: string): Promise<Result<string[]>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const docs = await collection.find({}).limit(50).toArray();
-      const keySet = new Set<string>();
-      for (const doc of docs) {
-        for (const key of Object.keys(doc)) {
-          keySet.add(key);
-        }
-      }
-      const fields = Array.from(keySet).sort();
-      return { ok: true, data: fields };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async exportCollection(
     active: ActiveConnection,
     dbName: string,

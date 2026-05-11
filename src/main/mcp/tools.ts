@@ -46,23 +46,6 @@ export function registerMcpTools(server: McpServer, service: MongoService, manag
   );
 
   server.registerTool(
-    'sample_fields',
-    {
-      description:
-        'Sample up to 50 documents from a collection and return the union of top-level field names. Use this to discover the shape of a collection before writing a query.',
-      inputSchema: {
-        db: z.string().describe('Database name'),
-        collection: z.string().describe('Collection name'),
-      },
-    },
-    async ({ db, collection }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await service.sampleFields(active, db, collection));
-    }
-  );
-
-  server.registerTool(
     'find',
     {
       description: `Find documents in a collection. Returns { docs, totalCount } where totalCount ignores skip/limit — use it to paginate via skip. Default limit is ${DEFAULT_LIMIT}, max is ${MAX_LIMIT} (values above are clamped). ${EJSON_HINT}`,

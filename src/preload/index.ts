@@ -61,7 +61,7 @@ export function createApi(ipc: IpcLike) {
     ): Promise<Result<Record<string, unknown>>> =>
       ipc.invoke('mongo:explain', db, collection, queryMode, query) as Promise<Result<Record<string, unknown>>>,
     sampleFields: (db: string, collection: string): Promise<Result<string[]>> =>
-      ipc.invoke('mongo:sample-fields', db, collection) as Promise<Result<string[]>>,
+      ipc.invoke('mongo:sampleFields', { db, collection }) as Promise<Result<string[]>>,
     distinct: (
       db: string,
       collection: string,

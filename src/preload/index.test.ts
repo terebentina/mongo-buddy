@@ -71,6 +71,13 @@ describe('preload createApi', () => {
       await api.listDatabases();
       expect(invoke).toHaveBeenCalledWith('mongo:listDatabases', {});
     });
+
+    it('sampleFields invokes mongo:sampleFields with {db, collection}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: [] });
+      const api = createApi(ipcRenderer);
+      await api.sampleFields('d', 'c');
+      expect(invoke).toHaveBeenCalledWith('mongo:sampleFields', { db: 'd', collection: 'c' });
+    });
   });
 
   describe('onConnectionState', () => {
