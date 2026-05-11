@@ -224,15 +224,6 @@ export class MongoService {
     }
   }
 
-  async dropCollection(active: ActiveConnection, dbName: string, collName: string): Promise<Result<undefined>> {
-    try {
-      await active.client.db(dbName).dropCollection(collName);
-      return { ok: true, data: undefined };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async dropCollections(
     active: ActiveConnection,
     dbName: string,

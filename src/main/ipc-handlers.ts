@@ -75,10 +75,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return active;
   };
   ipcMain.handle(
-    'mongo:drop-collection',
-    wrap((db: unknown, coll: unknown) => service.dropCollection(requireActive(), db as string, coll as string))
-  );
-  ipcMain.handle(
     'mongo:drop-collections',
     wrap((db: unknown, names: unknown) => service.dropCollections(requireActive(), db as string, names as string[]))
   );
