@@ -1,17 +1,19 @@
 import { randomUUID } from 'crypto';
-import { EJSON } from 'bson';
+import { z } from 'zod';
 import type { Readable, Writable } from 'stream';
 import type {
   CollectionInfo,
   ImportOptions,
   OperationId,
+  OperationKind,
   OperationParams,
   OperationProgress,
   OperationRecord,
   Result,
 } from '../shared/types';
-import { parseAndValidateSidecar, type IndexSpec } from './index-spec';
+import type { IndexSpec } from './index-spec';
 import type { ActiveConnection } from './connection-manager';
+import type { AnyOperationDef, OperationCtx } from './operations/types';
 
 export interface MongoServicePort {
   exportCollection(
@@ -80,6 +82,7 @@ interface RegistryDeps {
   fs: FilesystemSinkPort;
   dialog: DialogProviderPort;
   emit: (rec: OperationRecord) => void;
+  kinds: readonly AnyOperationDef[];
 }
 
 function scopeKey(params: OperationParams): string {
@@ -93,10 +96,20 @@ function scopeKey(params: OperationParams): string {
   }
 }
 
+function formatZodError(err: z.ZodError): string {
+  return err.issues
+    .map((i) => {
+      const path = i.path.join('.');
+      return path ? `${path}: ${i.message}` : i.message;
+    })
+    .join('; ');
+}
+
 export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
   const records = new Map<OperationId, OperationRecord>();
   const inFlight = new Map<string, { id: OperationId; ac: AbortController }>();
   const subscribers = new Set<(rec: OperationRecord) => void>();
+  const byKind = new Map<OperationKind, AnyOperationDef>(deps.kinds.map((k) => [k.kind, k]));
 
   const fanout = (rec: OperationRecord): void => {
     deps.emit(rec);
@@ -124,336 +137,73 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     fanout(next);
   };
 
-  const runExportCollection = async (
+  const runDef = async (
     id: OperationId,
-    params: Extract<OperationParams, { kind: 'export-collection' }>,
+    def: AnyOperationDef,
+    params: OperationParams,
     ac: AbortController,
     key: string,
     active: ActiveConnection
   ): Promise<void> => {
     emitUpdate(id, { status: 'running' });
 
-    const savePath = await deps.dialog.pickSaveFile(params.collection);
-    if (savePath === null) {
-      inFlight.delete(key);
-      emitUpdate(id, {
-        status: 'succeeded',
-        result: { kind: 'export-collection', exported: 0, path: null },
-      });
-      return;
-    }
+    const ctx: OperationCtx = {
+      mongo: deps.mongo,
+      fs: deps.fs,
+      dialog: deps.dialog,
+      signal: ac.signal,
+      onProgress: (patch) => updateProgress(id, patch),
+    };
 
-    const sink = deps.fs.writeGzipSink(savePath);
-    let failed = false;
-    let errorMsg: string | undefined;
-    let exported = 0;
-    let cancelled = false;
-
+    // The wrapper owns try/catch; def.run bodies don't need to guard their
+    // mongo calls — a thrown driver error bubbles here and gets classified.
+    let res: Result<{ data: OperationRecord['result']; warning?: string }>;
     try {
-      const result = await deps.mongo.exportCollection(
-        active,
-        params.db,
-        params.collection,
-        sink.writable,
-        (count) => updateProgress(id, { processed: count }),
-        ac.signal
-      );
-      if (result.ok) {
-        exported = result.data;
-      } else {
-        failed = true;
-        errorMsg = result.error;
-        cancelled = ac.signal.aborted;
-      }
+      // Cast: byKind narrowing gives AnyOperationDef whose run() generic is
+      // not pinned to `params.kind`. The dispatch above ensures shape match.
+      const out = await (
+        def.run as (
+          a: ActiveConnection,
+          p: OperationParams,
+          c: OperationCtx
+        ) => Promise<Result<{ data: OperationRecord['result']; warning?: string }>>
+      )(active, params, ctx);
+      res = out;
     } catch (err) {
-      failed = true;
-      errorMsg = (err as Error).message;
-      cancelled = ac.signal.aborted;
+      res = { ok: false, error: (err as Error).message };
     }
 
-    if (failed) {
-      await sink.destroy();
-    } else {
-      try {
-        await sink.finalize();
-      } catch (err) {
-        failed = true;
-        errorMsg = (err as Error).message;
-        await sink.destroy();
-      }
-    }
+    const aborted = ac.signal.aborted;
 
-    // After data file is finalized, write the indexes sidecar. Failure here
-    // is non-fatal: data file is valid, so we report success with a warning.
-    let warning: string | undefined;
-    if (!failed) {
-      try {
-        const indexesRes = await deps.mongo.getExportableIndexes(active, params.db, params.collection);
-        if (!indexesRes.ok) {
-          warning = `Exported data but failed to read indexes: ${indexesRes.error}`;
-        } else {
-          const sidecarPath = deps.fs.indexesSidecarPath(savePath);
-          const json = JSON.stringify(EJSON.serialize(indexesRes.data));
-          await deps.fs.writeIndexesSidecar(sidecarPath, json);
-        }
-      } catch (err) {
-        warning = `Exported data but failed to write indexes sidecar: ${(err as Error).message}`;
-      }
-    }
-
-    // Release in-flight BEFORE emitting terminal, so a subscriber that
-    // re-starts on terminal doesn't hit a stale guard.
+    // Invariant: release in-flight BEFORE emitting terminal, so a subscriber
+    // that re-starts the same scope on terminal doesn't hit a stale guard.
     inFlight.delete(key);
 
-    if (failed) {
+    if (res.ok) {
       emitUpdate(id, {
-        status: cancelled ? 'cancelled' : 'failed',
-        error: errorMsg,
+        status: aborted ? 'cancelled' : 'succeeded',
+        result: res.data.data,
+        warning: res.data.warning,
       });
     } else {
       emitUpdate(id, {
-        status: 'succeeded',
-        result: { kind: 'export-collection', exported, path: savePath },
-        warning,
-      });
-    }
-  };
-
-  const runImportCollection = async (
-    id: OperationId,
-    params: Extract<OperationParams, { kind: 'import-collection' }>,
-    ac: AbortController,
-    key: string,
-    active: ActiveConnection
-  ): Promise<void> => {
-    emitUpdate(id, { status: 'running' });
-
-    // Validate sidecar BEFORE any destructive data operation. A bad sidecar
-    // must not cause "Clear collection first" to wipe data and then fail.
-    // Cancellation is not honored during the index-apply phase below.
-    let sidecarSpecs: IndexSpec[] | null = null;
-    try {
-      const sidecarPath = deps.fs.indexesSidecarPath(params.filePath);
-      const raw = await deps.fs.readIndexesSidecar(sidecarPath);
-      if (raw !== null) {
-        sidecarSpecs = parseAndValidateSidecar(raw);
-      }
-    } catch (err) {
-      inFlight.delete(key);
-      emitUpdate(id, { status: 'failed', error: (err as Error).message });
-      return;
-    }
-
-    const source = deps.fs.readGunzipSource(params.filePath);
-    let failed = false;
-    let errorMsg: string | undefined;
-    let inserted = 0;
-    let skipped = 0;
-    let cancelled = false;
-
-    try {
-      const result = await deps.mongo.importCollection(
-        active,
-        params.db,
-        params.collection,
-        source.readable,
-        params.options,
-        (count) => updateProgress(id, { processed: count }),
-        ac.signal
-      );
-      if (result.ok) {
-        inserted = result.data.inserted;
-        skipped = result.data.skipped;
-      } else {
-        failed = true;
-        errorMsg = result.error;
-        cancelled = ac.signal.aborted;
-      }
-    } catch (err) {
-      failed = true;
-      errorMsg = (err as Error).message;
-      cancelled = ac.signal.aborted;
-    }
-
-    await source.destroy();
-
-    if (failed) {
-      inFlight.delete(key);
-      emitUpdate(id, {
-        status: cancelled ? 'cancelled' : 'failed',
-        error: errorMsg,
-      });
-      return;
-    }
-
-    // Data import succeeded. Apply indexes from sidecar, or surface a warning
-    // if no sidecar was present.
-    let warning: string | undefined;
-    if (sidecarSpecs === null) {
-      warning = 'No indexes were restored (sidecar file not found).';
-    } else {
-      const applyRes = await deps.mongo.applyImportedIndexes(active, params.db, params.collection, sidecarSpecs, {
-        dropExisting: params.options.clearFirst,
-      });
-      if (!applyRes.ok) {
-        inFlight.delete(key);
-        emitUpdate(id, {
-          status: 'failed',
-          error: `${applyRes.error} (${inserted} docs imported)`,
-        });
-        return;
-      }
-    }
-
-    inFlight.delete(key);
-    emitUpdate(id, {
-      status: 'succeeded',
-      result: { kind: 'import-collection', inserted, skipped },
-      warning,
-    });
-  };
-
-  const runExportDatabase = async (
-    id: OperationId,
-    params: Extract<OperationParams, { kind: 'export-database' }>,
-    ac: AbortController,
-    key: string,
-    active: ActiveConnection
-  ): Promise<void> => {
-    emitUpdate(id, { status: 'running' });
-
-    const folder = await deps.dialog.pickFolder();
-    if (folder === null) {
-      inFlight.delete(key);
-      emitUpdate(id, {
-        status: 'succeeded',
-        result: { kind: 'export-database', exported: 0, folder: null },
-      });
-      return;
-    }
-
-    const listRes = await deps.mongo.listCollections(active, params.db);
-    if (!listRes.ok) {
-      inFlight.delete(key);
-      emitUpdate(id, { status: 'failed', error: listRes.error });
-      return;
-    }
-
-    let collections = listRes.data.filter((c) => c.type === 'collection');
-    if (params.collections !== undefined) {
-      const wanted = new Set(params.collections);
-      collections = collections.filter((c) => wanted.has(c.name));
-    }
-    const total = collections.length;
-    updateProgress(id, { processed: 0, total });
-
-    let totalExported = 0;
-    let failed = false;
-    let errorMsg: string | undefined;
-    let cancelled = false;
-    const sidecarErrorCollections: string[] = [];
-
-    for (let i = 0; i < collections.length; i++) {
-      if (ac.signal.aborted) {
-        cancelled = true;
-        break;
-      }
-      const coll = collections[i];
-      const filePath = deps.fs.joinExportFilename(folder, coll.name);
-      const sink = deps.fs.writeGzipSink(filePath);
-
-      updateProgress(id, {
-        processed: totalExported,
-        total,
-        label: coll.name,
-        stage: `${i + 1} of ${total}`,
-      });
-
-      let collFailed = false;
-      try {
-        const r = await deps.mongo.exportCollection(
-          active,
-          params.db,
-          coll.name,
-          sink.writable,
-          (count) => {
-            updateProgress(id, {
-              processed: totalExported + count,
-              total,
-              label: coll.name,
-              stage: `${i + 1} of ${total}`,
-            });
-          },
-          ac.signal
-        );
-        if (r.ok) {
-          totalExported += r.data;
-        } else {
-          collFailed = true;
-          errorMsg = r.error;
-          cancelled = ac.signal.aborted;
-        }
-      } catch (err) {
-        collFailed = true;
-        errorMsg = (err as Error).message;
-        cancelled = ac.signal.aborted;
-      }
-
-      if (collFailed) {
-        await sink.destroy();
-        if (cancelled) break;
-        failed = true;
-        break;
-      }
-
-      try {
-        await sink.finalize();
-      } catch (err) {
-        await sink.destroy();
-        failed = true;
-        errorMsg = (err as Error).message;
-        break;
-      }
-
-      // Sidecar write is best-effort per collection. A single bad collection
-      // must not abort a long DB export — accumulate the name and continue.
-      try {
-        const indexesRes = await deps.mongo.getExportableIndexes(active, params.db, coll.name);
-        if (!indexesRes.ok) {
-          sidecarErrorCollections.push(coll.name);
-        } else {
-          const sidecarPath = deps.fs.indexesSidecarPath(filePath);
-          const json = JSON.stringify(EJSON.serialize(indexesRes.data));
-          await deps.fs.writeIndexesSidecar(sidecarPath, json);
-        }
-      } catch {
-        sidecarErrorCollections.push(coll.name);
-      }
-    }
-
-    inFlight.delete(key);
-
-    const warning =
-      sidecarErrorCollections.length > 0 ? `sidecar errors for: ${sidecarErrorCollections.join(', ')}` : undefined;
-
-    if (cancelled) {
-      emitUpdate(id, {
-        status: 'cancelled',
-        result: { kind: 'export-database', exported: totalExported, folder },
-        error: errorMsg,
-      });
-    } else if (failed) {
-      emitUpdate(id, { status: 'failed', error: errorMsg });
-    } else {
-      emitUpdate(id, {
-        status: 'succeeded',
-        result: { kind: 'export-database', exported: totalExported, folder },
-        warning,
+        status: aborted ? 'cancelled' : 'failed',
+        error: res.error,
       });
     }
   };
 
   const start = (params: OperationParams, active: ActiveConnection): Result<OperationId> => {
+    const def = byKind.get(params.kind);
+    if (!def) {
+      return { ok: false, error: `unknown operation kind: ${params.kind as string}` };
+    }
+
+    const parsed = def.params.safeParse(params);
+    if (!parsed.success) {
+      return { ok: false, error: `invalid params: ${formatZodError(parsed.error)}` };
+    }
+
     const key = scopeKey(params);
     if (inFlight.has(key)) {
       return { ok: false, error: 'already running' };
@@ -471,26 +221,17 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     inFlight.set(key, { id, ac });
     fanout(rec);
 
-    // Kick off async runner without blocking start()
     queueMicrotask(() => {
-      if (params.kind === 'export-collection') {
-        void runExportCollection(id, params, ac, key, active);
-      } else if (params.kind === 'import-collection') {
-        void runImportCollection(id, params, ac, key, active);
-      } else {
-        void runExportDatabase(id, params, ac, key, active);
-      }
+      void runDef(id, def, parsed.data, ac, key, active);
     });
 
     return { ok: true, data: id };
   };
 
   const cancel = (id: OperationId): Result<undefined> => {
-    for (const [key, entry] of inFlight) {
+    for (const entry of inFlight.values()) {
       if (entry.id === id) {
         entry.ac.abort();
-        // let runner clean up and emit terminal; do not remove in-flight here
-        void key;
         return { ok: true, data: undefined };
       }
     }

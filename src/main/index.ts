@@ -29,6 +29,7 @@ import { dropCollectionsCommand } from './commands/drop-collections';
 import { registerMongoIpcCommands } from './ipc-mongo-adapter';
 import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
+import { OPERATIONS } from './operations';
 import { createFsSinkAdapter } from './adapters/fs-sink';
 import { createDialogProviderAdapter } from './adapters/dialog-provider';
 import { parseMcpArgs } from './mcp/cli-args';
@@ -57,6 +58,7 @@ const operationRegistry = createOperationRegistry({
   mongo: mongoService,
   fs: createFsSinkAdapter(),
   dialog: createDialogProviderAdapter(),
+  kinds: OPERATIONS,
   emit: (rec) => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('operation:update', rec);

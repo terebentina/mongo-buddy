@@ -115,17 +115,12 @@ describe('registerMongoMcpTools', () => {
   it('applies transformInput before dispatching', async () => {
     const cmd = makeCommand();
     dispatch.mockResolvedValue({ ok: true, data: 0 });
-    registerMongoMcpTools({
-      server,
-      dispatch: dispatch as unknown as Dispatch,
-      tools: [
-        {
-          command: cmd,
-          description: 'd',
-          transformInput: (i) => ({ ...i, db: (i.db as string).toUpperCase() }),
-        },
-      ],
-    });
+    const entry: McpToolEntry<typeof cmd.input, number> = {
+      command: cmd,
+      description: 'd',
+      transformInput: (i) => ({ ...i, db: i.db.toUpperCase() }),
+    };
+    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, tools: [entry] });
     const handler = registered(server)['count'].handler;
     await handler({ db: 'test' });
     expect(dispatch).toHaveBeenCalledWith(cmd, { db: 'TEST' });

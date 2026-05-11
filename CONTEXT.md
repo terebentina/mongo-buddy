@@ -76,6 +76,10 @@ Currently `IndexSpec = IndexInfo` (alias in `src/main/index-spec.ts`). The names
 **Operation**:
 A long-running task tracked by `OperationRegistry` (export collection, export database, import collection). Has a state machine: `pending → running → succeeded | failed | cancelled`.
 
+**OperationDef**:
+The declarative definition of an **Operation** kind. Shape: `{ kind, params: ZodSchema, run(active, params, ctx): Promise<Result<{ data, warning? }>> }`. Lives in `src/main/operations/`. The body of `run` does the work — acquire resources via `ctx` (dialog, fs, mongo, signal, onProgress), return success/failure as `Result`. The **OperationRegistry** owns the state machine (`running` → terminal), the `inFlight` enqueue guard, signal-based cancellation classification, and Zod-validation of params; an **OperationDef** body never emits status. `kind` is the canonical identifier and matches the corresponding `OperationParams` discriminant.
+_Avoid_: handler, runner. "Operation" alone is the runtime task.
+
 ## Relationships
 
 - A **SavedConnection** is the seed for a **ConnectedSession** when the user clicks Connect.

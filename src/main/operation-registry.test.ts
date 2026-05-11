@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Writable, Readable } from 'stream';
 import type { MongoClient } from 'mongodb';
+import { z } from 'zod';
 import { createOperationRegistry } from './operation-registry';
 import type { MongoServicePort } from './operation-registry';
+import { OPERATIONS } from './operations';
+import { exportCollectionOp } from './operations/export-collection';
+import type { AnyOperationDef } from './operations/types';
 import type { IndexSpec } from './index-spec';
 import { MongoService } from './mongo-service';
 import type { ActiveConnection } from './connection-manager';
@@ -239,7 +243,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort({ savePath: '/tmp/users.bson.gz' });
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       const params: OperationParams = { kind: 'export-collection', db: 'mydb', collection: 'users' };
       const res = registry.start(params, TEST_ACTIVE);
@@ -295,7 +299,7 @@ describe('OperationRegistry', () => {
         }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -314,7 +318,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort({ savePath: null });
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -334,7 +338,7 @@ describe('OperationRegistry', () => {
         getExportableIndexes: async () => ({ ok: true, data: [{ key: { x: 1 }, name: 'x_1' }] }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -351,7 +355,7 @@ describe('OperationRegistry', () => {
         getExportableIndexes: async () => ({ ok: false, error: 'ns not found' }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-collection', db: 'mydb', collection: 'users' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -374,7 +378,7 @@ describe('OperationRegistry', () => {
         },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       const params: OperationParams = {
         kind: 'import-collection',
@@ -431,7 +435,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams(), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -450,7 +454,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -472,7 +476,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams({ clearFirst: false }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -486,7 +490,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -503,7 +507,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -521,7 +525,7 @@ describe('OperationRegistry', () => {
         applyImportedIndexes: async () => ({ ok: false, error: 'duplicate key violation' }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams({ clearFirst: false }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -539,7 +543,7 @@ describe('OperationRegistry', () => {
         importCollection: async () => ({ ok: false, error: 'bson decode failed' }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams(), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -558,7 +562,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(importParams({ clearFirst: true }), TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -589,7 +593,7 @@ describe('OperationRegistry', () => {
         },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       const res = registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
@@ -650,7 +654,7 @@ describe('OperationRegistry', () => {
       });
 
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
       const res = registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
       const id = res.ok ? res.data : '';
@@ -686,7 +690,7 @@ describe('OperationRegistry', () => {
         exportCollection: async () => ({ ok: true, data: 10 }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'c'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -711,7 +715,7 @@ describe('OperationRegistry', () => {
         exportCollection: async () => ({ ok: true, data: 10 }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'ghost'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -735,7 +739,7 @@ describe('OperationRegistry', () => {
         exportCollection: async () => ({ ok: true, data: 10 }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -764,7 +768,7 @@ describe('OperationRegistry', () => {
         }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -802,7 +806,7 @@ describe('OperationRegistry', () => {
         getExportableIndexes: async () => ({ ok: true, data: [{ key: { x: 1 }, name: 'x_1' }] }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -838,7 +842,7 @@ describe('OperationRegistry', () => {
         getExportableIndexes: async () => ({ ok: true, data: [{ key: { x: 1 }, name: 'x_1' }] }),
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -868,7 +872,7 @@ describe('OperationRegistry', () => {
           coll === 'a' ? { ok: false, error: 'ns not found' } : { ok: true, data: [] },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -895,7 +899,7 @@ describe('OperationRegistry', () => {
           coll === 'a' ? { ok: true, data: 1 } : { ok: false, error: 'disk read error' },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -920,7 +924,7 @@ describe('OperationRegistry', () => {
         },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       const params: OperationParams = { kind: 'export-collection', db: 'd', collection: 'c' };
       const first = registry.start(params, TEST_ACTIVE);
@@ -963,7 +967,7 @@ describe('OperationRegistry', () => {
         },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       const res = registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
@@ -994,7 +998,7 @@ describe('OperationRegistry', () => {
         },
       });
       const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -1013,7 +1017,7 @@ describe('OperationRegistry', () => {
       const dialog = makeDialogPort({ savePath: '/tmp/x.bson.gz' });
       const mongo = makeMongoPort();
       const { emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       const params: OperationParams = { kind: 'export-collection', db: 'd', collection: 'c' };
       let restartResult: Result<string> | null = null;
@@ -1030,6 +1034,115 @@ describe('OperationRegistry', () => {
         expect(restartResult).not.toBeNull();
       });
       expect(restartResult!.ok).toBe(true);
+    });
+  });
+
+  describe('wrapper, fake def', () => {
+    function buildRegistry(def: AnyOperationDef) {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: [def] });
+      return { registry, emits };
+    }
+
+    it('start() rejects unknown kind without creating a record', () => {
+      const fs = makeFsPort();
+      const dialog = makeDialogPort();
+      const mongo = makeMongoPort();
+      const { emits, emit } = makeEmitSpy();
+      // Empty kinds array — every kind is "unknown".
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: [] });
+      const res = registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+      expect(res.error).toContain('unknown operation kind');
+      expect(emits).toHaveLength(0);
+      expect(registry.list()).toHaveLength(0);
+    });
+
+    it('start() rejects when params fail Zod validation', () => {
+      const { registry, emits } = buildRegistry(exportCollectionOp);
+      // `collection` missing — invalid for export-collection schema.
+      const res = registry.start({ kind: 'export-collection', db: 'd' } as unknown as OperationParams, TEST_ACTIVE);
+      expect(res.ok).toBe(false);
+      if (res.ok) return;
+      expect(res.error).toContain('invalid params');
+      expect(emits).toHaveLength(0);
+    });
+
+    it('fake def returning ok while signal is aborted: terminal cancelled with result preserved', async () => {
+      const fakeDef: AnyOperationDef = {
+        kind: 'export-database',
+        params: z.object({
+          kind: z.literal('export-database'),
+          db: z.string(),
+          collections: z.array(z.string()).optional(),
+        }),
+        async run(_a, _p, ctx) {
+          // Wait one microtask so a subscriber that cancels on 'running' can fire.
+          await Promise.resolve();
+          expect(ctx.signal.aborted).toBe(true);
+          // Return ok with partial data despite the abort (the export-database pattern).
+          return {
+            ok: true,
+            data: { data: { kind: 'export-database', exported: 5, folder: '/tmp/x' } },
+          };
+        },
+      };
+      const { registry, emits } = buildRegistry(fakeDef);
+      registry.subscribe((rec) => {
+        if (rec.status === 'running') registry.cancel(rec.id);
+      });
+      registry.start({ kind: 'export-database', db: 'd' }, TEST_ACTIVE);
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('cancelled');
+      expect(terminal.result).toEqual({ kind: 'export-database', exported: 5, folder: '/tmp/x' });
+    });
+
+    it('fake def throwing synchronously: wrapper catches and emits failed', async () => {
+      const fakeDef: AnyOperationDef = {
+        kind: 'export-collection',
+        params: z.object({
+          kind: z.literal('export-collection'),
+          db: z.string(),
+          collection: z.string(),
+        }),
+        async run() {
+          throw new Error('boom');
+        },
+      };
+      const { registry, emits } = buildRegistry(fakeDef);
+      registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('failed');
+      expect(terminal.error).toBe('boom');
+    });
+
+    it('fake def throwing while signal is aborted: wrapper emits cancelled', async () => {
+      const fakeDef: AnyOperationDef = {
+        kind: 'export-collection',
+        params: z.object({
+          kind: z.literal('export-collection'),
+          db: z.string(),
+          collection: z.string(),
+        }),
+        async run(_a, _p, ctx) {
+          // Wait one microtask so the subscriber can cancel us, then throw.
+          await Promise.resolve();
+          expect(ctx.signal.aborted).toBe(true);
+          throw new Error('driver aborted');
+        },
+      };
+      const { registry, emits } = buildRegistry(fakeDef);
+      registry.subscribe((rec) => {
+        if (rec.status === 'running') registry.cancel(rec.id);
+      });
+      registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
+      const terminal = await waitForTerminal(emits);
+      expect(terminal.status).toBe('cancelled');
+      expect(terminal.error).toBe('driver aborted');
     });
   });
 });
