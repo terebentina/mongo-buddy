@@ -115,6 +115,13 @@ describe('preload createApi', () => {
       });
     });
 
+    it('insertOne invokes mongo:insertOne with {db, collection, doc}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: {} });
+      const api = createApi(ipcRenderer);
+      await api.insertOne('d', 'c', { name: 'Alice' });
+      expect(invoke).toHaveBeenCalledWith('mongo:insertOne', { db: 'd', collection: 'c', doc: { name: 'Alice' } });
+    });
+
     it('explain invokes mongo:explain with {db, collection, queryMode, query}', async () => {
       invoke.mockResolvedValue({ ok: true, data: {} });
       const api = createApi(ipcRenderer);

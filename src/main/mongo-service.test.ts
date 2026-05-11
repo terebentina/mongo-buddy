@@ -111,23 +111,6 @@ describe('MongoService', () => {
     });
   });
 
-  describe('insertOne', () => {
-    it('inserts a document and returns EJSON serialized result', async () => {
-      const insertedId = new ObjectId('507f1f77bcf86cd799439011');
-      mockCollection.insertOne.mockResolvedValue({ insertedId });
-      mockCollection.findOne.mockResolvedValue({ _id: insertedId, name: 'Alice' });
-
-      const result = await service.insertOne(active, 'testdb', 'users', { name: 'Alice' });
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
-        expect(result.data.name).toBe('Alice');
-      }
-      expect(mockCollection.insertOne).toHaveBeenCalled();
-    });
-  });
-
   describe('updateOne', () => {
     it('replaces document and returns EJSON serialized result', async () => {
       const oid = new ObjectId('507f1f77bcf86cd799439011');

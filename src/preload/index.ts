@@ -74,7 +74,7 @@ export function createApi(ipc: IpcLike) {
       collection: string,
       doc: Record<string, unknown>
     ): Promise<Result<Record<string, unknown>>> =>
-      ipc.invoke('mongo:insert-one', db, collection, doc) as Promise<Result<Record<string, unknown>>>,
+      ipc.invoke('mongo:insertOne', { db, collection, doc }) as Promise<Result<Record<string, unknown>>>,
     updateOne: (
       db: string,
       collection: string,

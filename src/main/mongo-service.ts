@@ -17,23 +17,6 @@ export class MongoService {
     }
   }
 
-  async insertOne(
-    active: ActiveConnection,
-    dbName: string,
-    collName: string,
-    doc: Record<string, unknown>
-  ): Promise<Result<Record<string, unknown>>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
-      const result = await collection.insertOne(deserialized);
-      const inserted = await collection.findOne({ _id: result.insertedId });
-      return { ok: true, data: EJSON.serialize(inserted) as Record<string, unknown> };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async updateOne(
     active: ActiveConnection,
     dbName: string,

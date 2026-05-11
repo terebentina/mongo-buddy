@@ -75,12 +75,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return active;
   };
   ipcMain.handle(
-    'mongo:insert-one',
-    wrap((db: unknown, coll: unknown, doc: unknown) =>
-      service.insertOne(requireActive(), db as string, coll as string, doc as Record<string, unknown>)
-    )
-  );
-  ipcMain.handle(
     'mongo:update-one',
     wrap((db: unknown, coll: unknown, id: unknown, doc: unknown) =>
       service.updateOne(requireActive(), db as string, coll as string, id, doc as Record<string, unknown>)
