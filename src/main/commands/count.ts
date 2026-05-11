@@ -9,8 +9,6 @@ const input = z.object({
 
 export const countCommand: MongoCommand<typeof input, number> = {
   name: 'count',
-  ipcChannel: 'mongo:count',
-  mcpToolName: 'count',
   input,
   async run(active, { db, collection, filter }) {
     return active.client

@@ -5,8 +5,6 @@ import type { ActiveConnection, ConnectionManager } from '../connection-manager'
 
 export type MongoCommand<S extends z.ZodType, O> = {
   name: string;
-  ipcChannel: string;
-  mcpToolName: string;
   input: S;
   run(active: ActiveConnection, input: z.infer<S>): Promise<O>;
 };

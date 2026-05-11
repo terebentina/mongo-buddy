@@ -20,7 +20,7 @@ export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
   for (const entry of deps.tools) {
     const { command, description, transformInput, notConnectedMessage } = entry;
     deps.server.registerTool(
-      command.mcpToolName,
+      command.name,
       { description, inputSchema: command.input.shape },
       async (rawInput: z.infer<typeof command.input>): Promise<CallToolResult> => {
         const input = transformInput ? transformInput(rawInput) : rawInput;

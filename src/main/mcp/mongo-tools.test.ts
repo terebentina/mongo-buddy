@@ -24,8 +24,6 @@ function registered(server: McpServer): Record<string, { handler: ToolHandler; d
 function makeCommand(): MongoCommand<z.ZodObject<{ db: z.ZodString }>, number> {
   return {
     name: 'count',
-    ipcChannel: 'mongo:count',
-    mcpToolName: 'count',
     input: z.object({ db: z.string() }),
     run: vi.fn().mockResolvedValue(0),
   };
@@ -40,7 +38,7 @@ describe('registerMongoMcpTools', () => {
     dispatch = vi.fn();
   });
 
-  it('registers each tool by mcpToolName with the supplied description', () => {
+  it('registers each tool by name with the supplied description', () => {
     const cmd = makeCommand();
     const entry: McpToolEntry<typeof cmd.input, number> = {
       command: cmd,

@@ -24,8 +24,6 @@ describe('createDispatcher', () => {
     const run = vi.fn();
     const cmd: MongoCommand<z.ZodObject<Record<string, never>>, number> = {
       name: 'noop',
-      ipcChannel: 'mongo:noop',
-      mcpToolName: 'noop',
       input: z.object({}),
       run,
     };
@@ -39,8 +37,6 @@ describe('createDispatcher', () => {
     const run = vi.fn();
     const cmd = {
       name: 'x',
-      ipcChannel: 'mongo:x',
-      mcpToolName: 'x',
       input: z.object({ db: z.string() }),
       run,
     };
@@ -55,8 +51,6 @@ describe('createDispatcher', () => {
     const run = vi.fn().mockResolvedValue(42);
     const cmd = {
       name: 'count',
-      ipcChannel: 'mongo:count',
-      mcpToolName: 'count',
       input: z.object({ db: z.string(), collection: z.string() }),
       run,
     };
@@ -70,8 +64,6 @@ describe('createDispatcher', () => {
     const run = vi.fn().mockResolvedValue(0);
     const cmd = {
       name: 'count',
-      ipcChannel: 'mongo:count',
-      mcpToolName: 'count',
       input: z.object({
         db: z.string(),
         filter: z.record(z.string(), z.unknown()).optional(),
@@ -91,8 +83,6 @@ describe('createDispatcher', () => {
     const oid = new ObjectId('507f1f77bcf86cd799439011');
     const cmd = {
       name: 'find',
-      ipcChannel: 'mongo:find',
-      mcpToolName: 'find',
       input: z.object({}),
       run: async () => ({ doc: { _id: oid, name: 'a' } }),
     };
@@ -107,8 +97,6 @@ describe('createDispatcher', () => {
     const dispatch = createDispatcher(makeManager(fakeActive));
     const cmd = {
       name: 'count',
-      ipcChannel: 'mongo:count',
-      mcpToolName: 'count',
       input: z.object({}),
       run: async () => 42,
     };
@@ -120,8 +108,6 @@ describe('createDispatcher', () => {
     const dispatch = createDispatcher(makeManager(fakeActive));
     const cmd = {
       name: 'drop',
-      ipcChannel: 'mongo:drop',
-      mcpToolName: 'drop',
       input: z.object({}),
       run: async () => undefined,
     };
@@ -133,8 +119,6 @@ describe('createDispatcher', () => {
     const dispatch = createDispatcher(makeManager(fakeActive));
     const cmd = {
       name: 'x',
-      ipcChannel: 'mongo:x',
-      mcpToolName: 'x',
       input: z.object({}),
       run: async () => {
         throw new Error('boom');

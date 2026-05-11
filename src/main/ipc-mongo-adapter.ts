@@ -15,6 +15,6 @@ export interface RegisterMongoIpcCommandsDeps {
 
 export function registerMongoIpcCommands(deps: RegisterMongoIpcCommandsDeps): void {
   for (const command of deps.commands) {
-    deps.ipcMain.handle(command.ipcChannel, async (_event, input) => deps.dispatch(command, input));
+    deps.ipcMain.handle(`mongo:${command.name}`, async (_event, input) => deps.dispatch(command, input));
   }
 }

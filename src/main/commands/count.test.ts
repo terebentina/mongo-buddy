@@ -17,9 +17,8 @@ describe('countCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes ipcChannel mongo:count and mcpToolName count', () => {
-    expect(countCommand.ipcChannel).toBe('mongo:count');
-    expect(countCommand.mcpToolName).toBe('count');
+  it('exposes name "count"', () => {
+    expect(countCommand.name).toBe('count');
   });
 
   it('returns the document count', async () => {

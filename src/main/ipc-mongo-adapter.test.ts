@@ -8,8 +8,6 @@ function makeCommand(
 ): MongoCommand<z.ZodTypeAny, unknown> {
   return {
     name: 'noop',
-    ipcChannel: 'mongo:noop',
-    mcpToolName: 'noop',
     input: z.object({}),
     run: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -17,11 +15,11 @@ function makeCommand(
 }
 
 describe('registerMongoIpcCommands', () => {
-  it('registers ipcMain.handle for each command using its ipcChannel', () => {
+  it('registers ipcMain.handle for each command using mongo:<name>', () => {
     const handle = vi.fn();
     const dispatch = vi.fn();
-    const a = makeCommand({ ipcChannel: 'mongo:a' });
-    const b = makeCommand({ ipcChannel: 'mongo:b' });
+    const a = makeCommand({ name: 'a' });
+    const b = makeCommand({ name: 'b' });
 
     registerMongoIpcCommands({ ipcMain: { handle }, dispatch, commands: [a, b] });
 
@@ -36,7 +34,7 @@ describe('registerMongoIpcCommands', () => {
       handlers.set(channel, fn);
     });
     const dispatch = vi.fn().mockResolvedValue({ ok: true, data: 5 });
-    const cmd = makeCommand({ ipcChannel: 'mongo:count' });
+    const cmd = makeCommand({ name: 'count' });
 
     registerMongoIpcCommands({ ipcMain: { handle }, dispatch, commands: [cmd] });
 
