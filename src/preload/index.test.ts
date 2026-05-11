@@ -115,6 +115,13 @@ describe('preload createApi', () => {
       });
     });
 
+    it('dropIndex invokes mongo:dropIndex with {db, collection, indexName}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: undefined });
+      const api = createApi(ipcRenderer);
+      await api.dropIndex('d', 'c', 'email_1');
+      expect(invoke).toHaveBeenCalledWith('mongo:dropIndex', { db: 'd', collection: 'c', indexName: 'email_1' });
+    });
+
     it('deleteOne invokes mongo:deleteOne with {db, collection, id}', async () => {
       invoke.mockResolvedValue({ ok: true, data: undefined });
       const api = createApi(ipcRenderer);
