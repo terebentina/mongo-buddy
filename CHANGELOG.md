@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.0.0](https://github.com/terebentina/mongo-buddy/compare/v1.39.0...v2.0.0) (2026-05-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **commands:** MCP tool names renamed to camelCase to match the
+canonical MongoCommand `name` field and the derived IPC channels.
+External MCP clients must update their tool references:
+
+  list_databases   -> listDatabases
+  list_collections -> listCollections
+  list_indexes     -> listIndexes
+  sample_fields    -> sampleFields
+
+(find, aggregate, explain, distinct, count are unchanged.)
+
+IPC channels were also renamed (e.g. mongo:list-databases ->
+mongo:listDatabases, mongo:insert-one -> mongo:insertOne) but these are
+internal to the Electron app and the renderer call sites are unaffected
+because the preload bridge encapsulates the channel strings.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* **commands:** drop MongoService from IPC/MCP paths ([c385ac5](https://github.com/terebentina/mongo-buddy/commit/c385ac5cf8ba80fd18e5f0ec4e91893e621c6da6))
+
 ## [1.39.0](https://github.com/terebentina/mongo-buddy/compare/v1.38.1...v1.39.0) (2026-05-09)
 
 
