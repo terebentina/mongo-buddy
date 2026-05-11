@@ -17,27 +17,6 @@ export class MongoService {
     }
   }
 
-  async updateOne(
-    active: ActiveConnection,
-    dbName: string,
-    collName: string,
-    id: unknown,
-    doc: Record<string, unknown>
-  ): Promise<Result<Record<string, unknown>>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const deserialized = EJSON.deserialize(doc) as Record<string, unknown>;
-      const { _id, ...updateFields } = deserialized;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const filterid = (EJSON.deserialize({ _id: id }) as Record<string, unknown>)._id as any;
-      await collection.replaceOne({ _id: filterid }, updateFields);
-      const updated = await collection.findOne({ _id: filterid });
-      return { ok: true, data: EJSON.serialize(updated) as Record<string, unknown> };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async exportCollection(
     active: ActiveConnection,
     dbName: string,

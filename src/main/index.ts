@@ -21,6 +21,7 @@ import { findCommand } from './commands/find';
 import { aggregateCommand } from './commands/aggregate';
 import { explainCommand } from './commands/explain';
 import { insertOneCommand } from './commands/insert-one';
+import { updateOneCommand } from './commands/update-one';
 import { registerMongoIpcCommands } from './ipc-mongo-adapter';
 import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
@@ -80,6 +81,7 @@ const mongoCommands = [
   aggregateCommand,
   explainCommand,
   insertOneCommand,
+  updateOneCommand,
 ];
 registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
 

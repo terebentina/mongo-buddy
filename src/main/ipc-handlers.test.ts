@@ -35,7 +35,6 @@ vi.mock('./query-history-store', async (importOriginal) => {
 
 describe('IPC Handlers', () => {
   let mockService: {
-    updateOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
     dropIndex: ReturnType<typeof vi.fn>;
   };
@@ -92,7 +91,6 @@ describe('IPC Handlers', () => {
     mockBroadcast = vi.fn<Broadcast>();
 
     mockService = {
-      updateOne: vi.fn(),
       deleteOne: vi.fn(),
       dropIndex: vi.fn(),
     };
@@ -158,7 +156,6 @@ describe('IPC Handlers', () => {
   it('registers all expected channels', () => {
     expect(handlers['mongo:connect']).toBeDefined();
     expect(handlers['mongo:disconnect']).toBeDefined();
-    expect(handlers['mongo:update-one']).toBeDefined();
     expect(handlers['mongo:delete-one']).toBeDefined();
     expect(handlers['mongo:drop-index']).toBeDefined();
     expect(handlers['connections:list']).toBeDefined();
@@ -225,23 +222,6 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.disconnect).toHaveBeenCalled();
       expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
-  describe('mongo:update-one', () => {
-    it('calls MongoService.updateOne with db, collection, id, and doc', async () => {
-      const doc = { name: 'Bob' };
-      const updated = { _id: { $oid: '123' }, name: 'Bob' };
-      mockService.updateOne.mockResolvedValue({ ok: true, data: updated });
-      const result = await handlers['mongo:update-one'](
-        {} as Electron.IpcMainInvokeEvent,
-        'testdb',
-        'users',
-        '123',
-        doc
-      );
-      expect(mockService.updateOne).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', '123', doc);
-      expect(result).toEqual({ ok: true, data: updated });
     });
   });
 

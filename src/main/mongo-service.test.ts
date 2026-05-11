@@ -111,42 +111,6 @@ describe('MongoService', () => {
     });
   });
 
-  describe('updateOne', () => {
-    it('replaces document and returns EJSON serialized result', async () => {
-      const oid = new ObjectId('507f1f77bcf86cd799439011');
-      mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
-      mockCollection.findOne.mockResolvedValue({ _id: oid, name: 'Bob' });
-
-      const result = await service.updateOne(
-        active,
-        'testdb',
-        'users',
-        { $oid: '507f1f77bcf86cd799439011' },
-        { name: 'Bob' }
-      );
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
-        expect(result.data.name).toBe('Bob');
-      }
-      expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: oid }, { name: 'Bob' });
-    });
-
-    it('with string id queries with string, not ObjectId', async () => {
-      mockCollection.replaceOne.mockResolvedValue({ modifiedCount: 1 });
-      mockCollection.findOne.mockResolvedValue({ _id: 'my-string-id', name: 'Bob' });
-
-      const result = await service.updateOne(active, 'testdb', 'users', 'my-string-id', { name: 'Bob' });
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data.name).toBe('Bob');
-      }
-      expect(mockCollection.replaceOne).toHaveBeenCalledWith({ _id: 'my-string-id' }, { name: 'Bob' });
-    });
-  });
-
   describe('deleteOne', () => {
     it('deletes document by ObjectId', async () => {
       const oid = new ObjectId('507f1f77bcf86cd799439011');

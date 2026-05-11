@@ -115,6 +115,18 @@ describe('preload createApi', () => {
       });
     });
 
+    it('updateOne invokes mongo:updateOne with {db, collection, id, doc}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: {} });
+      const api = createApi(ipcRenderer);
+      await api.updateOne('d', 'c', '123', { name: 'Bob' });
+      expect(invoke).toHaveBeenCalledWith('mongo:updateOne', {
+        db: 'd',
+        collection: 'c',
+        id: '123',
+        doc: { name: 'Bob' },
+      });
+    });
+
     it('insertOne invokes mongo:insertOne with {db, collection, doc}', async () => {
       invoke.mockResolvedValue({ ok: true, data: {} });
       const api = createApi(ipcRenderer);
