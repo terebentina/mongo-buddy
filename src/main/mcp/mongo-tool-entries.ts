@@ -7,6 +7,7 @@ import { listIndexesCommand } from '../commands/list-indexes';
 import { distinctCommand } from '../commands/distinct';
 import { findCommand } from '../commands/find';
 import { aggregateCommand } from '../commands/aggregate';
+import { explainCommand } from '../commands/explain';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -23,7 +24,7 @@ const EJSON_HINT =
 
 const NOT_CONNECTED_MESSAGE = 'Not connected. Connect via the mongo-buddy GUI first.';
 
-export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
+export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
   {
     command: countCommand,
     description: `Count documents matching a filter. ${EJSON_HINT}`,
@@ -64,7 +65,15 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
   {
     command: findCommand,
     description: `Find documents in a collection. Returns { docs, totalCount } where totalCount ignores skip/limit — use it to paginate via skip. Default limit is ${DEFAULT_FIND_LIMIT}, max is ${MAX_FIND_LIMIT} (values above are clamped). ${EJSON_HINT}`,
-    transformInput: (input) => ({ ...input, limit: clampLimit(input.limit as number | undefined) }),
+    transformInput: (input) => {
+      const i = input as Record<string, unknown>;
+      return { ...i, limit: clampLimit(i.limit as number | undefined) };
+    },
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: explainCommand,
+    description: `Run MongoDB explain (verbosity: executionStats) on a query and return the query plan plus execution stats (winning plan, index used, docs/keys examined, executionTimeMillis). Use for diagnosing slow queries or verifying index usage. ${EJSON_HINT}`,
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];

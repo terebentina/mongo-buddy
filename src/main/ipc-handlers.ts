@@ -14,7 +14,6 @@ import type {
   OperationParams,
   OperationId,
   McpStatus,
-  QueryMode,
 } from '../shared/types';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
@@ -75,18 +74,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (!active) throw new Error('Not connected');
     return active;
   };
-  ipcMain.handle(
-    'mongo:explain',
-    wrap((db: unknown, coll: unknown, queryMode: unknown, query: unknown) =>
-      service.explain(
-        requireActive(),
-        db as string,
-        coll as string,
-        queryMode as QueryMode,
-        query as Record<string, unknown> | Record<string, unknown>[]
-      )
-    )
-  );
   ipcMain.handle(
     'mongo:insert-one',
     wrap((db: unknown, coll: unknown, doc: unknown) =>

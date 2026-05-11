@@ -115,6 +115,18 @@ describe('preload createApi', () => {
       });
     });
 
+    it('explain invokes mongo:explain with {db, collection, queryMode, query}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: {} });
+      const api = createApi(ipcRenderer);
+      await api.explain('d', 'c', 'filter', { name: 'Alice' });
+      expect(invoke).toHaveBeenCalledWith('mongo:explain', {
+        db: 'd',
+        collection: 'c',
+        queryMode: 'filter',
+        query: { name: 'Alice' },
+      });
+    });
+
     it('distinct invokes mongo:distinct with {db, collection, field, filter}', async () => {
       invoke.mockResolvedValue({ ok: true, data: { values: [], truncated: false } });
       const api = createApi(ipcRenderer);

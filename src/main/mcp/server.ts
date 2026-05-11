@@ -15,7 +15,7 @@ export interface StartMcpServerOptions {
   service: MongoService;
   manager: ConnectionManager;
   dispatch: Dispatch;
-  mongoTools: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[];
+  mongoTools: McpToolEntry<z.ZodType, unknown>[];
   port: number;
 }
 

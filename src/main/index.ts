@@ -19,6 +19,7 @@ import { listIndexesCommand } from './commands/list-indexes';
 import { distinctCommand } from './commands/distinct';
 import { findCommand } from './commands/find';
 import { aggregateCommand } from './commands/aggregate';
+import { explainCommand } from './commands/explain';
 import { registerMongoIpcCommands } from './ipc-mongo-adapter';
 import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
@@ -76,6 +77,7 @@ const mongoCommands = [
   distinctCommand,
   findCommand,
   aggregateCommand,
+  explainCommand,
 ];
 registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
 

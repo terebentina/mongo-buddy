@@ -1,9 +1,9 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Dispatch, MongoCommand } from '../commands/dispatch';
 
-export interface McpToolEntry<S extends z.ZodObject<z.ZodRawShape>, O> {
+export interface McpToolEntry<S extends z.ZodType, O> {
   command: MongoCommand<S, O>;
   description: string;
   transformInput?: (input: z.infer<S>) => z.infer<S>;
@@ -13,15 +13,16 @@ export interface McpToolEntry<S extends z.ZodObject<z.ZodRawShape>, O> {
 export interface RegisterMongoMcpToolsDeps {
   server: McpServer;
   dispatch: Dispatch;
-  tools: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[];
+  tools: McpToolEntry<z.ZodType, unknown>[];
 }
 
 export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
   for (const entry of deps.tools) {
     const { command, description, transformInput, notConnectedMessage } = entry;
+    const inputSchema = command.input instanceof z.ZodObject ? command.input.shape : command.input;
     deps.server.registerTool(
       command.name,
-      { description, inputSchema: command.input.shape },
+      { description, inputSchema },
       async (rawInput: z.infer<typeof command.input>): Promise<CallToolResult> => {
         const input = transformInput ? transformInput(rawInput) : rawInput;
         const result = await deps.dispatch(command, input);

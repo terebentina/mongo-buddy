@@ -2,7 +2,7 @@ import { MongoBulkWriteError } from 'mongodb';
 import { BSON, EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
 import type { ActiveConnection } from './connection-manager';
-import type { Result, CollectionInfo, DropCollectionsResult, ImportOptions, QueryMode } from '../shared/types';
+import type { Result, CollectionInfo, DropCollectionsResult, ImportOptions } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
 import { listCollectionsImpl } from './commands/list-collections';
@@ -12,29 +12,6 @@ export class MongoService {
     try {
       const data = await listCollectionsImpl(active, dbName);
       return { ok: true, data };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async explain(
-    active: ActiveConnection,
-    dbName: string,
-    collName: string,
-    queryMode: QueryMode,
-    query: Record<string, unknown> | Record<string, unknown>[]
-  ): Promise<Result<Record<string, unknown>>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      let plan: unknown;
-      if (queryMode === 'aggregate') {
-        const pipeline = EJSON.deserialize(query as Record<string, unknown>[]) as Record<string, unknown>[];
-        plan = await collection.aggregate(pipeline).explain('executionStats');
-      } else {
-        const filter = EJSON.deserialize(query as Record<string, unknown>) as Record<string, unknown>;
-        plan = await collection.find(filter).explain('executionStats');
-      }
-      return { ok: true, data: EJSON.serialize(plan) as Record<string, unknown> };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
