@@ -14,6 +14,7 @@ import { createDispatcher } from './commands/dispatch';
 import { countCommand } from './commands/count';
 import { listDatabasesCommand } from './commands/list-databases';
 import { sampleFieldsCommand } from './commands/sample-fields';
+import { listCollectionsCommand } from './commands/list-collections';
 import { registerMongoIpcCommands } from './ipc-mongo-adapter';
 import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
@@ -62,7 +63,7 @@ registerIpcHandlers({
 });
 
 const dispatch = createDispatcher(connectionManager);
-const mongoCommands = [countCommand, listDatabasesCommand, sampleFieldsCommand];
+const mongoCommands = [countCommand, listDatabasesCommand, sampleFieldsCommand, listCollectionsCommand];
 registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
 
 function createWindow(): void {

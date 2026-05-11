@@ -40,7 +40,7 @@ export function createApi(ipc: IpcLike) {
     },
     listDatabases: (): Promise<Result<DbInfo[]>> => ipc.invoke('mongo:listDatabases', {}) as Promise<Result<DbInfo[]>>,
     listCollections: (db: string): Promise<Result<CollectionInfo[]>> =>
-      ipc.invoke('mongo:list-collections', db) as Promise<Result<CollectionInfo[]>>,
+      ipc.invoke('mongo:listCollections', { db }) as Promise<Result<CollectionInfo[]>>,
     listIndexes: (db: string, collection: string): Promise<Result<IndexInfo[]>> =>
       ipc.invoke('mongo:list-indexes', db, collection) as Promise<Result<IndexInfo[]>>,
     find: (db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>> =>

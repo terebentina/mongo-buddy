@@ -31,21 +31,6 @@ function clampLimit(value: number | undefined): number {
 
 export function registerMcpTools(server: McpServer, service: MongoService, manager: ConnectionManager): void {
   server.registerTool(
-    'list_collections',
-    {
-      description: 'List all collections in the given database, including type and estimated document count.',
-      inputSchema: {
-        db: z.string().describe('Database name'),
-      },
-    },
-    async ({ db }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await service.listCollections(active, db));
-    }
-  );
-
-  server.registerTool(
     'find',
     {
       description: `Find documents in a collection. Returns { docs, totalCount } where totalCount ignores skip/limit — use it to paginate via skip. Default limit is ${DEFAULT_LIMIT}, max is ${MAX_LIMIT} (values above are clamped). ${EJSON_HINT}`,

@@ -78,6 +78,13 @@ describe('preload createApi', () => {
       await api.sampleFields('d', 'c');
       expect(invoke).toHaveBeenCalledWith('mongo:sampleFields', { db: 'd', collection: 'c' });
     });
+
+    it('listCollections invokes mongo:listCollections with {db}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: [] });
+      const api = createApi(ipcRenderer);
+      await api.listCollections('d');
+      expect(invoke).toHaveBeenCalledWith('mongo:listCollections', { db: 'd' });
+    });
   });
 
   describe('onConnectionState', () => {

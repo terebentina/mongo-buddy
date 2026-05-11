@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import { countCommand } from '../commands/count';
 import { listDatabasesCommand } from '../commands/list-databases';
 import { sampleFieldsCommand } from '../commands/sample-fields';
+import { listCollectionsCommand } from '../commands/list-collections';
 import type { McpToolEntry } from './mongo-tools';
 
 const EJSON_HINT =
@@ -25,6 +26,11 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
     command: sampleFieldsCommand,
     description:
       'Sample up to 50 documents from a collection and return the union of top-level field names. Use this to discover the shape of a collection before writing a query.',
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: listCollectionsCommand,
+    description: 'List all collections in the given database, including type and estimated document count.',
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];

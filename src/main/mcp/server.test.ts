@@ -14,7 +14,7 @@ const EXPECTED_TOOL_NAMES = [
   'distinct',
   'explain',
   'find',
-  'list_collections',
+  'listCollections',
   'listDatabases',
   'list_indexes',
   'sampleFields',

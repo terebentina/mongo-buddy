@@ -15,25 +15,12 @@ import type {
 } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
-import { byNameInsensitive } from '../shared/sort';
+import { listCollectionsImpl } from './commands/list-collections';
 
 export class MongoService {
   async listCollections(active: ActiveConnection, dbName: string): Promise<Result<CollectionInfo[]>> {
     try {
-      const db = active.client.db(dbName);
-      const collections = await db.listCollections().toArray();
-      const data: CollectionInfo[] = await Promise.all(
-        collections.map(async (c) => {
-          let count: number | undefined;
-          try {
-            count = await db.collection(c.name).estimatedDocumentCount();
-          } catch {
-            // ignore count errors
-          }
-          return { name: c.name, type: c.type ?? 'collection', count };
-        })
-      );
-      data.sort(byNameInsensitive);
+      const data = await listCollectionsImpl(active, dbName);
       return { ok: true, data };
     } catch (err) {
       return { ok: false, error: (err as Error).message };

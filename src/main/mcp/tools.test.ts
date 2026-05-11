@@ -37,7 +37,6 @@ function getHandler(server: McpServer, name: string): ToolHandler {
 function createServiceMock(): {
   service: MongoService;
   mocks: {
-    listCollections: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     distinct: ReturnType<typeof vi.fn>;
@@ -46,7 +45,6 @@ function createServiceMock(): {
   };
 } {
   const mocks = {
-    listCollections: vi.fn(),
     find: vi.fn(),
     aggregate: vi.fn(),
     distinct: vi.fn(),
@@ -71,27 +69,9 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 6 tools', () => {
+  it('registers exactly 5 tools', () => {
     const names = Object.keys(registered(server)).sort();
-    expect(names).toEqual(['aggregate', 'distinct', 'explain', 'find', 'list_collections', 'list_indexes'].sort());
-  });
-
-  describe('list_collections', () => {
-    it('calls service with active and db arg, returns data', async () => {
-      const data = [{ name: 'c1', type: 'collection' }];
-      mocks.listCollections.mockResolvedValue({ ok: true, data });
-      const result = await getHandler(server, 'list_collections')({ db: 'mydb' });
-      expect(mocks.listCollections).toHaveBeenCalledWith(TEST_ACTIVE, 'mydb');
-      expect(JSON.parse(result.content[0].text)).toEqual(data);
-    });
-
-    it('returns disconnect message when not connected', async () => {
-      manager.getActive.mockReturnValue(null);
-      const result = await getHandler(server, 'list_collections')({ db: 'mydb' });
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
-      expect(mocks.listCollections).not.toHaveBeenCalled();
-    });
+    expect(names).toEqual(['aggregate', 'distinct', 'explain', 'find', 'list_indexes'].sort());
   });
 
   describe('find', () => {

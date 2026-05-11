@@ -35,7 +35,6 @@ vi.mock('./query-history-store', async (importOriginal) => {
 
 describe('IPC Handlers', () => {
   let mockService: {
-    listCollections: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     insertOne: ReturnType<typeof vi.fn>;
@@ -98,7 +97,6 @@ describe('IPC Handlers', () => {
     mockBroadcast = vi.fn<Broadcast>();
 
     mockService = {
-      listCollections: vi.fn(),
       find: vi.fn(),
       aggregate: vi.fn(),
       insertOne: vi.fn(),
@@ -170,7 +168,6 @@ describe('IPC Handlers', () => {
   it('registers all expected channels', () => {
     expect(handlers['mongo:connect']).toBeDefined();
     expect(handlers['mongo:disconnect']).toBeDefined();
-    expect(handlers['mongo:list-collections']).toBeDefined();
     expect(handlers['mongo:list-indexes']).toBeDefined();
     expect(handlers['mongo:find']).toBeDefined();
     expect(handlers['mongo:aggregate']).toBeDefined();
@@ -243,16 +240,6 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.disconnect).toHaveBeenCalled();
       expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
-  describe('mongo:list-collections', () => {
-    it('calls MongoService.listCollections with db name', async () => {
-      const colls = [{ name: 'users', type: 'collection' }];
-      mockService.listCollections.mockResolvedValue({ ok: true, data: colls });
-      const result = await handlers['mongo:list-collections']({} as Electron.IpcMainInvokeEvent, 'testdb');
-      expect(mockService.listCollections).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb');
-      expect(result).toEqual({ ok: true, data: colls });
     });
   });
 
