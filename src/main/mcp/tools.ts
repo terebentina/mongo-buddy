@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { MongoService } from '../mongo-service';
-import type { ActiveConnection, ConnectionManager } from '../connection-manager';
+import type { ConnectionManager } from '../connection-manager';
 import type { Result } from '../../shared/types';
 
 const DEFAULT_LIMIT = 50;
@@ -30,24 +30,6 @@ function clampLimit(value: number | undefined): number {
 }
 
 export function registerMcpTools(server: McpServer, service: MongoService, manager: ConnectionManager): void {
-  const withActive = <T>(fn: (active: ActiveConnection) => Promise<Result<T>>) => {
-    return async (): Promise<CallToolResult> => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await fn(active));
-    };
-  };
-
-  server.registerTool(
-    'list_databases',
-    {
-      description:
-        'List all databases on the currently connected MongoDB server with name, size on disk, and empty flag.',
-      inputSchema: {},
-    },
-    withActive((active) => service.listDatabases(active))
-  );
-
   server.registerTool(
     'list_collections',
     {

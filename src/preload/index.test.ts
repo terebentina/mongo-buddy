@@ -64,6 +64,15 @@ describe('preload createApi', () => {
     });
   });
 
+  describe('mongo command channels', () => {
+    it('listDatabases invokes mongo:listDatabases with empty object payload', async () => {
+      invoke.mockResolvedValue({ ok: true, data: [] });
+      const api = createApi(ipcRenderer);
+      await api.listDatabases();
+      expect(invoke).toHaveBeenCalledWith('mongo:listDatabases', {});
+    });
+  });
+
   describe('onConnectionState', () => {
     it('registers a listener on connection:state and forwards the state payload', () => {
       const api = createApi(ipcRenderer);

@@ -78,34 +78,6 @@ describe('MongoService', () => {
     vi.clearAllMocks();
   });
 
-  describe('listDatabases', () => {
-    it('returns DbInfo[] sorted alphabetically', async () => {
-      const result = await service.listDatabases(active);
-      expect(result).toEqual({
-        ok: true,
-        data: [
-          { name: 'admin', sizeOnDisk: 512, empty: false },
-          { name: 'testdb', sizeOnDisk: 1024, empty: false },
-        ],
-      });
-    });
-
-    it('sorts case-insensitively with numeric ordering', async () => {
-      mockDb.admin.mockReturnValue({
-        listDatabases: vi.fn().mockResolvedValue({
-          databases: [
-            { name: 'log10', sizeOnDisk: 0, empty: false },
-            { name: 'Users_2', sizeOnDisk: 0, empty: false },
-            { name: 'log2', sizeOnDisk: 0, empty: false },
-            { name: 'users_10', sizeOnDisk: 0, empty: false },
-          ],
-        }),
-      });
-      const result = await service.listDatabases(active);
-      expect(result.ok && result.data.map((d) => d.name)).toEqual(['log2', 'log10', 'Users_2', 'users_10']);
-    });
-  });
-
   describe('listCollections', () => {
     it('returns CollectionInfo[] sorted alphabetically', async () => {
       mockDb.listCollections.mockReturnValue({

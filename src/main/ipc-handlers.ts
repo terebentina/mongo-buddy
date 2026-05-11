@@ -77,10 +77,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return active;
   };
   ipcMain.handle(
-    'mongo:list-databases',
-    wrap(() => service.listDatabases(requireActive()))
-  );
-  ipcMain.handle(
     'mongo:list-collections',
     wrap((db: unknown) => service.listCollections(requireActive(), db as string))
   );

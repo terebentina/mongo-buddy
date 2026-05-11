@@ -4,7 +4,6 @@ import type { Readable, Writable } from 'stream';
 import type { ActiveConnection } from './connection-manager';
 import type {
   Result,
-  DbInfo,
   CollectionInfo,
   DropCollectionsResult,
   FindOpts,
@@ -19,22 +18,6 @@ import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-
 import { byNameInsensitive } from '../shared/sort';
 
 export class MongoService {
-  async listDatabases(active: ActiveConnection): Promise<Result<DbInfo[]>> {
-    try {
-      const result = await active.client.db().admin().listDatabases();
-      const databases: DbInfo[] = result.databases
-        .map((db) => ({
-          name: db.name,
-          sizeOnDisk: db.sizeOnDisk ?? 0,
-          empty: db.empty ?? false,
-        }))
-        .sort(byNameInsensitive);
-      return { ok: true, data: databases };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async listCollections(active: ActiveConnection, dbName: string): Promise<Result<CollectionInfo[]>> {
     try {
       const db = active.client.db(dbName);

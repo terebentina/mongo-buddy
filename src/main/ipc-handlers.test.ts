@@ -35,7 +35,6 @@ vi.mock('./query-history-store', async (importOriginal) => {
 
 describe('IPC Handlers', () => {
   let mockService: {
-    listDatabases: ReturnType<typeof vi.fn>;
     listCollections: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
@@ -99,7 +98,6 @@ describe('IPC Handlers', () => {
     mockBroadcast = vi.fn<Broadcast>();
 
     mockService = {
-      listDatabases: vi.fn(),
       listCollections: vi.fn(),
       find: vi.fn(),
       aggregate: vi.fn(),
@@ -172,7 +170,6 @@ describe('IPC Handlers', () => {
   it('registers all expected channels', () => {
     expect(handlers['mongo:connect']).toBeDefined();
     expect(handlers['mongo:disconnect']).toBeDefined();
-    expect(handlers['mongo:list-databases']).toBeDefined();
     expect(handlers['mongo:list-collections']).toBeDefined();
     expect(handlers['mongo:list-indexes']).toBeDefined();
     expect(handlers['mongo:find']).toBeDefined();
@@ -246,16 +243,6 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.disconnect).toHaveBeenCalled();
       expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
-  describe('mongo:list-databases', () => {
-    it('calls MongoService.listDatabases and returns data', async () => {
-      const dbs = [{ name: 'testdb', sizeOnDisk: 1024, empty: false }];
-      mockService.listDatabases.mockResolvedValue({ ok: true, data: dbs });
-      const result = await handlers['mongo:list-databases']({} as Electron.IpcMainInvokeEvent);
-      expect(mockService.listDatabases).toHaveBeenCalled();
-      expect(result).toEqual({ ok: true, data: dbs });
     });
   });
 
@@ -366,8 +353,12 @@ describe('IPC Handlers', () => {
 
   describe('error handling', () => {
     it('catches unexpected errors and returns error result', async () => {
-      mockService.listDatabases.mockRejectedValue(new Error('Unexpected crash'));
-      const result = await handlers['mongo:list-databases']({} as Electron.IpcMainInvokeEvent);
+      mockManager.connect.mockRejectedValue(new Error('Unexpected crash'));
+      const result = await handlers['mongo:connect'](
+        {} as Electron.IpcMainInvokeEvent,
+        'mongodb://localhost:27017',
+        undefined
+      );
       expect(result).toEqual({ ok: false, error: 'Unexpected crash' });
     });
   });

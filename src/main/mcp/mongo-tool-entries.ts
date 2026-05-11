@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import { countCommand } from '../commands/count';
+import { listDatabasesCommand } from '../commands/list-databases';
 import type { McpToolEntry } from './mongo-tools';
 
 const EJSON_HINT =
@@ -11,6 +12,12 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
   {
     command: countCommand,
     description: `Count documents matching a filter. ${EJSON_HINT}`,
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: listDatabasesCommand,
+    description:
+      'List all databases on the currently connected MongoDB server with name, size on disk, and empty flag.',
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];

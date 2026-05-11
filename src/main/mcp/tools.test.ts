@@ -37,7 +37,6 @@ function getHandler(server: McpServer, name: string): ToolHandler {
 function createServiceMock(): {
   service: MongoService;
   mocks: {
-    listDatabases: ReturnType<typeof vi.fn>;
     listCollections: ReturnType<typeof vi.fn>;
     sampleFields: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
@@ -48,7 +47,6 @@ function createServiceMock(): {
   };
 } {
   const mocks = {
-    listDatabases: vi.fn(),
     listCollections: vi.fn(),
     sampleFields: vi.fn(),
     find: vi.fn(),
@@ -75,45 +73,11 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 8 tools', () => {
+  it('registers exactly 7 tools', () => {
     const names = Object.keys(registered(server)).sort();
     expect(names).toEqual(
-      [
-        'aggregate',
-        'distinct',
-        'explain',
-        'find',
-        'list_collections',
-        'list_databases',
-        'list_indexes',
-        'sample_fields',
-      ].sort()
+      ['aggregate', 'distinct', 'explain', 'find', 'list_collections', 'list_indexes', 'sample_fields'].sort()
     );
-  });
-
-  describe('list_databases', () => {
-    it('returns serialized data on success', async () => {
-      const data = [{ name: 'db1', sizeOnDisk: 10, empty: false }];
-      mocks.listDatabases.mockResolvedValue({ ok: true, data });
-      const result = await getHandler(server, 'list_databases')({});
-      expect(result.isError).toBeUndefined();
-      expect(JSON.parse(result.content[0].text)).toEqual(data);
-    });
-
-    it('returns isError on failure', async () => {
-      mocks.listDatabases.mockResolvedValue({ ok: false, error: 'boom' });
-      const result = await getHandler(server, 'list_databases')({});
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('boom');
-    });
-
-    it('returns disconnect message and skips service when manager has no active connection', async () => {
-      manager.getActive.mockReturnValue(null);
-      const result = await getHandler(server, 'list_databases')({});
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
-      expect(mocks.listDatabases).not.toHaveBeenCalled();
-    });
   });
 
   describe('list_collections', () => {
