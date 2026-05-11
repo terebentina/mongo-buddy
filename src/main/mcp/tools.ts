@@ -5,8 +5,6 @@ import type { MongoService } from '../mongo-service';
 import type { ConnectionManager } from '../connection-manager';
 import type { Result } from '../../shared/types';
 
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
 const DISCONNECT_MESSAGE = 'Not connected. Connect via the mongo-buddy GUI first.';
 
 const EJSON_HINT =
@@ -23,52 +21,7 @@ function notConnectedResult(): CallToolResult {
   return { isError: true, content: [{ type: 'text', text: DISCONNECT_MESSAGE }] };
 }
 
-function clampLimit(value: number | undefined): number {
-  if (value === undefined) return DEFAULT_LIMIT;
-  if (value > MAX_LIMIT) return MAX_LIMIT;
-  return value;
-}
-
 export function registerMcpTools(server: McpServer, service: MongoService, manager: ConnectionManager): void {
-  server.registerTool(
-    'find',
-    {
-      description: `Find documents in a collection. Returns { docs, totalCount } where totalCount ignores skip/limit — use it to paginate via skip. Default limit is ${DEFAULT_LIMIT}, max is ${MAX_LIMIT} (values above are clamped). ${EJSON_HINT}`,
-      inputSchema: {
-        db: z.string().describe('Database name'),
-        collection: z.string().describe('Collection name'),
-        filter: z
-          .record(z.string(), z.unknown())
-          .optional()
-          .describe(
-            'MongoDB query filter in EJSON (e.g. {"status": "active"} or {"_id": {"$oid": "507f1f77bcf86cd799439011"}})'
-          ),
-        sort: z
-          .record(z.string(), z.union([z.literal(1), z.literal(-1)]))
-          .optional()
-          .describe('Sort spec, e.g. {"createdAt": -1}'),
-        skip: z.number().int().min(0).optional().describe('Number of documents to skip (for pagination)'),
-        limit: z
-          .number()
-          .int()
-          .min(1)
-          .optional()
-          .describe(`Max documents to return (default ${DEFAULT_LIMIT}, clamped to ${MAX_LIMIT})`),
-      },
-    },
-    async ({ db, collection, filter, sort, skip, limit }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      const opts = {
-        filter,
-        sort,
-        skip,
-        limit: clampLimit(limit),
-      };
-      return toToolResult(await service.find(active, db, collection, opts));
-    }
-  );
-
   server.registerTool(
     'aggregate',
     {

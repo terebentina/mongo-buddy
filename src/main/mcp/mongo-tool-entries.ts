@@ -5,6 +5,16 @@ import { sampleFieldsCommand } from '../commands/sample-fields';
 import { listCollectionsCommand } from '../commands/list-collections';
 import { listIndexesCommand } from '../commands/list-indexes';
 import { distinctCommand } from '../commands/distinct';
+import { findCommand } from '../commands/find';
+
+const DEFAULT_FIND_LIMIT = 50;
+const MAX_FIND_LIMIT = 200;
+
+function clampLimit(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_FIND_LIMIT;
+  if (value > MAX_FIND_LIMIT) return MAX_FIND_LIMIT;
+  return value;
+}
 import type { McpToolEntry } from './mongo-tools';
 
 const EJSON_HINT =
@@ -43,6 +53,12 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
   {
     command: distinctCommand,
     description: `Return the distinct values of a field in a collection. Response includes a "truncated" flag if the result was clipped. ${EJSON_HINT}`,
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: findCommand,
+    description: `Find documents in a collection. Returns { docs, totalCount } where totalCount ignores skip/limit — use it to paginate via skip. Default limit is ${DEFAULT_FIND_LIMIT}, max is ${MAX_FIND_LIMIT} (values above are clamped). ${EJSON_HINT}`,
+    transformInput: (input) => ({ ...input, limit: clampLimit(input.limit as number | undefined) }),
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];

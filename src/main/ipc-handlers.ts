@@ -8,7 +8,6 @@ import type { OperationRegistry } from './operation-registry';
 import type { McpStatusEmitter } from './mcp/status';
 import type {
   Result,
-  FindOpts,
   SavedConnection,
   QueryHistoryEntry,
   PickedFile,
@@ -76,12 +75,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (!active) throw new Error('Not connected');
     return active;
   };
-  ipcMain.handle(
-    'mongo:find',
-    wrap((db: unknown, coll: unknown, opts: unknown) =>
-      service.find(requireActive(), db as string, coll as string, opts as FindOpts)
-    )
-  );
   ipcMain.handle(
     'mongo:aggregate',
     wrap((db: unknown, coll: unknown, pipeline: unknown) =>

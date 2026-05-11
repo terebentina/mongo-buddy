@@ -111,64 +111,6 @@ describe('MongoService', () => {
     });
   });
 
-  describe('find', () => {
-    it('returns serialized docs + totalCount', async () => {
-      const objectId = new ObjectId('507f1f77bcf86cd799439011');
-      const date = new Date('2024-01-01T00:00:00.000Z');
-      const docs = [
-        { _id: objectId, name: 'Alice', createdAt: date },
-        { _id: new ObjectId('507f1f77bcf86cd799439012'), name: 'Bob', createdAt: date },
-      ];
-      const mockCursor = {
-        sort: vi.fn().mockReturnThis(),
-        skip: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        toArray: vi.fn().mockResolvedValue(docs),
-      };
-      mockCollection.find.mockReturnValue(mockCursor);
-      mockCollection.countDocuments.mockResolvedValue(2);
-
-      const result = await service.find(active, 'testdb', 'users', {
-        filter: { name: 'Alice' },
-        sort: { name: 1 },
-        skip: 0,
-        limit: 20,
-      });
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data.totalCount).toBe(2);
-        expect(result.data.docs).toHaveLength(2);
-        const doc = result.data.docs[0];
-        expect(doc._id).toBeDefined();
-        expect(doc.name).toBe('Alice');
-      }
-      expect(mockCollection.find).toHaveBeenCalledWith({ name: 'Alice' });
-      expect(mockCursor.sort).toHaveBeenCalledWith({ name: 1 });
-      expect(mockCursor.skip).toHaveBeenCalledWith(0);
-      expect(mockCursor.limit).toHaveBeenCalledWith(20);
-    });
-
-    it('deserializes EJSON $oid in filter to ObjectId', async () => {
-      const oid = new ObjectId('507f1f77bcf86cd799439011');
-      const mockCursor = {
-        sort: vi.fn().mockReturnThis(),
-        skip: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        toArray: vi.fn().mockResolvedValue([]),
-      };
-      mockCollection.find.mockReturnValue(mockCursor);
-      mockCollection.countDocuments.mockResolvedValue(0);
-
-      await service.find(active, 'testdb', 'users', {
-        filter: { _id: { $oid: '507f1f77bcf86cd799439011' } },
-      });
-
-      expect(mockCollection.find).toHaveBeenCalledWith({ _id: oid });
-      expect(mockCollection.countDocuments).toHaveBeenCalledWith({ _id: oid });
-    });
-  });
-
   describe('aggregate', () => {
     it('returns EJSON serialized docs from pipeline', async () => {
       const objectId = new ObjectId('507f1f77bcf86cd799439011');
@@ -772,31 +714,6 @@ describe('MongoService', () => {
       mockCollection.dropIndex.mockRejectedValue(new Error('index not found with name [foo]'));
       const result = await service.dropIndex(active, 'testdb', 'users', 'foo');
       expect(result).toEqual({ ok: false, error: 'index not found with name [foo]' });
-    });
-  });
-
-  describe('EJSON serialization', () => {
-    it('ObjectId/Date round-trip correctly', async () => {
-      const objectId = new ObjectId('507f1f77bcf86cd799439011');
-      const date = new Date('2024-01-01T00:00:00.000Z');
-      const docs = [{ _id: objectId, createdAt: date }];
-      const mockCursor = {
-        sort: vi.fn().mockReturnThis(),
-        skip: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockReturnThis(),
-        toArray: vi.fn().mockResolvedValue(docs),
-      };
-      mockCollection.find.mockReturnValue(mockCursor);
-      mockCollection.countDocuments.mockResolvedValue(1);
-
-      const result = await service.find(active, 'testdb', 'users', {});
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        const doc = result.data.docs[0];
-        expect(doc._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
-        expect(doc.createdAt).toEqual({ $date: '2024-01-01T00:00:00Z' });
-      }
     });
   });
 });

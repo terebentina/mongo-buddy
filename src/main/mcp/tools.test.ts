@@ -37,13 +37,11 @@ function getHandler(server: McpServer, name: string): ToolHandler {
 function createServiceMock(): {
   service: MongoService;
   mocks: {
-    find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
     explain: ReturnType<typeof vi.fn>;
   };
 } {
   const mocks = {
-    find: vi.fn(),
     aggregate: vi.fn(),
     explain: vi.fn(),
   };
@@ -65,57 +63,9 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 3 tools', () => {
+  it('registers exactly 2 tools', () => {
     const names = Object.keys(registered(server)).sort();
-    expect(names).toEqual(['aggregate', 'explain', 'find'].sort());
-  });
-
-  describe('find', () => {
-    it('uses default limit of 50 when not provided', async () => {
-      mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-      await getHandler(server, 'find')({ db: 'd', collection: 'c' });
-      const call = mocks.find.mock.calls[0];
-      expect(call[3].limit).toBe(50);
-    });
-
-    it('clamps limit above 200 to 200', async () => {
-      mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-      await getHandler(server, 'find')({ db: 'd', collection: 'c', limit: 999 });
-      expect(mocks.find.mock.calls[0][3].limit).toBe(200);
-    });
-
-    it('respects a limit within range', async () => {
-      mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-      await getHandler(server, 'find')({ db: 'd', collection: 'c', limit: 10 });
-      expect(mocks.find.mock.calls[0][3].limit).toBe(10);
-    });
-
-    it('passes filter, sort, skip through', async () => {
-      mocks.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-      const filter = { _id: { $oid: '507f1f77bcf86cd799439011' } };
-      const sort = { name: 1 as const };
-      await getHandler(server, 'find')({ db: 'd', collection: 'c', filter, sort, skip: 5 });
-      const opts = mocks.find.mock.calls[0][3];
-      expect(opts.filter).toEqual(filter);
-      expect(opts.sort).toEqual(sort);
-      expect(opts.skip).toBe(5);
-    });
-
-    it('response includes totalCount so LLM can paginate', async () => {
-      mocks.find.mockResolvedValue({ ok: true, data: { docs: [{ a: 1 }], totalCount: 42 } });
-      const result = await getHandler(server, 'find')({ db: 'd', collection: 'c' });
-      const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.totalCount).toBe(42);
-      expect(parsed.docs).toEqual([{ a: 1 }]);
-    });
-
-    it('returns disconnect message when not connected', async () => {
-      manager.getActive.mockReturnValue(null);
-      const result = await getHandler(server, 'find')({ db: 'd', collection: 'c' });
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
-      expect(mocks.find).not.toHaveBeenCalled();
-    });
+    expect(names).toEqual(['aggregate', 'explain'].sort());
   });
 
   describe('aggregate', () => {

@@ -2,15 +2,7 @@ import { MongoBulkWriteError } from 'mongodb';
 import { BSON, EJSON } from 'bson';
 import type { Readable, Writable } from 'stream';
 import type { ActiveConnection } from './connection-manager';
-import type {
-  Result,
-  CollectionInfo,
-  DropCollectionsResult,
-  FindOpts,
-  FindResult,
-  ImportOptions,
-  QueryMode,
-} from '../shared/types';
+import type { Result, CollectionInfo, DropCollectionsResult, ImportOptions, QueryMode } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
 import { listCollectionsImpl } from './commands/list-collections';
@@ -20,25 +12,6 @@ export class MongoService {
     try {
       const data = await listCollectionsImpl(active, dbName);
       return { ok: true, data };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async find(active: ActiveConnection, dbName: string, collName: string, opts: FindOpts): Promise<Result<FindResult>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const filter = EJSON.deserialize(opts.filter ?? {}) as Record<string, unknown>;
-      const cursor = collection.find(filter);
-      if (opts.sort) cursor.sort(opts.sort);
-      if (opts.skip !== undefined) cursor.skip(opts.skip);
-      if (opts.limit !== undefined) cursor.limit(opts.limit);
-
-      const [rawDocs, totalCount] = await Promise.all([cursor.toArray(), collection.countDocuments(filter)]);
-
-      const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
-
-      return { ok: true, data: { docs, totalCount } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
