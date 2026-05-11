@@ -5,7 +5,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { startMcpServer } from './server';
 import { createDispatcher } from '../commands/dispatch';
 import { MCP_TOOLS } from './mongo-tool-entries';
-import type { MongoService } from '../mongo-service';
 import type { ConnectionManager } from '../connection-manager';
 
 const EXPECTED_TOOL_NAMES = [
@@ -19,10 +18,6 @@ const EXPECTED_TOOL_NAMES = [
   'listIndexes',
   'sampleFields',
 ].sort();
-
-function mockService(): MongoService {
-  return {} as MongoService;
-}
 
 function mockManager(): ConnectionManager {
   return { getActive: () => null } as unknown as ConnectionManager;
@@ -55,8 +50,6 @@ describe('startMcpServer', () => {
   it('round-trips initialize + tools/list and returns all expected tool names', async () => {
     const manager = mockManager();
     const handle = await startMcpServer({
-      service: mockService(),
-      manager,
       dispatch: createDispatcher(manager),
       mongoTools: MCP_TOOLS,
       port: 0,
@@ -88,8 +81,6 @@ describe('startMcpServer', () => {
 
     const manager = mockManager();
     const handle = await startMcpServer({
-      service: mockService(),
-      manager,
       dispatch: createDispatcher(manager),
       mongoTools: MCP_TOOLS,
       port: blocker.port,
@@ -101,8 +92,6 @@ describe('startMcpServer', () => {
   it('close() stops accepting connections', async () => {
     const manager = mockManager();
     const handle = await startMcpServer({
-      service: mockService(),
-      manager,
       dispatch: createDispatcher(manager),
       mongoTools: MCP_TOOLS,
       port: 0,

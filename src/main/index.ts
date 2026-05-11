@@ -64,7 +64,6 @@ const operationRegistry = createOperationRegistry({
   },
 });
 registerIpcHandlers({
-  service: mongoService,
   connStore: connectionStore,
   historyStore: queryHistoryStore,
   manager: connectionManager,
@@ -143,8 +142,6 @@ app.whenReady().then(async () => {
 
   if (mcpArgs.enabled) {
     mcpHandle = await startMcpServer({
-      service: mongoService,
-      manager: connectionManager,
       dispatch,
       mongoTools: MCP_TOOLS,
       port: mcpArgs.port,

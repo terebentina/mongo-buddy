@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ipcMain } from 'electron';
 import type { MongoClient } from 'mongodb';
 import { registerIpcHandlers } from './ipc-handlers';
-import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
 import type { ActiveConnection, ConnectionManager, ConnectedSession, ConnectionState } from './connection-manager';
@@ -26,7 +25,6 @@ vi.mock('electron', () => ({
   },
 }));
 
-vi.mock('./mongo-service');
 vi.mock('./connection-store');
 vi.mock('./query-history-store', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./query-history-store')>();
@@ -34,7 +32,6 @@ vi.mock('./query-history-store', async (importOriginal) => {
 });
 
 describe('IPC Handlers', () => {
-  let mockService: object;
   let mockConnStore: {
     getAll: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
@@ -87,8 +84,6 @@ describe('IPC Handlers', () => {
     };
     mockBroadcast = vi.fn<Broadcast>();
 
-    mockService = {};
-
     mockConnStore = {
       getAll: vi.fn(),
       save: vi.fn(),
@@ -129,7 +124,6 @@ describe('IPC Handlers', () => {
     }) as typeof ipcMain.handle);
 
     registerIpcHandlers({
-      service: mockService as unknown as MongoService,
       connStore: mockConnStore as unknown as ConnectionStore,
       historyStore: mockHistoryStore as unknown as QueryHistoryStore,
       manager: mockManager as unknown as ConnectionManager,

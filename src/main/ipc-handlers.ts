@@ -1,6 +1,5 @@
 import { ipcMain, dialog } from 'electron';
 import path from 'path';
-import type { MongoService } from './mongo-service';
 import type { ConnectionStore } from './connection-store';
 import type { ActiveConnection, ConnectionManager, ConnectOptions } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
@@ -19,7 +18,6 @@ import type {
 export type Broadcast = (channel: string, payload: unknown) => void;
 
 export interface IpcDeps {
-  service: MongoService;
   connStore: ConnectionStore;
   historyStore: QueryHistoryStore;
   manager: ConnectionManager;

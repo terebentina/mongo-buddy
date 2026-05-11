@@ -49,14 +49,14 @@ _Avoid_: `mode`, `type` (as a field name on a query/history entry), `kind`. The 
 ### MongoDB operations
 
 **MongoCommand**:
-A declarative one-shot MongoDB operation. Shape: `{ name, ipcChannel, mcpToolName, input: ZodSchema, run(active, input): Promise<O> }`. Lives in `src/main/commands/`. Stateless. The body of `run` is bare driver work — no try/catch, no EJSON, no precondition check; those are the **Dispatcher**'s job.
+A declarative one-shot MongoDB operation. Shape: `{ name, input: ZodSchema, run(active, input): Promise<O> }`. Lives in `src/main/commands/`. Stateless. The body of `run` is bare driver work — no try/catch, no EJSON, no precondition check; those are the **Dispatcher**'s job. `name` is the single canonical identifier (camelCase, e.g. `listDatabases`, `insertOne`); the IPC channel `mongo:${name}` and the MCP tool name (= `name`) are derived by the adapters.
 _Avoid_: handler, action, operation. "Operation" is reserved for the long-running task tracked by `OperationRegistry` (export/import).
 
 **Dispatcher**:
 The single seam that runs a **MongoCommand**. Owns: `manager.getActive()` precondition, Zod input validation, whole-input `EJSON.deserialize`, calling `command.run`, whole-output `EJSON.serialize`, try/catch → `Result<T>`. Created once at app startup and shared by both transport adapters. After this seam exists, the Dispatcher is the single caller of `manager.getActive()` for MongoDB operations.
 
-**MongoService** (deprecated, in-flight removal):
-The previous namespace of MongoDB operations. Each method took an **ActiveConnection** and returned a `Result<T>` with inline try/catch and EJSON handling. Methods are migrating to **MongoCommand** definitions; the class is being deleted as the migration completes. Streaming operations (`exportCollection`, `importCollection`) and their helpers are not Commands — they remain on a separate path because they take stream/AbortSignal arguments and are owned by `OperationRegistry`.
+**MongoService**:
+Narrowed to operations that do not fit the **MongoCommand** shape. Holds: `exportCollection`, `importCollection`, `getExportableIndexes`, `applyImportedIndexes` — all owned by `OperationRegistry` because they take stream/`AbortSignal`/progress arguments — plus a thin `listCollections` wrapper around `listCollectionsImpl` (the latter is shared with the `listCollections` **MongoCommand**) so `OperationRegistry`'s `MongoServicePort` keeps a stable surface. Each method takes an **ActiveConnection** and returns a `Result<T>` with inline try/catch.
 
 **MCP tool**:
 A read-only operation exposed to external MCP clients (Claude, Cursor, etc.). The MCP allowlist is an explicit array (`MCP_TOOLS`) in the MCP adapter that pairs each exposed **MongoCommand** with its description and any transport-specific quirks (e.g. limit clamping, custom not-connected message).
