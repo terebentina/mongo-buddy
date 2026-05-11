@@ -6,6 +6,7 @@ import { listCollectionsCommand } from '../commands/list-collections';
 import { listIndexesCommand } from '../commands/list-indexes';
 import { distinctCommand } from '../commands/distinct';
 import { findCommand } from '../commands/find';
+import { aggregateCommand } from '../commands/aggregate';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -53,6 +54,11 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
   {
     command: distinctCommand,
     description: `Return the distinct values of a field in a collection. Response includes a "truncated" flag if the result was clipped. ${EJSON_HINT}`,
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: aggregateCommand,
+    description: `Run an aggregation pipeline against a collection. Returns the resulting documents. ${EJSON_HINT}`,
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
   {

@@ -37,12 +37,10 @@ function getHandler(server: McpServer, name: string): ToolHandler {
 function createServiceMock(): {
   service: MongoService;
   mocks: {
-    aggregate: ReturnType<typeof vi.fn>;
     explain: ReturnType<typeof vi.fn>;
   };
 } {
   const mocks = {
-    aggregate: vi.fn(),
     explain: vi.fn(),
   };
   return { service: mocks as unknown as MongoService, mocks };
@@ -63,19 +61,9 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 2 tools', () => {
+  it('registers exactly 1 tool', () => {
     const names = Object.keys(registered(server)).sort();
-    expect(names).toEqual(['aggregate', 'explain'].sort());
-  });
-
-  describe('aggregate', () => {
-    it('passes pipeline through', async () => {
-      mocks.aggregate.mockResolvedValue({ ok: true, data: [{ _id: 'x', count: 2 }] });
-      const pipeline = [{ $match: { x: 1 } }, { $group: { _id: '$x', count: { $sum: 1 } } }];
-      const result = await getHandler(server, 'aggregate')({ db: 'd', collection: 'c', pipeline });
-      expect(mocks.aggregate).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', pipeline);
-      expect(JSON.parse(result.content[0].text)).toEqual([{ _id: 'x', count: 2 }]);
-    });
+    expect(names).toEqual(['explain']);
   });
 
   describe('explain', () => {

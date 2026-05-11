@@ -93,6 +93,14 @@ describe('preload createApi', () => {
       expect(invoke).toHaveBeenCalledWith('mongo:listIndexes', { db: 'd', collection: 'c' });
     });
 
+    it('aggregate invokes mongo:aggregate with {db, collection, pipeline}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: [] });
+      const api = createApi(ipcRenderer);
+      const pipeline = [{ $match: { x: 1 } }];
+      await api.aggregate('d', 'c', pipeline);
+      expect(invoke).toHaveBeenCalledWith('mongo:aggregate', { db: 'd', collection: 'c', pipeline });
+    });
+
     it('find invokes mongo:find with merged options object', async () => {
       invoke.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
       const api = createApi(ipcRenderer);

@@ -17,23 +17,6 @@ export class MongoService {
     }
   }
 
-  async aggregate(
-    active: ActiveConnection,
-    dbName: string,
-    collName: string,
-    pipeline: Record<string, unknown>[]
-  ): Promise<Result<Record<string, unknown>[]>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const deserializedPipeline = EJSON.deserialize(pipeline) as Record<string, unknown>[];
-      const rawDocs = await collection.aggregate(deserializedPipeline).toArray();
-      const docs = rawDocs.map((doc) => EJSON.serialize(doc) as Record<string, unknown>);
-      return { ok: true, data: docs };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
   async explain(
     active: ActiveConnection,
     dbName: string,

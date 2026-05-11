@@ -52,7 +52,7 @@ export function createApi(ipc: IpcLike) {
       collection: string,
       pipeline: Record<string, unknown>[]
     ): Promise<Result<Record<string, unknown>[]>> =>
-      ipc.invoke('mongo:aggregate', db, collection, pipeline) as Promise<Result<Record<string, unknown>[]>>,
+      ipc.invoke('mongo:aggregate', { db, collection, pipeline }) as Promise<Result<Record<string, unknown>[]>>,
     explain: (
       db: string,
       collection: string,

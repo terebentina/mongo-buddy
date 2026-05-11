@@ -76,12 +76,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     return active;
   };
   ipcMain.handle(
-    'mongo:aggregate',
-    wrap((db: unknown, coll: unknown, pipeline: unknown) =>
-      service.aggregate(requireActive(), db as string, coll as string, pipeline as Record<string, unknown>[])
-    )
-  );
-  ipcMain.handle(
     'mongo:explain',
     wrap((db: unknown, coll: unknown, queryMode: unknown, query: unknown) =>
       service.explain(

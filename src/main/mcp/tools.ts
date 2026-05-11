@@ -23,25 +23,6 @@ function notConnectedResult(): CallToolResult {
 
 export function registerMcpTools(server: McpServer, service: MongoService, manager: ConnectionManager): void {
   server.registerTool(
-    'aggregate',
-    {
-      description: `Run an aggregation pipeline against a collection. Returns the resulting documents. ${EJSON_HINT}`,
-      inputSchema: {
-        db: z.string().describe('Database name'),
-        collection: z.string().describe('Collection name'),
-        pipeline: z
-          .array(z.record(z.string(), z.unknown()))
-          .describe('Aggregation pipeline in EJSON, e.g. [{"$match": {...}}, {"$group": {...}}]'),
-      },
-    },
-    async ({ db, collection, pipeline }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await service.aggregate(active, db, collection, pipeline));
-    }
-  );
-
-  server.registerTool(
     'explain',
     {
       description: `Run MongoDB explain (verbosity: executionStats) on a query and return the query plan plus execution stats (winning plan, index used, docs/keys examined, executionTimeMillis). Use for diagnosing slow queries or verifying index usage. ${EJSON_HINT}`,

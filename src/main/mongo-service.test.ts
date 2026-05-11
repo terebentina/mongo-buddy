@@ -111,39 +111,6 @@ describe('MongoService', () => {
     });
   });
 
-  describe('aggregate', () => {
-    it('returns EJSON serialized docs from pipeline', async () => {
-      const objectId = new ObjectId('507f1f77bcf86cd799439011');
-      const docs = [{ _id: objectId, total: 100 }];
-      const mockCursor = {
-        toArray: vi.fn().mockResolvedValue(docs),
-      };
-      mockCollection.aggregate.mockReturnValue(mockCursor);
-
-      const result = await service.aggregate(active, 'testdb', 'users', [
-        { $group: { _id: null, total: { $sum: 1 } } },
-      ]);
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.data).toHaveLength(1);
-        expect(result.data[0]._id).toEqual({ $oid: '507f1f77bcf86cd799439011' });
-        expect(result.data[0].total).toBe(100);
-      }
-      expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $group: { _id: null, total: { $sum: 1 } } }]);
-    });
-
-    it('deserializes EJSON $oid inside pipeline stages', async () => {
-      const oid = new ObjectId('507f1f77bcf86cd799439011');
-      const mockCursor = { toArray: vi.fn().mockResolvedValue([]) };
-      mockCollection.aggregate.mockReturnValue(mockCursor);
-
-      await service.aggregate(active, 'testdb', 'users', [{ $match: { _id: { $oid: '507f1f77bcf86cd799439011' } } }]);
-
-      expect(mockCollection.aggregate).toHaveBeenCalledWith([{ $match: { _id: oid } }]);
-    });
-  });
-
   describe('explain', () => {
     it('filter mode calls find().explain with executionStats and returns serialized plan', async () => {
       const objectId = new ObjectId('507f1f77bcf86cd799439011');
