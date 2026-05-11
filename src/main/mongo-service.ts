@@ -9,7 +9,6 @@ import type {
   FindOpts,
   FindResult,
   ImportOptions,
-  DistinctResult,
   QueryMode,
 } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
@@ -282,27 +281,6 @@ export class MongoService {
       onProgress(inserted + skipped);
 
       return { ok: true, data: { inserted, skipped } };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async distinct(
-    active: ActiveConnection,
-    dbName: string,
-    collName: string,
-    field: string,
-    filter: Record<string, unknown> = {},
-    maxValues = 1000
-  ): Promise<Result<DistinctResult>> {
-    try {
-      const collection = active.client.db(dbName).collection(collName);
-      const deserialized = EJSON.deserialize(filter) as Record<string, unknown>;
-      const rawValues = await collection.distinct(field, deserialized);
-      const truncated = rawValues.length > maxValues;
-      const sliced = truncated ? rawValues.slice(0, maxValues) : rawValues;
-      const values = sliced.map((v) => EJSON.serialize(v));
-      return { ok: true, data: { values, truncated } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

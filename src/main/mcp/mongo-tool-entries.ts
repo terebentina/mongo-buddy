@@ -4,6 +4,7 @@ import { listDatabasesCommand } from '../commands/list-databases';
 import { sampleFieldsCommand } from '../commands/sample-fields';
 import { listCollectionsCommand } from '../commands/list-collections';
 import { listIndexesCommand } from '../commands/list-indexes';
+import { distinctCommand } from '../commands/distinct';
 import type { McpToolEntry } from './mongo-tools';
 
 const EJSON_HINT =
@@ -37,6 +38,11 @@ export const MCP_TOOLS: McpToolEntry<z.ZodObject<z.ZodRawShape>, unknown>[] = [
   {
     command: listIndexesCommand,
     description: 'List all indexes on a collection (raw spec from MongoDB)',
+    notConnectedMessage: NOT_CONNECTED_MESSAGE,
+  },
+  {
+    command: distinctCommand,
+    description: `Return the distinct values of a field in a collection. Response includes a "truncated" flag if the result was clipped. ${EJSON_HINT}`,
     notConnectedMessage: NOT_CONNECTED_MESSAGE,
   },
 ];

@@ -16,6 +16,7 @@ import { listDatabasesCommand } from './commands/list-databases';
 import { sampleFieldsCommand } from './commands/sample-fields';
 import { listCollectionsCommand } from './commands/list-collections';
 import { listIndexesCommand } from './commands/list-indexes';
+import { distinctCommand } from './commands/distinct';
 import { registerMongoIpcCommands } from './ipc-mongo-adapter';
 import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
@@ -70,6 +71,7 @@ const mongoCommands = [
   sampleFieldsCommand,
   listCollectionsCommand,
   listIndexesCommand,
+  distinctCommand,
 ];
 registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
 

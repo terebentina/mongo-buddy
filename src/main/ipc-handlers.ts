@@ -101,18 +101,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     )
   );
   ipcMain.handle(
-    'mongo:distinct',
-    wrap((db: unknown, coll: unknown, field: unknown, filter: unknown) =>
-      service.distinct(
-        requireActive(),
-        db as string,
-        coll as string,
-        field as string,
-        filter as Record<string, unknown> | undefined
-      )
-    )
-  );
-  ipcMain.handle(
     'mongo:insert-one',
     wrap((db: unknown, coll: unknown, doc: unknown) =>
       service.insertOne(requireActive(), db as string, coll as string, doc as Record<string, unknown>)

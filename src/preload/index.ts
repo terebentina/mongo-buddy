@@ -68,7 +68,7 @@ export function createApi(ipc: IpcLike) {
       field: string,
       filter?: Record<string, unknown>
     ): Promise<Result<DistinctResult>> =>
-      ipc.invoke('mongo:distinct', db, collection, field, filter) as Promise<Result<DistinctResult>>,
+      ipc.invoke('mongo:distinct', { db, collection, field, filter }) as Promise<Result<DistinctResult>>,
     insertOne: (
       db: string,
       collection: string,

@@ -39,14 +39,12 @@ function createServiceMock(): {
   mocks: {
     find: ReturnType<typeof vi.fn>;
     aggregate: ReturnType<typeof vi.fn>;
-    distinct: ReturnType<typeof vi.fn>;
     explain: ReturnType<typeof vi.fn>;
   };
 } {
   const mocks = {
     find: vi.fn(),
     aggregate: vi.fn(),
-    distinct: vi.fn(),
     explain: vi.fn(),
   };
   return { service: mocks as unknown as MongoService, mocks };
@@ -67,9 +65,9 @@ describe('registerMcpTools', () => {
     registerMcpTools(server, service, manager as unknown as ConnectionManager);
   });
 
-  it('registers exactly 4 tools', () => {
+  it('registers exactly 3 tools', () => {
     const names = Object.keys(registered(server)).sort();
-    expect(names).toEqual(['aggregate', 'distinct', 'explain', 'find'].sort());
+    expect(names).toEqual(['aggregate', 'explain', 'find'].sort());
   });
 
   describe('find', () => {
@@ -155,29 +153,6 @@ describe('registerMcpTools', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
       expect(mocks.explain).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('distinct', () => {
-    it('passes field and filter through', async () => {
-      mocks.distinct.mockResolvedValue({ ok: true, data: { values: ['a', 'b'], truncated: false } });
-      const result = await getHandler(
-        server,
-        'distinct'
-      )({
-        db: 'd',
-        collection: 'c',
-        field: 'status',
-        filter: { active: true },
-      });
-      expect(mocks.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', 'status', { active: true });
-      expect(JSON.parse(result.content[0].text)).toEqual({ values: ['a', 'b'], truncated: false });
-    });
-
-    it('defaults filter to {}', async () => {
-      mocks.distinct.mockResolvedValue({ ok: true, data: { values: [], truncated: false } });
-      await getHandler(server, 'distinct')({ db: 'd', collection: 'c', field: 'status' });
-      expect(mocks.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'd', 'c', 'status', {});
     });
   });
 });

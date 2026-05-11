@@ -107,22 +107,4 @@ export function registerMcpTools(server: McpServer, service: MongoService, manag
       return toToolResult(await service.explain(active, db, collection, queryMode, query));
     }
   );
-
-  server.registerTool(
-    'distinct',
-    {
-      description: `Return the distinct values of a field in a collection. Response includes a "truncated" flag if the result was clipped. ${EJSON_HINT}`,
-      inputSchema: {
-        db: z.string().describe('Database name'),
-        collection: z.string().describe('Collection name'),
-        field: z.string().describe('Field name to get distinct values for (supports dot notation)'),
-        filter: z.record(z.string(), z.unknown()).optional().describe('Optional EJSON filter. Defaults to {}.'),
-      },
-    },
-    async ({ db, collection, field, filter }) => {
-      const active = manager.getActive();
-      if (!active) return notConnectedResult();
-      return toToolResult(await service.distinct(active, db, collection, field, filter ?? {}));
-    }
-  );
 }

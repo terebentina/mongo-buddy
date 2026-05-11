@@ -92,6 +92,18 @@ describe('preload createApi', () => {
       await api.listIndexes('d', 'c');
       expect(invoke).toHaveBeenCalledWith('mongo:listIndexes', { db: 'd', collection: 'c' });
     });
+
+    it('distinct invokes mongo:distinct with {db, collection, field, filter}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: { values: [], truncated: false } });
+      const api = createApi(ipcRenderer);
+      await api.distinct('d', 'c', 'status', { active: true });
+      expect(invoke).toHaveBeenCalledWith('mongo:distinct', {
+        db: 'd',
+        collection: 'c',
+        field: 'status',
+        filter: { active: true },
+      });
+    });
   });
 
   describe('onConnectionState', () => {

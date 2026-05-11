@@ -40,7 +40,6 @@ describe('IPC Handlers', () => {
     insertOne: ReturnType<typeof vi.fn>;
     updateOne: ReturnType<typeof vi.fn>;
     deleteOne: ReturnType<typeof vi.fn>;
-    distinct: ReturnType<typeof vi.fn>;
     dropIndex: ReturnType<typeof vi.fn>;
   };
   let mockConnStore: {
@@ -101,7 +100,6 @@ describe('IPC Handlers', () => {
       insertOne: vi.fn(),
       updateOne: vi.fn(),
       deleteOne: vi.fn(),
-      distinct: vi.fn(),
       dropIndex: vi.fn(),
     };
 
@@ -180,7 +178,6 @@ describe('IPC Handlers', () => {
     expect(handlers['history:load']).toBeDefined();
     expect(handlers['history:save']).toBeDefined();
     expect(handlers['history:clear']).toBeDefined();
-    expect(handlers['mongo:distinct']).toBeDefined();
     expect(handlers['mongo:pick-import-file']).toBeDefined();
     expect(handlers['operation:start']).toBeDefined();
     expect(handlers['operation:cancel']).toBeDefined();
@@ -450,29 +447,6 @@ describe('IPC Handlers', () => {
       mcpStatusCb!({ running: false, port: null });
       expect(mockBroadcast).toHaveBeenCalledWith('mcp:status:update', { running: true, port: 27099 });
       expect(mockBroadcast).toHaveBeenCalledWith('mcp:status:update', { running: false, port: null });
-    });
-  });
-
-  describe('mongo:distinct', () => {
-    it('calls MongoService.distinct with db, collection, and field', async () => {
-      const distinctResult = { values: ['active', 'inactive'], truncated: false };
-      mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
-      const result = await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status');
-      expect(mockService.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', 'status', undefined);
-      expect(result).toEqual({ ok: true, data: distinctResult });
-    });
-
-    it('forwards filter to MongoService.distinct', async () => {
-      const distinctResult = { values: ['active'], truncated: false };
-      mockService.distinct.mockResolvedValue({ ok: true, data: distinctResult });
-      await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status', { age: 1 });
-      expect(mockService.distinct).toHaveBeenCalledWith(TEST_ACTIVE, 'testdb', 'users', 'status', { age: 1 });
-    });
-
-    it('returns error result on service failure', async () => {
-      mockService.distinct.mockResolvedValue({ ok: false, error: 'Query failed' });
-      const result = await handlers['mongo:distinct']({} as Electron.IpcMainInvokeEvent, 'testdb', 'users', 'status');
-      expect(result).toEqual({ ok: false, error: 'Query failed' });
     });
   });
 
