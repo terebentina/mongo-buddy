@@ -25,6 +25,7 @@ import { updateOneCommand } from './commands/update-one';
 import { deleteOneCommand } from './commands/delete-one';
 import { dropIndexCommand } from './commands/drop-index';
 import { dropCollectionCommand } from './commands/drop-collection';
+import { dropCollectionsCommand } from './commands/drop-collections';
 import { registerMongoIpcCommands } from './ipc-mongo-adapter';
 import { MCP_TOOLS } from './mcp/mongo-tool-entries';
 import { createOperationRegistry } from './operation-registry';
@@ -88,6 +89,7 @@ const mongoCommands = [
   deleteOneCommand,
   dropIndexCommand,
   dropCollectionCommand,
+  dropCollectionsCommand,
 ];
 registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
 

@@ -29,7 +29,7 @@ export interface IpcDeps {
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const { service, connStore, historyStore, manager, registry, mcpStatus, broadcast = () => {} } = deps;
+  const { connStore, historyStore, manager, registry, mcpStatus, broadcast = () => {} } = deps;
 
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
@@ -74,10 +74,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     if (!active) throw new Error('Not connected');
     return active;
   };
-  ipcMain.handle(
-    'mongo:drop-collections',
-    wrap((db: unknown, names: unknown) => service.dropCollections(requireActive(), db as string, names as string[]))
-  );
 
   ipcMain.handle(
     'connections:list',

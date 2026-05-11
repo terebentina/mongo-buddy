@@ -2,7 +2,7 @@ import { MongoBulkWriteError } from 'mongodb';
 import { BSON } from 'bson';
 import type { Readable, Writable } from 'stream';
 import type { ActiveConnection } from './connection-manager';
-import type { Result, CollectionInfo, DropCollectionsResult, ImportOptions } from '../shared/types';
+import type { Result, CollectionInfo, ImportOptions } from '../shared/types';
 import type { IndexDescription } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
 import { listCollectionsImpl } from './commands/list-collections';
@@ -219,29 +219,6 @@ export class MongoService {
         await collection.createIndexes(toCreate as unknown as IndexDescription[]);
       }
       return { ok: true, data: undefined };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
-
-  async dropCollections(
-    active: ActiveConnection,
-    dbName: string,
-    names: string[]
-  ): Promise<Result<DropCollectionsResult>> {
-    try {
-      const db = active.client.db(dbName);
-      const dropped: string[] = [];
-      const failed: { name: string; error: string }[] = [];
-      for (const name of names) {
-        try {
-          await db.dropCollection(name);
-          dropped.push(name);
-        } catch (err) {
-          failed.push({ name, error: (err as Error).message });
-        }
-      }
-      return { ok: true, data: { dropped, failed } };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }
