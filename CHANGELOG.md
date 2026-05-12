@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.0.2](https://github.com/terebentina/mongo-buddy/compare/v2.0.1...v2.0.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* collection sort order for single dbs is wrong ([b3cd225](https://github.com/terebentina/mongo-buddy/commit/b3cd225a3cb4ef909a4e41f84f06fcd7881277ef))
+
 ## [2.0.1](https://github.com/terebentina/mongo-buddy/compare/v2.0.0...v2.0.1) (2026-05-11)
 
 ## [2.0.0](https://github.com/terebentina/mongo-buddy/compare/v1.39.0...v2.0.0) (2026-05-11)
