@@ -110,10 +110,28 @@ describe('ConnectionManager', () => {
         queryHistory: [{ id: 'h1', queryMode: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 }],
         autoSelectedDb: 'mydb',
         collections: [
-          { name: 'users', type: 'collection', count: 10 },
           { name: 'orders', type: 'collection', count: 20 },
+          { name: 'users', type: 'collection', count: 10 },
         ],
       });
+    });
+
+    it('sorts collections case-insensitively by name', async () => {
+      const client = makeFakeClient({
+        listDatabasesImpl: async () => ({ databases: [{ name: 'mydb' }] }),
+        listCollectionsImpl: () => [
+          { name: 'Zebras', type: 'collection' },
+          { name: 'apples', type: 'collection' },
+          { name: 'mangoes', type: 'collection' },
+          { name: 'Bananas', type: 'collection' },
+        ],
+      });
+      mgr = createConnectionManager(makeDeps({ client }).deps);
+
+      const result = await mgr.connect('mongodb://localhost/');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.collections.map((c) => c.name)).toEqual(['apples', 'Bananas', 'mangoes', 'Zebras']);
     });
 
     it('transitions state connecting → connected', async () => {

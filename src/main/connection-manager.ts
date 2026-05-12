@@ -8,6 +8,7 @@ import type {
   ConnectedSession,
   ConnectOptions,
 } from '../shared/types';
+import { byNameInsensitive } from '../shared/sort';
 
 export type { ConnectionState, ConnectedSession, ConnectOptions };
 
@@ -53,7 +54,7 @@ async function loadDatabases(client: MongoClient): Promise<DbInfo[]> {
 async function loadCollections(client: MongoClient, dbName: string): Promise<CollectionInfo[]> {
   const db = client.db(dbName);
   const collections = await db.listCollections().toArray();
-  return Promise.all(
+  const result = await Promise.all(
     collections.map(async (c) => {
       let count: number | undefined;
       try {
@@ -64,6 +65,8 @@ async function loadCollections(client: MongoClient, dbName: string): Promise<Col
       return { name: c.name, type: c.type ?? 'collection', count };
     })
   );
+  result.sort(byNameInsensitive);
+  return result;
 }
 
 export function createConnectionManager(deps: ConnectionManagerDeps): ConnectionManager {
