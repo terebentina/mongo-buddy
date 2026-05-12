@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.0.3](https://github.com/terebentina/mongo-buddy/compare/v2.0.2...v2.0.3) (2026-05-12)
+
+
+### Bug Fixes
+
+* **sidebar:** make selected collection visually distinct ([962517d](https://github.com/terebentina/mongo-buddy/commit/962517d7cd4127b0ea0344a1a0d2ca5f5cfb70bf))
+
 ## [2.0.2](https://github.com/terebentina/mongo-buddy/compare/v2.0.1...v2.0.2) (2026-05-12)
 
 
