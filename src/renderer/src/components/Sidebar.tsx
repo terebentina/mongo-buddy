@@ -94,7 +94,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
       <div
         role="button"
         tabIndex={0}
-        className={`group/coll w-full flex items-center justify-between text-xs rounded-md px-3 h-9 cursor-pointer relative overflow-hidden hover:bg-accent hover:text-accent-foreground ${isSelected ? 'bg-accent' : ''}`}
+        className={`group/coll w-full flex items-center justify-between text-xs rounded-md px-3 h-9 cursor-pointer relative overflow-hidden ${isSelected ? 'bg-primary text-primary-foreground hover:bg-primary' : 'hover:bg-accent hover:text-accent-foreground'}`}
         style={
           exporting
             ? {
