@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.1.0](https://github.com/terebentina/mongo-buddy/compare/v2.0.3...v2.1.0) (2026-05-13)
+
+
+### Features
+
+* **doc-editor:** show name/title next to _id in edit modal ([b28dac0](https://github.com/terebentina/mongo-buddy/commit/b28dac0fcf3b8f69bc8d50caf79c413d136d0328))
+
 ## [2.0.3](https://github.com/terebentina/mongo-buddy/compare/v2.0.2...v2.0.3) (2026-05-12)
 
 
