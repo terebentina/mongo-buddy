@@ -131,6 +131,6 @@ describe('Sidebar', () => {
 
     // Collapsible is controlled by selectedDb === db.name, so it should be open
     const usersItem = screen.getByText('users').closest('[role="button"]');
-    expect(usersItem).toHaveClass('bg-accent');
+    expect(usersItem).toHaveClass('bg-primary');
   });
 });
