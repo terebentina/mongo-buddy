@@ -9,18 +9,11 @@ import { EditorState } from '@codemirror/state';
 import JSON5 from 'json5';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { baseExtensions } from '../lib/editor';
+import { extractIdDisplay, extractLabelDisplay } from './DocumentEditor.helpers';
 
 interface DocumentEditorProps {
   editDoc?: Record<string, unknown> | null;
   onClose?: () => void;
-}
-
-function extractIdDisplay(doc: Record<string, unknown>): string | null {
-  const id = doc._id;
-  if (!id) return null;
-  if (typeof id === 'string') return id;
-  if (typeof id === 'object' && id !== null && '$oid' in id) return (id as { $oid: string }).$oid;
-  return JSON.stringify(id);
 }
 
 const editorTheme = EditorView.theme({
@@ -164,7 +157,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
             </DialogDescription>
           </DialogHeader>
           {isEditing && editDoc && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground font-mono">
               <span>_id: {extractIdDisplay(editDoc)}</span>
               <button
                 className="hover:text-foreground"
@@ -175,6 +168,17 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
               >
                 <Copy className="h-3 w-3" />
               </button>
+              {(() => {
+                const label = extractLabelDisplay(editDoc);
+                return label ? (
+                  <>
+                    <span>·</span>
+                    <span>
+                      {label.field}: {label.value}
+                    </span>
+                  </>
+                ) : null;
+              })()}
             </div>
           )}
           <div
