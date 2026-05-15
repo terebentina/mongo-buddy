@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.2.0](https://github.com/terebentina/mongo-buddy/compare/v2.1.1...v2.2.0) (2026-05-15)
+
+
+### Features
+
+* **doc-table:** add copy column values to header menu ([e2584fe](https://github.com/terebentina/mongo-buddy/commit/e2584fe22006a9c8b918cd28dbb930212447ae1a))
+
 ## [2.1.1](https://github.com/terebentina/mongo-buddy/compare/v2.1.0...v2.1.1) (2026-05-13)
 
 ## [2.1.0](https://github.com/terebentina/mongo-buddy/compare/v2.0.3...v2.1.0) (2026-05-13)
