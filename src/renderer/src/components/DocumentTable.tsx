@@ -273,7 +273,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
       const headerTextWidth = ctx.measureText(col).width;
       const sortIconWidth = queryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
       const menuIconWidth = 18; // 14px icon + 4px gap (always visible)
-      const headerPadding = 40; // px-4 (16px) + pr-6 (24px)
+      const headerPadding = 32; // px-4 (16px) * 2
       const headerWidth = headerTextWidth + sortIconWidth + menuIconWidth + headerPadding;
 
       // Measure body cells (normal weight)
@@ -340,7 +340,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                 return (
                   <TableHead
                     key={col}
-                    className={`group/header px-4 pr-6 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
+                    className={`group/header px-4 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
                     style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
                     onClick={isAggregate ? undefined : () => setSort(col)}
                   >
