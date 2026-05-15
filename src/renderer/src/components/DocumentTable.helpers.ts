@@ -9,6 +9,10 @@ export function formatCell(value: unknown): string {
   return String(value);
 }
 
+export function buildValuesCopyText(values: unknown[]): string {
+  return values.map(formatCell).join('\n');
+}
+
 export function buildColumnCopyText(docs: Record<string, unknown>[], col: string): string {
-  return docs.map((d) => formatCell(d[col])).join('\n');
+  return buildValuesCopyText(docs.map((d) => d[col]));
 }

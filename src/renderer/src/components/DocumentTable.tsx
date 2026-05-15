@@ -9,7 +9,7 @@ import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisV
 import { toast } from 'sonner';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
-import { formatCell, buildColumnCopyText } from './DocumentTable.helpers';
+import { formatCell, buildColumnCopyText, buildValuesCopyText } from './DocumentTable.helpers';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -191,6 +191,21 @@ function DistinctPopover({
                 {state.data.truncated && (
                   <div className="text-xs text-muted-foreground mt-2 pt-2 border-t">Showing first 1000 values</div>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 w-full"
+                  onClick={() => {
+                    navigator.clipboard.writeText(buildValuesCopyText(state.data.values));
+                    toast.success(
+                      `Copied ${state.data.values.length} values${state.data.truncated ? ' (truncated)' : ''}`
+                    );
+                    onClose();
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5 mr-1.5" />
+                  Copy values
+                </Button>
               </>
             )}
           </BasePopover.Popup>
