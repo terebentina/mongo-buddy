@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.3.0](https://github.com/terebentina/mongo-buddy/compare/v2.2.1...v2.3.0) (2026-05-15)
+
+
+### Features
+
+* **distinct-popover:** add copy values button ([4138fb7](https://github.com/terebentina/mongo-buddy/commit/4138fb701fde91bd90ef9c7786f8744119b62328))
+
 ## [2.2.1](https://github.com/terebentina/mongo-buddy/compare/v2.2.0...v2.2.1) (2026-05-15)
 
 ## [2.2.0](https://github.com/terebentina/mongo-buddy/compare/v2.1.1...v2.2.0) (2026-05-15)
