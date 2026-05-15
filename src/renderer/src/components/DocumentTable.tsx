@@ -9,6 +9,7 @@ import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisV
 import { toast } from 'sonner';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
+import { formatCell, buildColumnCopyText } from './DocumentTable.helpers';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -44,14 +45,17 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
   );
 }
 
+const MENU_ITEM_CLASS =
+  'flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground';
+
 function ColumnMenu({
+  onCopyValues,
   onShowDistinct,
   onShowDistinctFiltered,
-  hasFilter,
 }: {
-  onShowDistinct: () => void;
-  onShowDistinctFiltered: () => void;
-  hasFilter: boolean;
+  onCopyValues: () => void;
+  onShowDistinct?: () => void;
+  onShowDistinctFiltered?: () => void;
 }) {
   return (
     <Menu.Root>
@@ -65,18 +69,30 @@ function ColumnMenu({
         <Menu.Positioner sideOffset={4} align="start" className="z-50">
           <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
             <Menu.Item
-              className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+              className={MENU_ITEM_CLASS}
               onClick={(e) => {
                 e.stopPropagation();
-                onShowDistinct();
+                onCopyValues();
               }}
             >
-              <ListFilter className="h-3 w-3" />
-              Show Distinct
+              <Copy className="h-3 w-3" />
+              Copy values
             </Menu.Item>
-            {hasFilter && (
+            {onShowDistinct && (
               <Menu.Item
-                className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                className={MENU_ITEM_CLASS}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShowDistinct();
+                }}
+              >
+                <ListFilter className="h-3 w-3" />
+                Show Distinct
+              </Menu.Item>
+            )}
+            {onShowDistinctFiltered && (
+              <Menu.Item
+                className={MENU_ITEM_CLASS}
                 onClick={(e) => {
                   e.stopPropagation();
                   onShowDistinctFiltered();
@@ -198,17 +214,6 @@ function snapshotColumnWidths(
   return widths;
 }
 
-function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object' && value !== null) {
-    const obj = value as Record<string, unknown>;
-    if ('$date' in obj) return String(obj['$date']);
-    if ('$oid' in obj) return String(obj['$oid']);
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
-
 interface DocumentTableProps {
   className?: string;
   onRowClick?: (doc: Record<string, unknown>) => void;
@@ -267,7 +272,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
       ctx.font = `500 ${style.fontSize} ${style.fontFamily}`;
       const headerTextWidth = ctx.measureText(col).width;
       const sortIconWidth = queryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
-      const menuIconWidth = queryMode === 'filter' && col !== '_id' ? 18 : 0; // 14px icon + 4px gap
+      const menuIconWidth = 18; // 14px icon + 4px gap (always visible)
       const headerPadding = 40; // px-4 (16px) + pr-6 (24px)
       const headerWidth = headerTextWidth + sortIconWidth + menuIconWidth + headerPadding;
 
@@ -331,7 +336,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                 const isAggregate = queryMode === 'aggregate';
                 const sortDir = sort && col in sort ? sort[col] : null;
                 const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown;
-                const showMenu = !isAggregate && col !== '_id';
+                const canShowDistinct = !isAggregate && col !== '_id';
                 return (
                   <TableHead
                     key={col}
@@ -347,21 +352,31 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                             className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
                           />
                         )}
-                        {showMenu && (
-                          <ColumnMenu
-                            hasFilter={hasFilter}
-                            onShowDistinct={() => {
-                              const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
-                              const th = tableRef.current?.querySelector(selector);
-                              if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
-                            }}
-                            onShowDistinctFiltered={() => {
-                              const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
-                              const th = tableRef.current?.querySelector(selector);
-                              if (th) setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
-                            }}
-                          />
-                        )}
+                        <ColumnMenu
+                          onCopyValues={() => {
+                            navigator.clipboard.writeText(buildColumnCopyText(docs, col));
+                            toast.success(`Copied ${docs.length} values`);
+                          }}
+                          onShowDistinct={
+                            canShowDistinct
+                              ? () => {
+                                  const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
+                                  const th = tableRef.current?.querySelector(selector);
+                                  if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
+                                }
+                              : undefined
+                          }
+                          onShowDistinctFiltered={
+                            canShowDistinct && hasFilter
+                              ? () => {
+                                  const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
+                                  const th = tableRef.current?.querySelector(selector);
+                                  if (th)
+                                    setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
+                                }
+                              : undefined
+                          }
+                        />
                       </span>
                     </span>
                     <div
