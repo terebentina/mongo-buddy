@@ -9,7 +9,8 @@ import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisV
 import { toast } from 'sonner';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
-import { formatCell, buildColumnCopyText, buildValuesCopyText } from './DocumentTable.helpers';
+import { formatCell } from './DocumentTable.helpers';
+import { buildColumnCopyText, buildValuesCopyText, formatValueForCopy } from '../lib/clipboard';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +33,7 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
           size="sm"
           className="mt-2 w-full"
           onClick={() => {
-            navigator.clipboard.writeText(raw);
+            navigator.clipboard.writeText(formatValueForCopy(cellValue).text);
             toast.success('Copied to clipboard');
             setOpen(false);
           }}
