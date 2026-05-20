@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.4.0](https://github.com/terebentina/mongo-buddy/compare/v2.3.0...v2.4.0) (2026-05-20)
+
+
+### Features
+
+* **clipboard:** type-aware copy formatting for query paste ([5a642a9](https://github.com/terebentina/mongo-buddy/commit/5a642a93ce46331a10a088d82647b60a18577625))
+
 ## [2.3.0](https://github.com/terebentina/mongo-buddy/compare/v2.2.1...v2.3.0) (2026-05-15)
 
 
