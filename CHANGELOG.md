@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.4.1](https://github.com/terebentina/mongo-buddy/compare/v2.4.0...v2.4.1) (2026-06-05)
+
+
+### Bug Fixes
+
+* **dialog:** prevent content from overflowing dialog width ([2ebc9c0](https://github.com/terebentina/mongo-buddy/commit/2ebc9c04d0b7b3b8f27b3151ffffbb3a2241c253))
+
 ## [2.4.0](https://github.com/terebentina/mongo-buddy/compare/v2.3.0...v2.4.0) (2026-05-20)
 
 
