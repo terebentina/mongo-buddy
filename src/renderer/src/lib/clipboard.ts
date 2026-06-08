@@ -21,6 +21,13 @@ export function formatValueForCopy(value: unknown): CopyValue {
   return { text: JSON.stringify(value), kind: 'object' };
 }
 
+// Single-cell copy: like formatValueForCopy but strings are returned unquoted.
+// (Column-header and distinct copies keep the quoted/comma-separated form.)
+export function formatValueForCellCopy(value: unknown): string {
+  if (typeof value === 'string') return value;
+  return formatValueForCopy(value).text;
+}
+
 export function buildValuesCopyText(values: unknown[]): string {
   if (values.length === 0) return '';
   const formatted = values.map(formatValueForCopy);

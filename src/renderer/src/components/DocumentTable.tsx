@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
 import { formatCell } from './DocumentTable.helpers';
-import { buildColumnCopyText, buildValuesCopyText, formatValueForCopy } from '../lib/clipboard';
+import { buildColumnCopyText, buildValuesCopyText, formatValueForCellCopy } from '../lib/clipboard';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
           size="sm"
           className="mt-2 w-full"
           onClick={() => {
-            navigator.clipboard.writeText(formatValueForCopy(cellValue).text);
+            navigator.clipboard.writeText(formatValueForCellCopy(cellValue));
             toast.success('Copied to clipboard');
             setOpen(false);
           }}

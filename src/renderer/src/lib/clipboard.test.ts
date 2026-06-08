@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isEjsonWrapper, formatValueForCopy, buildValuesCopyText, buildColumnCopyText } from './clipboard';
+import {
+  isEjsonWrapper,
+  formatValueForCopy,
+  formatValueForCellCopy,
+  buildValuesCopyText,
+  buildColumnCopyText,
+} from './clipboard';
 
 describe('isEjsonWrapper', () => {
   it('is true for $oid wrapper', () => {
@@ -106,6 +112,37 @@ describe('formatValueForCopy', () => {
       text: '{"$oid":"x","extra":1}',
       kind: 'object',
     });
+  });
+});
+
+describe('formatValueForCellCopy', () => {
+  it('copies a string unquoted', () => {
+    expect(formatValueForCellCopy('hello')).toBe('hello');
+  });
+
+  it('copies a string containing quotes verbatim', () => {
+    expect(formatValueForCellCopy('say "hi"')).toBe('say "hi"');
+  });
+
+  it('copies a number unquoted', () => {
+    expect(formatValueForCellCopy(42)).toBe('42');
+  });
+
+  it('copies a boolean unquoted', () => {
+    expect(formatValueForCellCopy(true)).toBe('true');
+  });
+
+  it('copies null as null', () => {
+    expect(formatValueForCellCopy(null)).toBe('null');
+    expect(formatValueForCellCopy(undefined)).toBe('null');
+  });
+
+  it('copies an EJSON wrapper as raw JSON', () => {
+    expect(formatValueForCellCopy({ $oid: '507f1f77bcf86cd799439011' })).toBe('{"$oid":"507f1f77bcf86cd799439011"}');
+  });
+
+  it('copies a plain object as raw JSON', () => {
+    expect(formatValueForCellCopy({ a: 1, b: 2 })).toBe('{"a":1,"b":2}');
   });
 });
 
