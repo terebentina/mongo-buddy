@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.6.0](https://github.com/terebentina/mongo-buddy/compare/v2.5.1...v2.6.0) (2026-07-06)
+
+
+### Features
+
+* **sidebar:** add empty-collection action ([680fc20](https://github.com/terebentina/mongo-buddy/commit/680fc209ac98d129364bce35d4e56f34c65530d3))
+
+
+### Bug Fixes
+
+* **preload:** pass count args as object so IPC dispatch parses them ([6364fef](https://github.com/terebentina/mongo-buddy/commit/6364fef8d6cf92349dbe5a99b43e3e3fa738512c))
+
 ## [2.5.1](https://github.com/terebentina/mongo-buddy/compare/v2.5.0...v2.5.1) (2026-07-06)
 
 
