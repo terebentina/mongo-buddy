@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.7.0](https://github.com/terebentina/mongo-buddy/compare/v2.6.0...v2.7.0) (2026-07-06)
+
+
+### Features
+
+* **sidebar:** add per-window color marker picker ([067b835](https://github.com/terebentina/mongo-buddy/commit/067b8351cd37f360e49b562181e5884df0834c86))
+* **window:** show selected db.collection in the window title ([75dcd62](https://github.com/terebentina/mongo-buddy/commit/75dcd6213d210dc80c129a4d4a5c3e50edd5d87b))
+
 ## [2.6.0](https://github.com/terebentina/mongo-buddy/compare/v2.5.1...v2.6.0) (2026-07-06)
 
 
