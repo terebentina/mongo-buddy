@@ -495,6 +495,9 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           ))}
         </select>
         <div className="flex-1" />
+        <span className="text-sm text-muted-foreground">
+          {totalCount.toLocaleString()} {totalCount === 1 ? 'document' : 'documents'}
+        </span>
         <Button
           variant="outline"
           size="sm"
