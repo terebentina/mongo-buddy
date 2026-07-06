@@ -1,4 +1,5 @@
 blockExoticSubdeps: true
-minimumReleaseAge: 7
+minimumReleaseAge: 10080
+saveExact: true
 onlyBuiltDependencies:
   - electron

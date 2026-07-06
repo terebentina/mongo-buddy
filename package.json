@@ -24,7 +24,8 @@
     "postinstall": "electron-builder install-app-deps",
     "clean": "rm -rf dist out",
     "build:local": "pnpm run clean && pnpm run build && xvfb-run electron-builder --win",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "up": "pnpm up -i -L"
   },
   "dependencies": {
     "@base-ui/react": "1.5.0",
