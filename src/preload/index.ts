@@ -46,7 +46,7 @@ export function createApi(ipc: IpcLike) {
     find: (db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>> =>
       ipc.invoke('mongo:find', { db, collection, ...opts }) as Promise<Result<FindResult>>,
     count: (db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>> =>
-      ipc.invoke('mongo:count', db, collection, filter ?? {}) as Promise<Result<number>>,
+      ipc.invoke('mongo:count', { db, collection, filter: filter ?? {} }) as Promise<Result<number>>,
     aggregate: (
       db: string,
       collection: string,
