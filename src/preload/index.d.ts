@@ -88,7 +88,7 @@ interface MongoApi {
   onOperationUpdate(cb: (rec: OperationRecord) => void): () => void;
   getMcpStatus(): Promise<McpStatus>;
   onMcpStatusUpdate(cb: (status: McpStatus) => void): () => void;
-  setWindowTitle(arg: { color: string | null; location: string | null }): Promise<void>;
+  setWindowTitle(arg: { location: string | null }): Promise<void>;
 }
 
 declare global {

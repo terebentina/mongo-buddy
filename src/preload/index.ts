@@ -111,7 +111,7 @@ export function createApi(ipc: IpcLike) {
       ipc.on('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
       return () => ipc.off('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
     },
-    setWindowTitle: (arg: { color: string | null; location: string | null }): Promise<void> =>
+    setWindowTitle: (arg: { location: string | null }): Promise<void> =>
       ipc.invoke('window:set-title', arg) as Promise<void>,
     getMcpStatus: (): Promise<McpStatus> => ipc.invoke('mcp:status:get') as Promise<McpStatus>,
     onMcpStatusUpdate: (cb: (s: McpStatus) => void): (() => void) => {
