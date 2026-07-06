@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.5.1](https://github.com/terebentina/mongo-buddy/compare/v2.5.0...v2.5.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* **build:** define require in ESM main bundle for bundled CJS deps ([85a5063](https://github.com/terebentina/mongo-buddy/commit/85a50633f147cf2355cfd1dc0ce86949d66771da))
+
 ## [2.5.0](https://github.com/terebentina/mongo-buddy/compare/v2.4.2...v2.5.0) (2026-07-06)
 
 
