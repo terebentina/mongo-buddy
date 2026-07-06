@@ -13,6 +13,11 @@ import type {
   WindowColor,
 } from '../../shared/types';
 
+function pushWindowTitle(color: WindowColor | null, db: string | null, collection: string | null): void {
+  const location = db && collection ? `${db}.${collection}` : null;
+  window.api.setWindowTitle({ color, location });
+}
+
 export interface StoreState {
   status: ConnectionState;
   uri: string;
@@ -136,6 +141,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       error: null,
       fieldNames: [],
     });
+    pushWindowTitle(get().windowColor, null, null);
   },
 
   subscribeToConnectionState: () => window.api.onConnectionState((status) => set({ status })),
@@ -169,6 +175,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       pendingFilterText: '{}',
       pendingQueryMode: 'filter',
     });
+    pushWindowTitle(get().windowColor, db, collection);
     const [result, fieldsResult] = await Promise.all([
       window.api.find(db, collection, { filter: {}, skip: 0, limit }),
       window.api.sampleFields(db, collection),
@@ -508,6 +515,7 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   setWindowColor: (color: WindowColor | null) => {
     set({ windowColor: color });
-    window.api.setWindowColor(color);
+    const { selectedDb, selectedCollection } = get();
+    pushWindowTitle(color, selectedDb, selectedCollection);
   },
 }));

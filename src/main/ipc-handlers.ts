@@ -61,13 +61,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     wrapSync((): McpStatus => mcpStatus.get())
   );
 
-  ipcMain.handle('window:set-color', (event, color: unknown) => {
+  ipcMain.handle('window:set-title', (event, arg: unknown) => {
+    const { color, location } = (arg ?? {}) as { color?: unknown; location?: unknown };
     const marker =
       typeof color === 'string' && (WINDOW_COLORS as readonly string[]).includes(color)
         ? (color as WindowColor)
         : undefined;
+    const loc = typeof location === 'string' && location.length > 0 ? location : undefined;
     const win = BrowserWindow.fromWebContents(event.sender);
-    win?.setTitle(formatWindowTitle('MongoBuddy', app.getVersion(), marker));
+    win?.setTitle(formatWindowTitle('MongoBuddy', app.getVersion(), { marker, location: loc }));
   });
 
   ipcMain.handle(
