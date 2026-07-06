@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.5.0](https://github.com/terebentina/mongo-buddy/compare/v2.4.2...v2.5.0) (2026-07-06)
+
+
+### Features
+
+* **pagination:** show total matched document count ([59239b6](https://github.com/terebentina/mongo-buddy/commit/59239b6e2752c262c8cd0e158cd772b1b451185e))
+
 ## [2.4.2](https://github.com/terebentina/mongo-buddy/compare/v2.4.1...v2.4.2) (2026-06-08)
 
 
