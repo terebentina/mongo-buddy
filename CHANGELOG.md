@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.8.0](https://github.com/terebentina/mongo-buddy/compare/v2.7.0...v2.8.0) (2026-07-06)
+
+
+### Features
+
+* **window:** remove per-window color marker picker ([4f101c4](https://github.com/terebentina/mongo-buddy/commit/4f101c4607ce0b62d41dc6d1a3565281ba8eb796))
+
 ## [2.7.0](https://github.com/terebentina/mongo-buddy/compare/v2.6.0...v2.7.0) (2026-07-06)
 
 
