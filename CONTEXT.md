@@ -82,12 +82,8 @@ _Avoid_: handler, runner. "Operation" alone is the runtime task.
 
 ### Window
 
-**InstanceColor**:
-A per-window emoji square (from a fixed palette, `WINDOW_COLORS`) the user picks to tell multiple open MongoBuddy windows apart — including two windows on the same connection. Prepended to the window title (`🟦 MongoBuddy 2.6.0`), so it also shows in the OS taskbar/window switcher where the platform renders it. In-memory and per-window: it lives in the renderer store, is never persisted, and the picker retitles only its own window (via `event.sender`). Neutral default is no square. Distinct from the theme's `--accent`/`--primary` CSS variables, which are styling, not identity.
-_Avoid_: theme, accent, window theme.
-
 **TitleLocation**:
-The `db.collection` string shown in the window title (e.g. `mydb.users — MongoBuddy 2.6.0`), reflecting the currently selected collection. Per-window and transient: it lives in the renderer store (derived from `selectedDb`/`selectedCollection`), is never persisted, and clears on disconnect. Composes with **InstanceColor** in a single title — `🟦 mydb.users — MongoBuddy 2.6.0` — via one `window:set-title` IPC that carries both; the main process stays stateless and retitles only its own window.
+The `db.collection` string shown in the window title (e.g. `mydb.users — MongoBuddy 2.6.0`), reflecting the currently selected collection. Per-window and transient: it lives in the renderer store (derived from `selectedDb`/`selectedCollection`), is never persisted, and clears on disconnect. Set via one `window:set-title` IPC that carries the location; the main process stays stateless and retitles only its own window.
 _Avoid_: namespace, breadcrumb.
 
 ## Relationships

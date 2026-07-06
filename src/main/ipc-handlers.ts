@@ -13,9 +13,7 @@ import type {
   OperationParams,
   OperationId,
   McpStatus,
-  WindowColor,
 } from '../shared/types';
-import { WINDOW_COLORS } from '../shared/types';
 import { formatWindowTitle } from './window-title';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
@@ -62,14 +60,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   );
 
   ipcMain.handle('window:set-title', (event, arg: unknown) => {
-    const { color, location } = (arg ?? {}) as { color?: unknown; location?: unknown };
-    const marker =
-      typeof color === 'string' && (WINDOW_COLORS as readonly string[]).includes(color)
-        ? (color as WindowColor)
-        : undefined;
+    const { location } = (arg ?? {}) as { location?: unknown };
     const loc = typeof location === 'string' && location.length > 0 ? location : undefined;
     const win = BrowserWindow.fromWebContents(event.sender);
-    win?.setTitle(formatWindowTitle('MongoBuddy', app.getVersion(), { marker, location: loc }));
+    win?.setTitle(formatWindowTitle('MongoBuddy', app.getVersion(), { location: loc }));
   });
 
   ipcMain.handle(

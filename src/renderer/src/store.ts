@@ -10,12 +10,11 @@ import type {
   Result,
   ConnectionState,
   McpStatus,
-  WindowColor,
 } from '../../shared/types';
 
-function pushWindowTitle(color: WindowColor | null, db: string | null, collection: string | null): void {
+function pushWindowTitle(db: string | null, collection: string | null): void {
   const location = db && collection ? `${db}.${collection}` : null;
-  window.api.setWindowTitle({ color, location });
+  window.api.setWindowTitle({ location });
 }
 
 export interface StoreState {
@@ -42,7 +41,6 @@ export interface StoreState {
   historyIndex: number | null;
   pendingQueryMode: QueryMode | null;
   mcpStatus: McpStatus;
-  windowColor: WindowColor | null;
 
   connect: (uri: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -74,7 +72,6 @@ export interface StoreState {
   addGhostDatabase: (name: string) => void;
   removeGhostDatabase: (name: string) => void;
   refreshDatabases: () => Promise<void>;
-  setWindowColor: (color: WindowColor | null) => void;
 }
 
 export const selectConnected = (s: StoreState): boolean => s.status.status === 'connected';
@@ -103,7 +100,6 @@ export const useStore = create<StoreState>()((set, get) => ({
   historyIndex: null,
   pendingQueryMode: null,
   mcpStatus: { running: false, port: null },
-  windowColor: null,
 
   connect: async (uri: string) => {
     if (selectConnected(get())) await get().disconnect();
@@ -141,7 +137,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       error: null,
       fieldNames: [],
     });
-    pushWindowTitle(get().windowColor, null, null);
+    pushWindowTitle(null, null);
   },
 
   subscribeToConnectionState: () => window.api.onConnectionState((status) => set({ status })),
@@ -175,7 +171,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       pendingFilterText: '{}',
       pendingQueryMode: 'filter',
     });
-    pushWindowTitle(get().windowColor, db, collection);
+    pushWindowTitle(db, collection);
     const [result, fieldsResult] = await Promise.all([
       window.api.find(db, collection, { filter: {}, skip: 0, limit }),
       window.api.sampleFields(db, collection),
@@ -511,11 +507,5 @@ export const useStore = create<StoreState>()((set, get) => ({
   refreshDatabases: async () => {
     const result = await window.api.listDatabases();
     if (result.ok) set({ databases: result.data });
-  },
-
-  setWindowColor: (color: WindowColor | null) => {
-    set({ windowColor: color });
-    const { selectedDb, selectedCollection } = get();
-    pushWindowTitle(color, selectedDb, selectedCollection);
   },
 }));
