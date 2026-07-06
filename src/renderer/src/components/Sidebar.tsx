@@ -4,7 +4,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, RefreshCw, KeyRound, Plus } from 'lucide-react';
+import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, Eraser, RefreshCw, KeyRound, Plus } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
@@ -36,6 +36,8 @@ interface CollectionRowProps {
 function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps) {
   const [dropDialogOpen, setDropDialogOpen] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
+  const [emptyConfirmText, setEmptyConfirmText] = useState('');
   const [indexesOpen, setIndexesOpen] = useState(false);
 
   const exp = useOperation('export-collection');
@@ -43,6 +45,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
 
   const selectDb = useStore((s) => s.selectDb);
   const selectedCollection = useStore((s) => s.selectedCollection);
+  const refreshDocs = useStore((s) => s.refreshDocs);
 
   const progress = exporting && coll.count ? Math.min((exp.progress.processed / coll.count) * 100, 100) : 0;
 
@@ -86,6 +89,25 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
       if (listResult.ok) {
         useStore.setState({ collections: listResult.data });
       }
+    }
+  };
+
+  const handleEmpty = async (): Promise<void> => {
+    const result = await window.api.emptyCollection(dbName, coll.name);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`Emptied "${coll.name}" — ${result.data.toLocaleString()} documents deleted`);
+    setEmptyDialogOpen(false);
+    setEmptyConfirmText('');
+
+    const listResult = await window.api.listCollections(dbName);
+    if (listResult.ok) {
+      useStore.setState({ collections: listResult.data });
+    }
+    if (selectedCollection === coll.name) {
+      await refreshDocs();
     }
   };
 
@@ -162,6 +184,16 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
                       className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
                       onClick={(e) => {
                         e.stopPropagation();
+                        setEmptyDialogOpen(true);
+                      }}
+                    >
+                      <Eraser className="h-3 w-3" />
+                      Empty
+                    </Menu.Item>
+                    <Menu.Item
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setDropDialogOpen(true);
                       }}
                     >
@@ -202,6 +234,38 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
             </Button>
             <Button variant="destructive" disabled={confirmText !== coll.name} onClick={handleDrop}>
               Drop
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={emptyDialogOpen}
+        onOpenChange={(open) => {
+          setEmptyDialogOpen(open);
+          if (!open) setEmptyConfirmText('');
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Empty collection</DialogTitle>
+            <DialogDescription>
+              This permanently deletes all documents in <strong>{coll.name}</strong>
+              {coll.count !== undefined ? ` (${coll.count.toLocaleString()} documents)` : ''}. The collection and its
+              indexes are kept. Type the collection name to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder={coll.name}
+            value={emptyConfirmText}
+            onChange={(e) => setEmptyConfirmText(e.target.value)}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmptyDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" disabled={emptyConfirmText !== coll.name} onClick={handleEmpty}>
+              Empty
             </Button>
           </DialogFooter>
         </DialogContent>
