@@ -1,5 +1,8 @@
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
+export const WINDOW_COLORS = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '🟫', '⬛'] as const;
+export type WindowColor = (typeof WINDOW_COLORS)[number];
+
 export interface DbInfo {
   name: string;
   sizeOnDisk: number;

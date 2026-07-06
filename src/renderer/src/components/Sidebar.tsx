@@ -13,6 +13,7 @@ import { DropDatabaseDialog } from './DropDatabaseDialog';
 import { NewDatabaseDialog } from './NewDatabaseDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
+import { WindowColorPicker } from './WindowColorPicker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
@@ -740,6 +741,7 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
           {displayName}
         </span>
         <div className="flex items-center gap-1 shrink-0">
+          <WindowColorPicker />
           <McpStatusPill />
           {onChangeConnection && (
             <button

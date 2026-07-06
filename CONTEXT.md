@@ -80,6 +80,12 @@ A long-running task tracked by `OperationRegistry` (export collection, export da
 The declarative definition of an **Operation** kind. Shape: `{ kind, params: ZodSchema, run(active, params, ctx): Promise<Result<{ data, warning? }>> }`. Lives in `src/main/operations/`. The body of `run` does the work — acquire resources via `ctx` (dialog, fs, mongo, signal, onProgress), return success/failure as `Result`. The **OperationRegistry** owns the state machine (`running` → terminal), the `inFlight` enqueue guard, signal-based cancellation classification, and Zod-validation of params; an **OperationDef** body never emits status. `kind` is the canonical identifier and matches the corresponding `OperationParams` discriminant.
 _Avoid_: handler, runner. "Operation" alone is the runtime task.
 
+### Window
+
+**InstanceColor**:
+A per-window emoji square (from a fixed palette, `WINDOW_COLORS`) the user picks to tell multiple open MongoBuddy windows apart — including two windows on the same connection. Prepended to the window title (`🟦 MongoBuddy 2.6.0`), so it also shows in the OS taskbar/window switcher where the platform renders it. In-memory and per-window: it lives in the renderer store, is never persisted, and the picker retitles only its own window (via `event.sender`). Neutral default is no square. Distinct from the theme's `--accent`/`--primary` CSS variables, which are styling, not identity.
+_Avoid_: theme, accent, window theme.
+
 ## Relationships
 
 - A **SavedConnection** is the seed for a **ConnectedSession** when the user clicks Connect.

@@ -10,6 +10,7 @@ import type {
   Result,
   ConnectionState,
   McpStatus,
+  WindowColor,
 } from '../../shared/types';
 
 export interface StoreState {
@@ -36,6 +37,7 @@ export interface StoreState {
   historyIndex: number | null;
   pendingQueryMode: QueryMode | null;
   mcpStatus: McpStatus;
+  windowColor: WindowColor | null;
 
   connect: (uri: string) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -67,6 +69,7 @@ export interface StoreState {
   addGhostDatabase: (name: string) => void;
   removeGhostDatabase: (name: string) => void;
   refreshDatabases: () => Promise<void>;
+  setWindowColor: (color: WindowColor | null) => void;
 }
 
 export const selectConnected = (s: StoreState): boolean => s.status.status === 'connected';
@@ -95,6 +98,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   historyIndex: null,
   pendingQueryMode: null,
   mcpStatus: { running: false, port: null },
+  windowColor: null,
 
   connect: async (uri: string) => {
     if (selectConnected(get())) await get().disconnect();
@@ -500,5 +504,10 @@ export const useStore = create<StoreState>()((set, get) => ({
   refreshDatabases: async () => {
     const result = await window.api.listDatabases();
     if (result.ok) set({ databases: result.data });
+  },
+
+  setWindowColor: (color: WindowColor | null) => {
+    set({ windowColor: color });
+    window.api.setWindowColor(color);
   },
 }));

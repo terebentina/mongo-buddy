@@ -111,6 +111,7 @@ export function createApi(ipc: IpcLike) {
       ipc.on('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
       return () => ipc.off('operation:update', handler as (event: unknown, ...args: unknown[]) => void);
     },
+    setWindowColor: (color: string | null): Promise<void> => ipc.invoke('window:set-color', color) as Promise<void>,
     getMcpStatus: (): Promise<McpStatus> => ipc.invoke('mcp:status:get') as Promise<McpStatus>,
     onMcpStatusUpdate: (cb: (s: McpStatus) => void): (() => void) => {
       const handler = (_event: unknown, s: McpStatus): void => cb(s);

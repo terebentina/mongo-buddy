@@ -5,4 +5,13 @@ describe('formatWindowTitle', () => {
   it('joins name and version with a space', () => {
     expect(formatWindowTitle('MongoBuddy', '1.30.0')).toBe('MongoBuddy 1.30.0');
   });
+
+  it('prepends a marker when provided', () => {
+    expect(formatWindowTitle('MongoBuddy', '1.30.0', '🟦')).toBe('🟦 MongoBuddy 1.30.0');
+  });
+
+  it('omits the marker when empty or undefined', () => {
+    expect(formatWindowTitle('MongoBuddy', '1.30.0', '')).toBe('MongoBuddy 1.30.0');
+    expect(formatWindowTitle('MongoBuddy', '1.30.0', undefined)).toBe('MongoBuddy 1.30.0');
+  });
 });

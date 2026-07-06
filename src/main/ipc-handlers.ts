@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain, dialog, app, BrowserWindow } from 'electron';
 import path from 'path';
 import type { ConnectionStore } from './connection-store';
 import type { ActiveConnection, ConnectionManager, ConnectOptions } from './connection-manager';
@@ -13,7 +13,10 @@ import type {
   OperationParams,
   OperationId,
   McpStatus,
+  WindowColor,
 } from '../shared/types';
+import { WINDOW_COLORS } from '../shared/types';
+import { formatWindowTitle } from './window-title';
 
 export type Broadcast = (channel: string, payload: unknown) => void;
 
@@ -57,6 +60,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'mcp:status:get',
     wrapSync((): McpStatus => mcpStatus.get())
   );
+
+  ipcMain.handle('window:set-color', (event, color: unknown) => {
+    const marker =
+      typeof color === 'string' && (WINDOW_COLORS as readonly string[]).includes(color)
+        ? (color as WindowColor)
+        : undefined;
+    const win = BrowserWindow.fromWebContents(event.sender);
+    win?.setTitle(formatWindowTitle('MongoBuddy', app.getVersion(), marker));
+  });
 
   ipcMain.handle(
     'mongo:connect',
