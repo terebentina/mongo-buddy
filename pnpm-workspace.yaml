@@ -3,3 +3,7 @@ minimumReleaseAge: 10080
 saveExact: true
 onlyBuiltDependencies:
   - electron
+allowBuilds:
+  electron: true
+  electron-winstaller: false
+  esbuild: false
