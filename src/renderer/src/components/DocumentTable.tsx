@@ -256,6 +256,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const tableRef = useRef<HTMLTableElement>(null);
 
   const [pageInput, setPageInput] = useState(String(currentPage));
+  const [lastCurrentPage, setLastCurrentPage] = useState(currentPage);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [distinctState, setDistinctState] = useState<{
     column: string;
@@ -265,9 +266,10 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const columnsKey = columns.join(',');
   const prevColumnsKey = useRef(columnsKey);
 
-  useEffect(() => {
+  if (currentPage !== lastCurrentPage) {
+    setLastCurrentPage(currentPage);
     setPageInput(String(currentPage));
-  }, [currentPage]);
+  }
 
   useEffect(() => {
     if (prevColumnsKey.current !== columnsKey) {
