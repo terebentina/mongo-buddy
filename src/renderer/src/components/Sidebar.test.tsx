@@ -18,6 +18,7 @@ const mockApi = {
   operationCancel: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   onOperationUpdate: vi.fn().mockReturnValue(() => {}),
   dropCollection: vi.fn().mockResolvedValue({ ok: true }),
+  setWindowTitle: vi.fn(),
 };
 
 beforeEach(() => {

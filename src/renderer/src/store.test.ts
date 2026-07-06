@@ -26,6 +26,7 @@ const mockApi = {
   distinct: vi.fn(),
   getMcpStatus: vi.fn<() => Promise<McpStatus>>().mockResolvedValue({ running: false, port: null }),
   onMcpStatusUpdate: vi.fn<(cb: (s: McpStatus) => void) => () => void>(() => () => {}),
+  setWindowTitle: vi.fn(),
 };
 
 function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSession {
