@@ -22,6 +22,7 @@ mac:
       arch: arm64
 linux:
   icon: build/icon.png
+  syncDesktopName: true
   target:
     - AppImage
     - deb
