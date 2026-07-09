@@ -1,7 +1,8 @@
 import { app, shell, BrowserWindow, Menu, ipcMain } from 'electron';
-import { join, dirname, resolve } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { electronApp, optimizer, is } from '@electron-toolkit/utils';
+import appIcon from '../../resources/icon.png?asset';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 import { MongoClient } from 'mongodb';
@@ -102,7 +103,7 @@ function createWindow(): void {
     height: 800,
     show: false,
     title: formatWindowTitle('MongoBuddy', app.getVersion()),
-    icon: resolve(__dirname, '../../build/icon.png'),
+    icon: appIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: false,
