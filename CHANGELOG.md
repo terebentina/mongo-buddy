@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.8.1](https://github.com/terebentina/mongo-buddy/compare/v2.8.0...v2.8.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **build:** set desktopName for linux window association ([faf168f](https://github.com/terebentina/mongo-buddy/commit/faf168fb7036fb6878d78c4ac4421dafb07bc247))
+* **window:** ship app icon so Alt+Tab shows correct icon on Windows ([dc01717](https://github.com/terebentina/mongo-buddy/commit/dc017174051389f3cb7ffee11700074a856e62ed))
+
 ## [2.8.0](https://github.com/terebentina/mongo-buddy/compare/v2.7.0...v2.8.0) (2026-07-06)
 
 
