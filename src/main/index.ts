@@ -39,6 +39,13 @@ import { startMcpServer, type McpServerHandle } from './mcp/server';
 import { createMcpStatusEmitter } from './mcp/status';
 import { formatWindowTitle } from './window-title';
 
+// Without fractional-scale-v1, Chromium renders at integer scale on Wayland and
+// KWin resamples the buffer on fractional-scale displays (e.g. 125%), leaving
+// text blurry/rough. Must be set before the app 'ready' event.
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-features', 'WaylandFractionalScaleV1');
+}
+
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
 const connectionManager = createConnectionManager({
