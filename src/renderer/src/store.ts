@@ -10,6 +10,7 @@ import type {
   Result,
   ConnectionState,
   McpStatus,
+  UpdateManyResult,
 } from '../../shared/types';
 
 function pushWindowTitle(db: string | null, collection: string | null): void {
@@ -56,6 +57,7 @@ export interface StoreState {
   setLimit: (newLimit: number) => void;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
   updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
+  updateManyDocs: (update: Record<string, unknown>) => Promise<Result<UpdateManyResult>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
   refreshDocs: () => Promise<void>;
   loadSavedConnections: () => Promise<void>;
@@ -328,6 +330,14 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (!result.ok) return result.error;
     await get().refreshDocs();
     return null;
+  },
+
+  updateManyDocs: async (update: Record<string, unknown>) => {
+    const { selectedDb, selectedCollection, filter } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+    const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update);
+    if (result.ok) await get().refreshDocs();
+    return result;
   },
 
   deleteDoc: async (id: unknown) => {

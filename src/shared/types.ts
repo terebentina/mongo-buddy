@@ -24,6 +24,11 @@ export interface FindResult {
   totalCount: number;
 }
 
+export interface UpdateManyResult {
+  matchedCount: number;
+  modifiedCount: number;
+}
+
 export interface SavedConnection {
   name: string;
   uri: string;

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
 import { formatCell } from './DocumentTable.helpers';
+import { UpdateManyDialog } from './UpdateManyDialog';
 import { buildColumnCopyText, buildValuesCopyText, formatValueForCellCopy } from '../lib/clipboard';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
@@ -497,6 +498,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           ))}
         </select>
         <div className="flex-1" />
+        <UpdateManyDialog />
         <span className="text-sm text-muted-foreground">
           {totalCount.toLocaleString()} {totalCount === 1 ? 'document' : 'documents'}
         </span>

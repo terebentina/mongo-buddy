@@ -23,6 +23,7 @@ import { aggregateCommand } from './commands/aggregate';
 import { explainCommand } from './commands/explain';
 import { insertOneCommand } from './commands/insert-one';
 import { updateOneCommand } from './commands/update-one';
+import { updateManyCommand } from './commands/update-many';
 import { deleteOneCommand } from './commands/delete-one';
 import { dropIndexCommand } from './commands/drop-index';
 import { dropCollectionCommand } from './commands/drop-collection';
@@ -97,6 +98,7 @@ const mongoCommands = [
   explainCommand,
   insertOneCommand,
   updateOneCommand,
+  updateManyCommand,
   deleteOneCommand,
   dropIndexCommand,
   dropCollectionCommand,

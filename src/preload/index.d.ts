@@ -6,6 +6,7 @@ import type {
   DropCollectionsResult,
   FindOpts,
   FindResult,
+  UpdateManyResult,
   SavedConnection,
   QueryHistoryEntry,
   PickedFile,
@@ -69,6 +70,12 @@ interface MongoApi {
     id: unknown,
     doc: Record<string, unknown>
   ): Promise<Result<Record<string, unknown>>>;
+  updateMany(
+    db: string,
+    collection: string,
+    filter: Record<string, unknown>,
+    update: Record<string, unknown>
+  ): Promise<Result<UpdateManyResult>>;
   deleteOne(db: string, collection: string, id: unknown): Promise<Result<undefined>>;
   dropCollection(db: string, collection: string): Promise<Result<undefined>>;
   emptyCollection(db: string, collection: string): Promise<Result<number>>;

@@ -13,6 +13,7 @@ const mockApi = {
   aggregate: vi.fn(),
   insertOne: vi.fn(),
   updateOne: vi.fn(),
+  updateMany: vi.fn(),
   deleteOne: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
@@ -404,6 +405,54 @@ describe('store', () => {
     expect(error).toBeNull();
     expect(mockApi.updateOne).toHaveBeenCalledWith('testdb', 'users', '1', { name: 'Bob' });
     expect(useStore.getState().docs).toEqual([{ _id: '1', name: 'Bob' }]);
+  });
+
+  it('updateManyDocs() uses applied filter, calls updateMany, refreshes docs, returns Result', async () => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      filter: { status: 'active' },
+    });
+    mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 3, modifiedCount: 2 } });
+    mockApi.find.mockResolvedValue({
+      ok: true,
+      data: { docs: [{ _id: '1', status: 'active', archived: true }], totalCount: 3 },
+    });
+
+    const result = await useStore.getState().updateManyDocs({ $set: { archived: true } });
+
+    expect(result).toEqual({ ok: true, data: { matchedCount: 3, modifiedCount: 2 } });
+    expect(mockApi.updateMany).toHaveBeenCalledWith(
+      'testdb',
+      'users',
+      { status: 'active' },
+      { $set: { archived: true } }
+    );
+    expect(mockApi.find).toHaveBeenCalled();
+    expect(useStore.getState().docs).toEqual([{ _id: '1', status: 'active', archived: true }]);
+  });
+
+  it('updateManyDocs() does not refresh when the update fails, returns the error Result', async () => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      filter: {},
+    });
+    mockApi.updateMany.mockResolvedValue({ ok: false, error: 'Modifiers operate on fields' });
+
+    const result = await useStore.getState().updateManyDocs({ archived: true });
+
+    expect(result).toEqual({ ok: false, error: 'Modifiers operate on fields' });
+    expect(mockApi.find).not.toHaveBeenCalled();
+  });
+
+  it('updateManyDocs() returns an error Result and skips the API when no collection selected', async () => {
+    useStore.setState({ selectedDb: null, selectedCollection: null });
+
+    const result = await useStore.getState().updateManyDocs({ $set: { a: 1 } });
+
+    expect(result.ok).toBe(false);
+    expect(mockApi.updateMany).not.toHaveBeenCalled();
   });
 
   it('deleteDoc() calls deleteOne and refreshes docs', async () => {
