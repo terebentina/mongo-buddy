@@ -40,6 +40,10 @@ Note: `deleteOne` (single-document removal) is unaffected — that is a differen
 The verb for MongoDB's read-only diagnostic operation that returns a query plan plus execution stats. Used end-to-end: UI button label ("Explain"), IPC channel `mongo:explain`, MCP tool `explain`, service method `MongoService.explain`, store action `runExplain`. Verbosity is hardcoded to `executionStats` — we don't expose other levels (`queryPlanner`, `allPlansExecution`).
 _Avoid_: analyze, profile. Those terms have specific meanings in MongoDB ("profile" = the database profiler, a separate feature) and would mislead.
 
+**rename**:
+The verb for changing a collection's name in place, within the same database. Backed by the driver's `db.renameCollection(from, to)`. Used end-to-end: UI menu item ("Rename"), the rename dialog, IPC channel `mongo:renameCollection`, MongoCommand `renameCollection`, and the store selection follow-up that re-points `selectedCollection` at the new name. Non-destructive and reversible, so unlike **drop** it has no type-to-confirm gate — only new-name validation. Scope is deliberately narrow: same-database only (no cross-db move) and no database rename (MongoDB has no native database rename; a copy+drop was considered and deferred).
+_Avoid_: move (implies cross-database, which we don't support), change name.
+
 ### Query types
 
 **QueryMode**:

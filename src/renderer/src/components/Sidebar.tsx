@@ -4,13 +4,26 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from './ui/collapsible';
 import { Button } from './ui/button';
 import { Loader } from './Loader';
-import { Unplug, Download, EllipsisVertical, Upload, X, Trash2, Eraser, RefreshCw, KeyRound, Plus } from 'lucide-react';
+import {
+  Unplug,
+  Download,
+  EllipsisVertical,
+  Upload,
+  X,
+  Trash2,
+  Eraser,
+  RefreshCw,
+  KeyRound,
+  Plus,
+  Pencil,
+} from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
 import { ExportDatabaseDialog } from './ExportDatabaseDialog';
 import { DropDatabaseDialog } from './DropDatabaseDialog';
 import { NewDatabaseDialog } from './NewDatabaseDialog';
+import { RenameCollectionDialog } from './RenameCollectionDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
@@ -39,12 +52,15 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
   const [emptyConfirmText, setEmptyConfirmText] = useState('');
   const [indexesOpen, setIndexesOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 
   const exp = useOperation('export-collection');
   const exporting = exp.status === 'running' || exp.status === 'pending';
 
   const selectDb = useStore((s) => s.selectDb);
+  const selectCollection = useStore((s) => s.selectCollection);
   const selectedCollection = useStore((s) => s.selectedCollection);
+  const collections = useStore((s) => s.collections);
   const refreshDocs = useStore((s) => s.refreshDocs);
 
   const progress = exporting && coll.count ? Math.min((exp.progress.processed / coll.count) * 100, 100) : 0;
@@ -89,6 +105,24 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
       if (listResult.ok) {
         useStore.setState({ collections: listResult.data });
       }
+    }
+  };
+
+  const handleRename = async (newName: string): Promise<void> => {
+    const result = await window.api.renameCollection(dbName, coll.name, newName);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(`Renamed "${coll.name}" → "${newName}"`);
+    setRenameDialogOpen(false);
+
+    if (selectedCollection === coll.name) {
+      await selectCollection(dbName, newName);
+    }
+    const listResult = await window.api.listCollections(dbName);
+    if (listResult.ok) {
+      useStore.setState({ collections: listResult.data });
     }
   };
 
@@ -181,6 +215,16 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
                       Indexes
                     </Menu.Item>
                     <Menu.Item
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenameDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Rename
+                    </Menu.Item>
+                    <Menu.Item
                       className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -271,6 +315,13 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
         </DialogContent>
       </Dialog>
       <IndexesDialog open={indexesOpen} onOpenChange={setIndexesOpen} db={dbName} collection={coll.name} />
+      <RenameCollectionDialog
+        open={renameDialogOpen}
+        onOpenChange={setRenameDialogOpen}
+        currentName={coll.name}
+        existingNames={collections.map((c) => c.name)}
+        onRename={handleRename}
+      />
     </>
   );
 }

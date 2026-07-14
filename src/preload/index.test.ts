@@ -129,6 +129,13 @@ describe('preload createApi', () => {
       expect(invoke).toHaveBeenCalledWith('mongo:dropCollection', { db: 'd', collection: 'c' });
     });
 
+    it('renameCollection invokes mongo:renameCollection with {db, from, to}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: undefined });
+      const api = createApi(ipcRenderer);
+      await api.renameCollection('d', 'users', 'members');
+      expect(invoke).toHaveBeenCalledWith('mongo:renameCollection', { db: 'd', from: 'users', to: 'members' });
+    });
+
     it('dropIndex invokes mongo:dropIndex with {db, collection, indexName}', async () => {
       invoke.mockResolvedValue({ ok: true, data: undefined });
       const api = createApi(ipcRenderer);
