@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.9.0](https://github.com/terebentina/mongo-buddy/compare/v2.8.1...v2.9.0) (2026-07-14)
+
+
+### Features
+
+* **collections:** add rename collection option ([c085bcf](https://github.com/terebentina/mongo-buddy/commit/c085bcfaf8e9f90d855a962c9b19da3040781cfb))
+* try to fix jagged text in linux ([24e6bc4](https://github.com/terebentina/mongo-buddy/commit/24e6bc4dca2fb6d0796ac5b5d0461ae07cf61d4f))
+* **update:** bulk update matching documents via updateMany ([#55](https://github.com/terebentina/mongo-buddy/issues/55)) ([ec89fbf](https://github.com/terebentina/mongo-buddy/commit/ec89fbf485459ec963e16e2d26f74eba9ce2c448))
+* **update:** bulk-update safety and clarity for updateMany ([#56](https://github.com/terebentina/mongo-buddy/issues/56)) ([4b65305](https://github.com/terebentina/mongo-buddy/commit/4b65305a8ed21b7f1c65e16813d9c5c42a717070))
+
 ## [2.8.1](https://github.com/terebentina/mongo-buddy/compare/v2.8.0...v2.8.1) (2026-07-09)
 
 
