@@ -22,6 +22,10 @@ export function UpdateManyDialog() {
   const viewRef = useRef<EditorView | null>(null);
   const updateManyDocs = useStore((s) => s.updateManyDocs);
   const selectedCollection = useStore((s) => s.selectedCollection);
+  const queryMode = useStore((s) => s.queryMode);
+  const loading = useStore((s) => s.loading);
+  const totalCount = useStore((s) => s.totalCount);
+  const filter = useStore((s) => s.filter);
 
   const editorRefCallback = useCallback((node: HTMLDivElement | null) => {
     if (node) {
@@ -66,9 +70,16 @@ export function UpdateManyDialog() {
     handleOpenChange(false);
   };
 
+  // Aggregate results have no filter to hand to updateMany, and the store's
+  // filter is stale after an aggregate run.
+  if (queryMode === 'aggregate') return null;
+
+  const isEmptyFilter = Object.keys(filter).length === 0;
+  const docWord = totalCount === 1 ? 'document' : 'documents';
+
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <Button variant="outline" size="sm" disabled={loading || totalCount === 0} onClick={() => setOpen(true)}>
         Update results
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -82,10 +93,22 @@ export function UpdateManyDialog() {
             </DialogTitle>
             <DialogDescription>Enter the update-operator document applied to every matching document</DialogDescription>
           </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            Updates all <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {docWord}{' '}
+            matching the currently applied filter:
+          </div>
+          <pre className="text-xs bg-muted rounded p-2 overflow-auto max-h-24 font-mono">
+            {JSON.stringify(filter, null, 2)}
+          </pre>
+          {isEmptyFilter && (
+            <div className="text-sm text-destructive font-medium">
+              The filter is empty — this will update ALL documents in the collection.
+            </div>
+          )}
           <div ref={editorRefCallback} className="w-full border rounded overflow-hidden h-64" />
           <div className="flex justify-end">
             <Button onClick={handleConfirm} disabled={saving}>
-              Update
+              Update {totalCount.toLocaleString()} {docWord}
             </Button>
           </div>
         </DialogContent>
