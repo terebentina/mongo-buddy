@@ -6,6 +6,7 @@ import { Button } from './ui/button';
 import { Loader } from './Loader';
 import {
   Unplug,
+  Copy,
   Download,
   EllipsisVertical,
   Upload,
@@ -223,6 +224,17 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
                     >
                       <Pencil className="h-3 w-3" />
                       Rename
+                    </Menu.Item>
+                    <Menu.Item
+                      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(coll.name);
+                        toast.success('Copied to clipboard');
+                      }}
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copy name
                     </Menu.Item>
                     <Menu.Item
                       className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden text-destructive hover:bg-destructive/10 data-highlighted:bg-destructive/10"
@@ -637,6 +649,17 @@ function DatabaseRow({
                           >
                             <Upload className="h-3 w-3" />
                             Import
+                          </Menu.Item>
+                          <Menu.Item
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(dbName);
+                              toast.success('Copied to clipboard');
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                            Copy name
                           </Menu.Item>
                           {isGhost ? (
                             <>
