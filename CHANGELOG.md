@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.10.0](https://github.com/terebentina/mongo-buddy/compare/v2.9.0...v2.10.0) (2026-07-16)
+
+
+### Features
+
+* **sidebar:** add Copy name action to databases and collections ([3c5030c](https://github.com/terebentina/mongo-buddy/commit/3c5030c1fdf43b24ef02bd2fa61a6923d9604397))
+
 ## [2.9.0](https://github.com/terebentina/mongo-buddy/compare/v2.8.1...v2.9.0) (2026-07-14)
 
 
