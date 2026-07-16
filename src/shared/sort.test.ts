@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { byNameInsensitive } from './sort';
 
+// .
 describe('byNameInsensitive', () => {
   it('sorts case-insensitively', () => {
     const items = [{ name: 'Z' }, { name: 'a' }, { name: 'B' }];
