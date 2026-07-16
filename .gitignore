@@ -12,3 +12,4 @@ dist
 /.mcp.json
 /prds
 /.serena/
+/tsconfig.web.tsbuildinfo
