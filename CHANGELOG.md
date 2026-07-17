@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.11.2](https://github.com/terebentina/mongo-buddy/compare/v2.11.1...v2.11.2) (2026-07-17)
+
+
+### Bug Fixes
+
+* **copy:** copy the displayed cell value, not the raw EJSON wrapper ([273fc70](https://github.com/terebentina/mongo-buddy/commit/273fc70bc4a29a9b28814e9bfad65c255e95d977))
+
 ## [2.11.1](https://github.com/terebentina/mongo-buddy/compare/v2.11.0...v2.11.1) (2026-07-16)
 
 ## [2.11.0](https://github.com/terebentina/mongo-buddy/compare/v2.9.0...v2.11.0) (2026-07-16)
