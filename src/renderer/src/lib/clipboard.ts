@@ -1,3 +1,5 @@
+import { formatCell } from '../components/DocumentTable.helpers';
+
 export function isEjsonWrapper(value: unknown): boolean {
   if (value === null || typeof value !== 'object') return false;
   if (Array.isArray(value)) return false;
@@ -23,9 +25,12 @@ export function formatValueForCopy(value: unknown): CopyValue {
 
 // Single-cell copy: like formatValueForCopy but strings are returned unquoted.
 // (Column-header and distinct copies keep the quoted/comma-separated form.)
+// Single-cell copy: copy exactly what the cell displays (see formatCell),
+// so EJSON wrappers like { $oid } copy their inner value, not the raw wrapper.
+// Null/undefined copy as "null" (formatCell renders them as an empty cell).
 export function formatValueForCellCopy(value: unknown): string {
-  if (typeof value === 'string') return value;
-  return formatValueForCopy(value).text;
+  if (value === null || value === undefined) return 'null';
+  return formatCell(value);
 }
 
 export function buildValuesCopyText(values: unknown[]): string {

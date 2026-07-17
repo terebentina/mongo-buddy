@@ -137,8 +137,9 @@ describe('formatValueForCellCopy', () => {
     expect(formatValueForCellCopy(undefined)).toBe('null');
   });
 
-  it('copies an EJSON wrapper as raw JSON', () => {
-    expect(formatValueForCellCopy({ $oid: '507f1f77bcf86cd799439011' })).toBe('{"$oid":"507f1f77bcf86cd799439011"}');
+  it('copies an EJSON wrapper as its displayed value', () => {
+    expect(formatValueForCellCopy({ $oid: '507f1f77bcf86cd799439011' })).toBe('507f1f77bcf86cd799439011');
+    expect(formatValueForCellCopy({ $date: '2024-01-01T00:00:00Z' })).toBe('2024-01-01T00:00:00Z');
   });
 
   it('copies a plain object as raw JSON', () => {
