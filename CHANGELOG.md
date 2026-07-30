@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.11.3](https://github.com/terebentina/mongo-buddy/compare/v2.11.2...v2.11.3) (2026-07-30)
+
+
+### Bug Fixes
+
+* **connections:** scroll the saved connections list instead of growing the modal ([e35fab6](https://github.com/terebentina/mongo-buddy/commit/e35fab66ce60ea1419dbf4f93cbef653fe3079c5))
+
 ## [2.11.2](https://github.com/terebentina/mongo-buddy/compare/v2.11.1...v2.11.2) (2026-07-17)
 
 
