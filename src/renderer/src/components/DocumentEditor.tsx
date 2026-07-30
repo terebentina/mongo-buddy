@@ -10,7 +10,7 @@ import JSON5 from 'json5';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { baseExtensions } from '../lib/editor';
 import { extractIdDisplay, extractLabelDisplay } from './DocumentEditor.helpers';
-import { formatValueForCopy } from '../lib/clipboard';
+import { copyText, formatValueForCellCopy } from '../lib/clipboard';
 
 interface DocumentEditorProps {
   editDoc?: Record<string, unknown> | null;
@@ -163,8 +163,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
               <button
                 className="hover:text-foreground"
                 onClick={() => {
-                  navigator.clipboard.writeText(formatValueForCopy(editDoc._id).text);
-                  toast.success('Copied to clipboard');
+                  void copyText(formatValueForCellCopy(editDoc._id));
                 }}
               >
                 <Copy className="h-3 w-3" />

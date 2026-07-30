@@ -84,6 +84,24 @@ A long-running task tracked by `OperationRegistry` (export collection, export da
 The declarative definition of an **Operation** kind. Shape: `{ kind, params: ZodSchema, run(active, params, ctx): Promise<Result<{ data, warning? }>> }`. Lives in `src/main/operations/`. The body of `run` does the work — acquire resources via `ctx` (dialog, fs, mongo, signal, onProgress), return success/failure as `Result`. The **OperationRegistry** owns the state machine (`running` → terminal), the `inFlight` enqueue guard, signal-based cancellation classification, and Zod-validation of params; an **OperationDef** body never emits status. `kind` is the canonical identifier and matches the corresponding `OperationParams` discriminant.
 _Avoid_: handler, runner. "Operation" alone is the runtime task.
 
+### Copying
+
+**EJSON scalar**:
+An EJSON wrapper the UI renders as a plain string rather than as JSON — currently `{ $oid }` and `{ $date }`. Every copy shape unwraps an EJSON scalar to its inner value, so what you copy matches what you saw. Other wrappers (`{ $numberLong }`, `{ $binary }`, `{ $regex }`) are *not* EJSON scalars: they display and copy as JSON.
+_Avoid_: EJSON wrapper — that is the broader notion (any object whose keys all start with `$`) and it still exists separately, because a non-scalar wrapper is a single value for grouping purposes even though it has no plain-string form.
+
+**cell copy**:
+The single-value copy shape: exactly the text the cell displays, unquoted, EJSON scalars unwrapped. Used by every affordance that copies one value — the copy **cell action**, the expand popover, the document editor's `_id` button.
+_Avoid_: raw copy, value copy.
+
+**values copy**:
+The multi-value copy shape: each value JSON-quoted and comma-separated so the result pastes straight into a MongoDB `$in` array. Used by the column-header "Copy values" and the distinct-values popover. Deliberately quoted where **cell copy** is bare — one value goes into prose or a search box, many values go into a query.
+_Avoid_: bulk copy, list copy.
+
+**cell action**:
+One of the affordances revealed on a results-table cell when it is hovered or focused: filter, copy, expand. Filter and copy appear only for cells that display a scalar; filter additionally only in `filter` **QueryMode**. Expand always appears, and is the only way to copy a value the other two skip.
+_Avoid_: cell button, row action.
+
 ### Window
 
 **TitleLocation**:

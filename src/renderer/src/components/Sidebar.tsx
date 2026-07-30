@@ -30,6 +30,7 @@ import { McpStatusPill } from './McpStatusPill';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
 import { Input } from './ui/input';
 import { getConnectionDisplayName } from '../lib/connection-name';
+import { copyText } from '../lib/clipboard';
 import { useOperation, waitForTerminal } from '../hooks/use-operation';
 import type { CollectionInfo, ImportOptions, PickedFile } from '../../../shared/types';
 import { byNameInsensitive } from '../../../shared/sort';
@@ -229,8 +230,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
                       className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigator.clipboard.writeText(coll.name);
-                        toast.success('Copied to clipboard');
+                        void copyText(coll.name);
                       }}
                     >
                       <Copy className="h-3 w-3" />
@@ -654,8 +654,7 @@ function DatabaseRow({
                             className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigator.clipboard.writeText(dbName);
-                              toast.success('Copied to clipboard');
+                              void copyText(dbName);
                             }}
                           >
                             <Copy className="h-3 w-3" />

@@ -1,11 +1,43 @@
 import { describe, it, expect } from 'vitest';
 import {
   isEjsonWrapper,
+  isCopyableCell,
   formatValueForCopy,
   formatValueForCellCopy,
   buildValuesCopyText,
   buildColumnCopyText,
 } from './clipboard';
+
+describe('isCopyableCell', () => {
+  it('is true for non-empty primitives', () => {
+    expect(isCopyableCell('hello')).toBe(true);
+    expect(isCopyableCell(42)).toBe(true);
+    expect(isCopyableCell(0)).toBe(true);
+    expect(isCopyableCell(false)).toBe(true);
+  });
+
+  it('is false when the cell displays nothing', () => {
+    expect(isCopyableCell(null)).toBe(false);
+    expect(isCopyableCell(undefined)).toBe(false);
+    expect(isCopyableCell('')).toBe(false);
+  });
+
+  it('is true for EJSON scalars', () => {
+    expect(isCopyableCell({ $oid: '507f1f77bcf86cd799439011' })).toBe(true);
+    expect(isCopyableCell({ $date: '2024-01-01T00:00:00Z' })).toBe(true);
+  });
+
+  it('is false for EJSON wrappers that display as JSON', () => {
+    expect(isCopyableCell({ $numberLong: '1' })).toBe(false);
+    expect(isCopyableCell({ $regex: 'a', $options: 'i' })).toBe(false);
+  });
+
+  it('is false for objects and arrays', () => {
+    expect(isCopyableCell({ a: 1 })).toBe(false);
+    expect(isCopyableCell({})).toBe(false);
+    expect(isCopyableCell([1, 2])).toBe(false);
+  });
+});
 
 describe('isEjsonWrapper', () => {
   it('is true for $oid wrapper', () => {
@@ -71,21 +103,21 @@ describe('formatValueForCopy', () => {
     expect(formatValueForCopy(undefined)).toEqual({ text: 'null', kind: 'primitive' });
   });
 
-  it('formats $oid wrapper as primitive raw EJSON', () => {
+  it('formats $oid wrapper as its quoted inner value', () => {
     expect(formatValueForCopy({ $oid: '507f1f77bcf86cd799439011' })).toEqual({
-      text: '{"$oid":"507f1f77bcf86cd799439011"}',
+      text: '"507f1f77bcf86cd799439011"',
       kind: 'primitive',
     });
   });
 
-  it('formats $date wrapper as primitive raw EJSON', () => {
+  it('formats $date wrapper as its quoted inner value', () => {
     expect(formatValueForCopy({ $date: '2024-01-01T00:00:00Z' })).toEqual({
-      text: '{"$date":"2024-01-01T00:00:00Z"}',
+      text: '"2024-01-01T00:00:00Z"',
       kind: 'primitive',
     });
   });
 
-  it('formats $numberLong wrapper as primitive raw EJSON', () => {
+  it('formats a non-scalar EJSON wrapper as primitive raw EJSON', () => {
     expect(formatValueForCopy({ $numberLong: '123' })).toEqual({
       text: '{"$numberLong":"123"}',
       kind: 'primitive',
@@ -156,8 +188,14 @@ describe('buildValuesCopyText', () => {
     expect(buildValuesCopyText(['a', 'b', 42])).toBe('"a",\n"b",\n42');
   });
 
-  it('joins all-EJSON-wrapper values with comma + newline', () => {
-    expect(buildValuesCopyText([{ $oid: 'x' }, { $oid: 'y' }])).toBe('{"$oid":"x"},\n{"$oid":"y"}');
+  it('joins all-EJSON-scalar values with comma + newline, unwrapped', () => {
+    expect(buildValuesCopyText([{ $oid: 'x' }, { $oid: 'y' }])).toBe('"x",\n"y"');
+  });
+
+  it('keeps non-scalar EJSON wrappers raw, comma + newline', () => {
+    expect(buildValuesCopyText([{ $numberLong: '1' }, { $numberLong: '2' }])).toBe(
+      '{"$numberLong":"1"},\n{"$numberLong":"2"}'
+    );
   });
 
   it('joins all-object values with newline only', () => {
@@ -198,14 +236,12 @@ describe('buildColumnCopyText', () => {
     expect(buildColumnCopyText([{ a: { k: 1 } }, { a: { k: 2 } }], 'a')).toBe('{"k":1}\n{"k":2}');
   });
 
-  it('formats $oid column as primitive EJSON, comma + newline', () => {
-    expect(buildColumnCopyText([{ a: { $oid: 'abc' } }, { a: { $oid: 'def' } }], 'a')).toBe(
-      '{"$oid":"abc"},\n{"$oid":"def"}'
-    );
+  it('formats $oid column as quoted inner values, comma + newline', () => {
+    expect(buildColumnCopyText([{ a: { $oid: 'abc' } }, { a: { $oid: 'def' } }], 'a')).toBe('"abc",\n"def"');
   });
 
   it('handles mixed types in same column with comma + newline', () => {
     const docs = [{ a: 'str' }, { a: 42 }, { a: null }, { a: { $oid: 'xyz' } }];
-    expect(buildColumnCopyText(docs, 'a')).toBe('"str",\n42,\nnull,\n{"$oid":"xyz"}');
+    expect(buildColumnCopyText(docs, 'a')).toBe('"str",\n42,\nnull,\n"xyz"');
   });
 });

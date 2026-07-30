@@ -6,12 +6,17 @@ import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Popover as BasePopover } from '@base-ui/react/popover';
 import { Loader } from './Loader';
 import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
-import { toast } from 'sonner';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
 import { formatCell } from './DocumentTable.helpers';
 import { UpdateManyDialog } from './UpdateManyDialog';
-import { buildColumnCopyText, buildValuesCopyText, formatValueForCellCopy } from '../lib/clipboard';
+import {
+  buildColumnCopyText,
+  buildValuesCopyText,
+  copyText,
+  formatValueForCellCopy,
+  isCopyableCell,
+} from '../lib/clipboard';
 
 function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -34,8 +39,7 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
           size="sm"
           className="mt-2 w-full"
           onClick={() => {
-            navigator.clipboard.writeText(formatValueForCellCopy(cellValue));
-            toast.success('Copied to clipboard');
+            void copyText(formatValueForCellCopy(cellValue));
             setOpen(false);
           }}
         >
@@ -198,8 +202,8 @@ function DistinctPopover({
                   size="sm"
                   className="mt-2 w-full"
                   onClick={() => {
-                    navigator.clipboard.writeText(buildValuesCopyText(state.data.values));
-                    toast.success(
+                    void copyText(
+                      buildValuesCopyText(state.data.values),
                       `Copied ${state.data.values.length} values${state.data.truncated ? ' (truncated)' : ''}`
                     );
                     onClose();
@@ -373,8 +377,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                         )}
                         <ColumnMenu
                           onCopyValues={() => {
-                            navigator.clipboard.writeText(buildColumnCopyText(docs, col));
-                            toast.success(`Copied ${docs.length} values`);
+                            void copyText(buildColumnCopyText(docs, col), `Copied ${docs.length} values`);
                           }}
                           onShowDistinct={
                             canShowDistinct
@@ -432,9 +435,11 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                   return (
                     <TableCell key={col} className="overflow-visible relative group">
                       <span className="block truncate">{raw}</span>
-                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
+                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
                         {showFilter && (
                           <button
+                            aria-label="Filter by this value"
+                            title="Filter by this value"
                             className="p-0.5 rounded hover:bg-muted"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -442,6 +447,19 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                             }}
                           >
                             <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                        )}
+                        {isCopyableCell(cellValue) && (
+                          <button
+                            aria-label="Copy value"
+                            title="Copy value"
+                            className="p-0.5 rounded hover:bg-muted"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void copyText(formatValueForCellCopy(cellValue));
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                           </button>
                         )}
                         <ExpandPopover raw={raw} cellValue={cellValue} />

@@ -1,4 +1,15 @@
-import { formatCell } from '../components/DocumentTable.helpers';
+import { toast } from 'sonner';
+
+import { formatCell, unwrapEjsonScalar } from '../components/DocumentTable.helpers';
+
+export async function copyText(text: string, message = 'Copied to clipboard'): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(message);
+  } catch {
+    toast.error('Could not copy');
+  }
+}
 
 export function isEjsonWrapper(value: unknown): boolean {
   if (value === null || typeof value !== 'object') return false;
@@ -18,15 +29,26 @@ export function formatValueForCopy(value: unknown): CopyValue {
     return { text: JSON.stringify(value), kind: 'primitive' };
   }
   if (isEjsonWrapper(value)) {
-    return { text: JSON.stringify(value), kind: 'primitive' };
+    // EJSON scalars copy their inner value; other wrappers keep their raw form.
+    const scalar = unwrapEjsonScalar(value as Record<string, unknown>);
+    return { text: JSON.stringify(scalar ?? value), kind: 'primitive' };
   }
   return { text: JSON.stringify(value), kind: 'object' };
 }
 
-// Single-cell copy: like formatValueForCopy but strings are returned unquoted.
-// (Column-header and distinct copies keep the quoted/comma-separated form.)
-// Single-cell copy: copy exactly what the cell displays (see formatCell),
-// so EJSON wrappers like { $oid } copy their inner value, not the raw wrapper.
+// A cell offers the copy cell action only when it displays a scalar: anything
+// non-object with visible text, plus EJSON scalars. Objects, null and empty
+// cells are copyable through the expand popover instead.
+export function isCopyableCell(value: unknown): boolean {
+  if (typeof value === 'object' && value !== null) {
+    return unwrapEjsonScalar(value as Record<string, unknown>) !== null;
+  }
+  return formatCell(value) !== '';
+}
+
+// Cell copy: exactly what the cell displays (see formatCell), unquoted.
+// Column-header and distinct copies use formatValueForCopy instead, which keeps
+// the quoted/comma-separated form so the result pastes into an $in array.
 // Null/undefined copy as "null" (formatCell renders them as an empty cell).
 export function formatValueForCellCopy(value: unknown): string {
   if (value === null || value === undefined) return 'null';
