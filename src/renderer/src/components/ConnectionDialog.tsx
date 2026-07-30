@@ -130,6 +130,7 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
+        className="max-h-[calc(100vh-2rem)] overflow-hidden grid-rows-[auto_minmax(3rem,1fr)_auto]"
         hideClose={!connected}
         onInteractOutside={(e) => {
           if (!connected) e.preventDefault();
@@ -181,29 +182,44 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
           </form>
         ) : (
           <>
-            {savedConnections.length > 0 && (
-              <div className="space-y-2" data-testid="saved-connections">
-                <p className="text-sm font-medium">Saved Connections</p>
-                {savedConnections.map((conn) => (
-                  <div key={conn.name} className="flex items-center gap-2">
-                    <Button variant="outline" className="flex-1 justify-start" onClick={() => handleSavedClick(conn)}>
-                      {conn.name}
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(conn)} aria-label={`Edit ${conn.name}`}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(conn.name)}
-                      aria-label={`Delete ${conn.name}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+            <div className="flex min-h-0 flex-col gap-2 empty:hidden" data-testid="saved-connections">
+              {savedConnections.length > 0 && (
+                <>
+                  <p className="shrink-0 text-sm font-medium">Saved Connections</p>
+                  <div className="min-h-0 overflow-y-auto rounded-md border border-input">
+                    <div className="space-y-2 p-2">
+                      {savedConnections.map((conn) => (
+                        <div key={conn.name} className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1 justify-start"
+                            onClick={() => handleSavedClick(conn)}
+                          >
+                            {conn.name}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(conn)}
+                            aria-label={`Edit ${conn.name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(conn.name)}
+                            aria-label={`Delete ${conn.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <Input placeholder="Connection name (optional)" value={name} onChange={(e) => setName(e.target.value)} />

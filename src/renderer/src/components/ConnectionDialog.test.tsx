@@ -132,6 +132,16 @@ describe('ConnectionDialog', () => {
     });
   });
 
+  it('omits the saved connections heading when there are none', async () => {
+    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
+
+    await waitFor(() => {
+      expect(mockApi.listConnections).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByText('Saved Connections')).not.toBeInTheDocument();
+  });
+
   it('click saved connection fills URI and connects', async () => {
     mockApi.listConnections.mockResolvedValue([{ name: 'Local', uri: 'mongodb://localhost:27017' }]);
     mockApi.connect.mockResolvedValue(sessionOk());
