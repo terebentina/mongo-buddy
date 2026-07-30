@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.12.0](https://github.com/terebentina/mongo-buddy/compare/v2.11.3...v2.12.0) (2026-07-30)
+
+
+### Features
+
+* **copy:** add a copy cell action to the results table ([0746422](https://github.com/terebentina/mongo-buddy/commit/0746422006eaa51038c8aae07d74d3ed753c092b))
+
 ## [2.11.3](https://github.com/terebentina/mongo-buddy/compare/v2.11.2...v2.11.3) (2026-07-30)
 
 
