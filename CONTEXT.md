@@ -44,6 +44,12 @@ _Avoid_: analyze, profile. Those terms have specific meanings in MongoDB ("profi
 The verb for changing a collection's name in place, within the same database. Backed by the driver's `db.renameCollection(from, to)`. Used end-to-end: UI menu item ("Rename"), the rename dialog, IPC channel `mongo:renameCollection`, MongoCommand `renameCollection`, and the store selection follow-up that re-points `selectedCollection` at the new name. Non-destructive and reversible, so unlike **drop** it has no type-to-confirm gate — only new-name validation. Scope is deliberately narrow: same-database only (no cross-db move) and no database rename (MongoDB has no native database rename; a copy+drop was considered and deferred).
 _Avoid_: move (implies cross-database, which we don't support), change name.
 
+### Destructive actions
+
+**type-to-confirm**:
+The gate on a destructive action: the confirm button stays disabled until the user types the exact name of the object being acted on. Applied to **drop** collection, **drop** collections, and empty collection; deliberately not applied to **rename** (reversible) or to dropping an index (cheap to recreate). A second precondition can compose with it — dropping collections also requires at least one collection selected — but the typed name is always required.
+_Avoid_: confirm-by-name, type-to-delete.
+
 ### Query types
 
 **QueryMode**:

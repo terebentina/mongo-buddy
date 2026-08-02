@@ -22,13 +22,12 @@ import { Menu } from '@base-ui/react/menu';
 import { toast } from 'sonner';
 import { ImportDialog } from './ImportDialog';
 import { ExportDatabaseDialog } from './ExportDatabaseDialog';
-import { DropDatabaseDialog } from './DropDatabaseDialog';
+import { DropCollectionsDialog } from './DropCollectionsDialog';
 import { NewDatabaseDialog } from './NewDatabaseDialog';
 import { RenameCollectionDialog } from './RenameCollectionDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './ui/dialog';
-import { Input } from './ui/input';
+import { TypeToConfirmDialog } from './TypeToConfirmDialog';
 import { getConnectionDisplayName } from '../lib/connection-name';
 import { copyText } from '../lib/clipboard';
 import { useOperation, waitForTerminal } from '../hooks/use-operation';
@@ -50,9 +49,7 @@ interface CollectionRowProps {
 
 function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProps) {
   const [dropDialogOpen, setDropDialogOpen] = useState(false);
-  const [confirmText, setConfirmText] = useState('');
   const [emptyDialogOpen, setEmptyDialogOpen] = useState(false);
-  const [emptyConfirmText, setEmptyConfirmText] = useState('');
   const [indexesOpen, setIndexesOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 
@@ -98,7 +95,6 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
     }
     toast.success(`Dropped collection "${coll.name}"`);
     setDropDialogOpen(false);
-    setConfirmText('');
 
     if (selectedCollection === coll.name) {
       await selectDb(dbName);
@@ -136,7 +132,6 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
     }
     toast.success(`Emptied "${coll.name}" — ${result.data.toLocaleString()} documents deleted`);
     setEmptyDialogOpen(false);
-    setEmptyConfirmText('');
 
     const listResult = await window.api.listCollections(dbName);
     if (listResult.ok) {
@@ -263,69 +258,34 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
           )}
         </span>
       </div>
-      <Dialog
+      <TypeToConfirmDialog
         open={dropDialogOpen}
-        onOpenChange={(open) => {
-          setDropDialogOpen(open);
-          if (!open) setConfirmText('');
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Drop collection</DialogTitle>
-            <DialogDescription>
-              This will permanently drop <strong>{coll.name}</strong> and all its documents. Type the collection name to
-              confirm.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder={coll.name}
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDropDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled={confirmText !== coll.name} onClick={handleDrop}>
-              Drop
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <Dialog
+        onOpenChange={setDropDialogOpen}
+        title="Drop collection"
+        description={
+          <>
+            This will permanently drop <strong>{coll.name}</strong> and all its documents.
+          </>
+        }
+        expectedName={coll.name}
+        confirmLabel="Drop"
+        onConfirm={handleDrop}
+      />
+      <TypeToConfirmDialog
         open={emptyDialogOpen}
-        onOpenChange={(open) => {
-          setEmptyDialogOpen(open);
-          if (!open) setEmptyConfirmText('');
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Empty collection</DialogTitle>
-            <DialogDescription>
-              This permanently deletes all documents in <strong>{coll.name}</strong>
-              {coll.count !== undefined ? ` (${coll.count.toLocaleString()} documents)` : ''}. The collection and its
-              indexes are kept. Type the collection name to confirm.
-            </DialogDescription>
-          </DialogHeader>
-          <Input
-            placeholder={coll.name}
-            value={emptyConfirmText}
-            onChange={(e) => setEmptyConfirmText(e.target.value)}
-            autoFocus
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEmptyDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" disabled={emptyConfirmText !== coll.name} onClick={handleEmpty}>
-              Empty
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setEmptyDialogOpen}
+        title="Empty collection"
+        description={
+          <>
+            This permanently deletes all documents in <strong>{coll.name}</strong>
+            {coll.count !== undefined ? ` (${coll.count.toLocaleString()} documents)` : ''}. The collection and its
+            indexes are kept.
+          </>
+        }
+        expectedName={coll.name}
+        confirmLabel="Empty"
+        onConfirm={handleEmpty}
+      />
       <IndexesDialog open={indexesOpen} onOpenChange={setIndexesOpen} db={dbName} collection={coll.name} />
       <RenameCollectionDialog
         open={renameDialogOpen}
@@ -741,7 +701,7 @@ function DatabaseRow({
         />
       )}
       {droppableCollections.length > 0 && (
-        <DropDatabaseDialog
+        <DropCollectionsDialog
           open={dropDialogOpen}
           onOpenChange={(open) => {
             setDropDialogOpen(open);
