@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.13.0](https://github.com/terebentina/mongo-buddy/compare/v2.12.1...v2.13.0) (2026-08-02)
+
+
+### Features
+
+* **table:** drop the expand cell action from scalar cells ([116a861](https://github.com/terebentina/mongo-buddy/commit/116a8618b8dcd1d02e573c9c6722d817bf25cda6))
+
 ## [2.12.1](https://github.com/terebentina/mongo-buddy/compare/v2.12.0...v2.12.1) (2026-08-02)
 
 ## [2.12.0](https://github.com/terebentina/mongo-buddy/compare/v2.11.3...v2.12.0) (2026-07-30)
