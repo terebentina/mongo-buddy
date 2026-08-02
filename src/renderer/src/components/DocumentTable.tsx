@@ -8,7 +8,7 @@ import { Loader } from './Loader';
 import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
-import { formatCell } from './DocumentTable.helpers';
+import { formatCell, isScalarCell } from './DocumentTable.helpers';
 import { UpdateManyDialog } from './UpdateManyDialog';
 import {
   buildColumnCopyText,
@@ -18,7 +18,7 @@ import {
   isCopyableCell,
 } from '../lib/clipboard';
 
-function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) {
+function ExpandPopover({ cellValue }: { cellValue: unknown }) {
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -31,9 +31,7 @@ function ExpandPopover({ raw, cellValue }: { raw: string; cellValue: unknown }) 
       />
 
       <PopoverContent className="w-80 max-h-64 overflow-auto" onClick={(e) => e.stopPropagation()}>
-        <pre className="text-xs whitespace-pre-wrap wrap-break-word">
-          {typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue, null, 2) : raw}
-        </pre>
+        <pre className="text-xs whitespace-pre-wrap wrap-break-word">{JSON.stringify(cellValue, null, 2)}</pre>
         <Button
           variant="outline"
           size="sm"
@@ -431,39 +429,45 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                   const cellValue = doc[col];
                   const raw = formatCell(cellValue);
                   const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
-                  const showFilter = isPrimitive && queryMode === 'filter';
+                  // A missing field has no value to filter by — addFilterValue would add
+                  // a key that JSON.stringify then drops from the filter text.
+                  const showFilter = isPrimitive && cellValue !== undefined && queryMode === 'filter';
+                  const showCopy = isCopyableCell(cellValue);
+                  const showExpand = !isScalarCell(cellValue);
                   return (
                     <TableCell key={col} className="overflow-visible relative group">
                       <span className="block truncate">{raw}</span>
-                      <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
-                        {showFilter && (
-                          <button
-                            aria-label="Filter by this value"
-                            title="Filter by this value"
-                            className="p-0.5 rounded hover:bg-muted"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              addFilterValue(col, cellValue as string | number | boolean | null);
-                            }}
-                          >
-                            <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
-                          </button>
-                        )}
-                        {isCopyableCell(cellValue) && (
-                          <button
-                            aria-label="Copy value"
-                            title="Copy value"
-                            className="p-0.5 rounded hover:bg-muted"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void copyText(formatValueForCellCopy(cellValue));
-                            }}
-                          >
-                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                          </button>
-                        )}
-                        <ExpandPopover raw={raw} cellValue={cellValue} />
-                      </div>
+                      {(showFilter || showCopy || showExpand) && (
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
+                          {showFilter && (
+                            <button
+                              aria-label="Filter by this value"
+                              title="Filter by this value"
+                              className="p-0.5 rounded hover:bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addFilterValue(col, cellValue as string | number | boolean | null);
+                              }}
+                            >
+                              <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                          {showCopy && (
+                            <button
+                              aria-label="Copy value"
+                              title="Copy value"
+                              className="p-0.5 rounded hover:bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void copyText(formatValueForCellCopy(cellValue));
+                              }}
+                            >
+                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                          {showExpand && <ExpandPopover cellValue={cellValue} />}
+                        </div>
+                      )}
                     </TableCell>
                   );
                 })}

@@ -94,6 +94,7 @@ _Avoid_: handler, runner. "Operation" alone is the runtime task.
 
 **EJSON scalar**:
 An EJSON wrapper the UI renders as a plain string rather than as JSON — currently `{ $oid }` and `{ $date }`. Every copy shape unwraps an EJSON scalar to its inner value, so what you copy matches what you saw. Other wrappers (`{ $numberLong }`, `{ $binary }`, `{ $regex }`) are *not* EJSON scalars: they display and copy as JSON.
+A wrapper only qualifies when its payload really is a string: an out-of-range date arrives as `{ $date: { $numberLong } }`, which has no plain-string form and so displays and copies as JSON like any other non-scalar.
 _Avoid_: EJSON wrapper — that is the broader notion (any object whose keys all start with `$`) and it still exists separately, because a non-scalar wrapper is a single value for grouping purposes even though it has no plain-string form.
 
 **cell copy**:
@@ -105,7 +106,13 @@ The multi-value copy shape: each value JSON-quoted and comma-separated so the re
 _Avoid_: bulk copy, list copy.
 
 **cell action**:
-One of the affordances revealed on a results-table cell when it is hovered or focused: filter, copy, expand. Filter and copy appear only for cells that display a scalar; filter additionally only in `filter` **QueryMode**. Expand always appears, and is the only way to copy a value the other two skip.
+One of the affordances revealed on a results-table cell when it is hovered or focused: filter, copy, expand. Each appears only where it does something:
+
+- **copy** — the cell displays a scalar with visible text.
+- **expand** — the cell does *not* display a scalar, i.e. it shows JSON. Expanding a scalar would only restate the cell, and copying it is already a cell action of its own; for the JSON cells that keep it, expand remains the only way to read the whole value and the only way to copy it.
+- **filter** — `filter` **QueryMode**, and the value is one the filter can name: a non-object with a value. Deliberately narrower than copy, so an ObjectId or date cell offers copy but not filter.
+
+A cell where none of the three qualifies — an empty or missing field in `aggregate` mode — reveals nothing at all on hover.
 _Avoid_: cell button, row action.
 
 ### Window

@@ -1,6 +1,6 @@
 import { toast } from 'sonner';
 
-import { formatCell, unwrapEjsonScalar } from '../components/DocumentTable.helpers';
+import { formatCell, isScalarCell, unwrapEjsonScalar } from '../components/DocumentTable.helpers';
 
 export async function copyText(text: string, message = 'Copied to clipboard'): Promise<void> {
   try {
@@ -36,14 +36,11 @@ export function formatValueForCopy(value: unknown): CopyValue {
   return { text: JSON.stringify(value), kind: 'object' };
 }
 
-// A cell offers the copy cell action only when it displays a scalar: anything
-// non-object with visible text, plus EJSON scalars. Objects, null and empty
-// cells are copyable through the expand popover instead.
+// A cell offers the copy cell action only when it displays a scalar with
+// visible text. Non-scalar cells copy through the expand popover instead;
+// empty cells (null, missing, "") have nothing to copy and offer neither.
 export function isCopyableCell(value: unknown): boolean {
-  if (typeof value === 'object' && value !== null) {
-    return unwrapEjsonScalar(value as Record<string, unknown>) !== null;
-  }
-  return formatCell(value) !== '';
+  return isScalarCell(value) && formatCell(value) !== '';
 }
 
 // Cell copy: exactly what the cell displays (see formatCell), unquoted.

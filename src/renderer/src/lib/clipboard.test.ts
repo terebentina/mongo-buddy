@@ -27,6 +27,10 @@ describe('isCopyableCell', () => {
     expect(isCopyableCell({ $date: '2024-01-01T00:00:00Z' })).toBe(true);
   });
 
+  it('is false for an EJSON scalar with no visible text', () => {
+    expect(isCopyableCell({ $oid: '' })).toBe(false);
+  });
+
   it('is false for EJSON wrappers that display as JSON', () => {
     expect(isCopyableCell({ $numberLong: '1' })).toBe(false);
     expect(isCopyableCell({ $regex: 'a', $options: 'i' })).toBe(false);
