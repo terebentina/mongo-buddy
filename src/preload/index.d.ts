@@ -81,6 +81,12 @@ interface MongoApi {
   emptyCollection(db: string, collection: string): Promise<Result<number>>;
   renameCollection(db: string, from: string, to: string): Promise<Result<undefined>>;
   dropCollections(db: string, names: string[]): Promise<Result<DropCollectionsResult>>;
+  createIndex(
+    db: string,
+    collection: string,
+    key: Record<string, string | number>,
+    options: { name?: string; unique: boolean }
+  ): Promise<Result<string>>;
   dropIndex(db: string, collection: string, name: string): Promise<Result<undefined>>;
   listConnections(): Promise<SavedConnection[]>;
   saveConnection(conn: SavedConnection): Promise<void>;

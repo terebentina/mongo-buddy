@@ -143,6 +143,19 @@ describe('preload createApi', () => {
       expect(invoke).toHaveBeenCalledWith('mongo:dropIndex', { db: 'd', collection: 'c', indexName: 'email_1' });
     });
 
+    it('createIndex invokes mongo:createIndex with the index fields and options', async () => {
+      invoke.mockResolvedValue({ ok: true, data: 'email_1' });
+      const api = createApi(ipcRenderer);
+      await api.createIndex('d', 'c', { email: 1 }, { name: 'email_1', unique: true });
+      expect(invoke).toHaveBeenCalledWith('mongo:createIndex', {
+        db: 'd',
+        collection: 'c',
+        key: { email: 1 },
+        indexName: 'email_1',
+        unique: true,
+      });
+    });
+
     it('deleteOne invokes mongo:deleteOne with {db, collection, id}', async () => {
       invoke.mockResolvedValue({ ok: true, data: undefined });
       const api = createApi(ipcRenderer);

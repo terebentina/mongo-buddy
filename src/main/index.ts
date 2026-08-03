@@ -25,6 +25,7 @@ import { insertOneCommand } from './commands/insert-one';
 import { updateOneCommand } from './commands/update-one';
 import { updateManyCommand } from './commands/update-many';
 import { deleteOneCommand } from './commands/delete-one';
+import { createIndexCommand } from './commands/create-index';
 import { dropIndexCommand } from './commands/drop-index';
 import { dropCollectionCommand } from './commands/drop-collection';
 import { renameCollectionCommand } from './commands/rename-collection';
@@ -100,6 +101,7 @@ const mongoCommands = [
   updateOneCommand,
   updateManyCommand,
   deleteOneCommand,
+  createIndexCommand,
   dropIndexCommand,
   dropCollectionCommand,
   renameCollectionCommand,

@@ -98,6 +98,19 @@ export function createApi(ipc: IpcLike) {
       ipc.invoke('mongo:emptyCollection', { db, collection }) as Promise<Result<number>>,
     renameCollection: (db: string, from: string, to: string): Promise<Result<undefined>> =>
       ipc.invoke('mongo:renameCollection', { db, from, to }) as Promise<Result<undefined>>,
+    createIndex: (
+      db: string,
+      collection: string,
+      key: Record<string, string | number>,
+      options: { name?: string; unique: boolean }
+    ): Promise<Result<string>> =>
+      ipc.invoke('mongo:createIndex', {
+        db,
+        collection,
+        key,
+        indexName: options.name,
+        unique: options.unique,
+      }) as Promise<Result<string>>,
     dropIndex: (db: string, collection: string, name: string): Promise<Result<undefined>> =>
       ipc.invoke('mongo:dropIndex', { db, collection, indexName: name }) as Promise<Result<undefined>>,
     dropCollections: (db: string, names: string[]): Promise<Result<DropCollectionsResult>> =>
