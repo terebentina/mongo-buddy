@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.14.0](https://github.com/terebentina/mongo-buddy/compare/v2.13.0...v2.14.0) (2026-08-03)
+
+
+### Features
+
+* **indexes:** create indexes from the indexes modal ([2a7f1c5](https://github.com/terebentina/mongo-buddy/commit/2a7f1c566b4cf305f3fb41f5c0e307c9ecfd4223))
+
 ## [2.13.0](https://github.com/terebentina/mongo-buddy/compare/v2.12.1...v2.13.0) (2026-08-02)
 
 
