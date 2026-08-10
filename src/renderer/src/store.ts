@@ -151,7 +151,15 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   selectDb: async (db: string) => {
-    set({ loading: true, selectedDb: db, selectedCollection: null, docs: [], totalCount: 0, fieldNames: [] });
+    set({
+      loading: true,
+      selectedDb: db,
+      selectedCollection: null,
+      collections: [],
+      docs: [],
+      totalCount: 0,
+      fieldNames: [],
+    });
     const result = await window.api.listCollections(db);
     if (!result.ok) {
       set({ loading: false, error: result.error });

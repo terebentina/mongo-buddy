@@ -83,6 +83,46 @@ describe('Sidebar', () => {
     });
   });
 
+  it('hides the previous collections while the next database loads', async () => {
+    let resolveNextCollections!: (value: { ok: true; data: { name: string; type: string }[] }) => void;
+    const nextCollections = new Promise<{
+      ok: true;
+      data: { name: string; type: string }[];
+    }>((resolve) => {
+      resolveNextCollections = resolve;
+    });
+
+    mockApi.listCollections
+      .mockResolvedValueOnce({
+        ok: true,
+        data: [{ name: 'users', type: 'collection' }],
+      })
+      .mockReturnValueOnce(nextCollections);
+
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [
+        { name: 'first-db', sizeOnDisk: 1024, empty: false },
+        { name: 'second-db', sizeOnDisk: 1024, empty: false },
+      ],
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    await userEvent.click(screen.getByText('first-db'));
+    await screen.findByText('users');
+    await userEvent.click(screen.getByText('second-db'));
+
+    expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    expect(screen.queryByText('users')).not.toBeInTheDocument();
+
+    resolveNextCollections({
+      ok: true,
+      data: [{ name: 'orders', type: 'collection' }],
+    });
+    expect(await screen.findByText('orders')).toBeInTheDocument();
+  });
+
   it('click collection calls store.selectCollection', async () => {
     mockApi.listCollections.mockResolvedValue({
       ok: true,
