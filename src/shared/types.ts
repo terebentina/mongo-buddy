@@ -24,6 +24,10 @@ export interface FindResult {
   totalCount: number;
 }
 
+export type UpdateDocument = Record<string, unknown>;
+export type UpdatePipeline = UpdateDocument[];
+export type UpdateManyInput = UpdateDocument | UpdatePipeline;
+
 export interface UpdateManyResult {
   matchedCount: number;
   modifiedCount: number;

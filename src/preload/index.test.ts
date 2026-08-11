@@ -175,6 +175,21 @@ describe('preload createApi', () => {
       });
     });
 
+    it('updateMany invokes mongo:updateMany with an update pipeline', async () => {
+      invoke.mockResolvedValue({ ok: true, data: { matchedCount: 1, modifiedCount: 1 } });
+      const api = createApi(ipcRenderer);
+      const update = [{ $set: { 'data.name': '$title' } }];
+
+      await api.updateMany('d', 'c', { status: 'active' }, update);
+
+      expect(invoke).toHaveBeenCalledWith('mongo:updateMany', {
+        db: 'd',
+        collection: 'c',
+        filter: { status: 'active' },
+        update,
+      });
+    });
+
     it('insertOne invokes mongo:insertOne with {db, collection, doc}', async () => {
       invoke.mockResolvedValue({ ok: true, data: {} });
       const api = createApi(ipcRenderer);

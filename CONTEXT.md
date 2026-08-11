@@ -71,6 +71,14 @@ Narrowed to operations that do not fit the **MongoCommand** shape. Holds: `expor
 **MCP tool**:
 A read-only operation exposed to external MCP clients (Claude, Cursor, etc.). The MCP allowlist is an explicit array (`MCP_TOOLS`) in the MCP adapter that pairs each exposed **MongoCommand** with its description and any transport-specific quirks (e.g. limit clamping, custom not-connected message).
 
+**update document**:
+The object form of a bulk update. It uses MongoDB update operators with standard update semantics.
+_Avoid_: update-operator document, operator update.
+
+**update pipeline**:
+The array form of a bulk update. It permits supported aggregation stages and expressions that refer to fields in each document.
+_Avoid_: aggregate-like update, aggregation query.
+
 ### Indexes
 
 **IndexInfo**:

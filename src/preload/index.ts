@@ -7,6 +7,7 @@ import type {
   DropCollectionsResult,
   FindOpts,
   FindResult,
+  UpdateManyInput,
   UpdateManyResult,
   SavedConnection,
   QueryHistoryEntry,
@@ -87,7 +88,7 @@ export function createApi(ipc: IpcLike) {
       db: string,
       collection: string,
       filter: Record<string, unknown>,
-      update: Record<string, unknown>
+      update: UpdateManyInput
     ): Promise<Result<UpdateManyResult>> =>
       ipc.invoke('mongo:updateMany', { db, collection, filter, update }) as Promise<Result<UpdateManyResult>>,
     deleteOne: (db: string, collection: string, id: unknown): Promise<Result<undefined>> =>

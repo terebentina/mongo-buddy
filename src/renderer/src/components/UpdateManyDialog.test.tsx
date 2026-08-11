@@ -59,6 +59,16 @@ describe('UpdateManyDialog gating', () => {
 });
 
 describe('UpdateManyDialog context', () => {
+  it('describes both update forms and shows an update pipeline example', async () => {
+    render(<UpdateManyDialog />);
+    await openDialog();
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.textContent).toMatch(/update document or an update pipeline/i);
+    expect(dialog.textContent).toContain('data.name');
+    expect(dialog.textContent).toContain('$title');
+  });
+
   it('shows the applied filter JSON and the match count', async () => {
     useStore.setState({ filter: { status: 'active' }, totalCount: 42 });
     render(<UpdateManyDialog />);

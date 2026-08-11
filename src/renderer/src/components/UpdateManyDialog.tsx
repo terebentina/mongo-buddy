@@ -8,8 +8,10 @@ import { EditorState } from '@codemirror/state';
 import JSON5 from 'json5';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { baseExtensions } from '../lib/editor';
+import type { UpdateManyInput } from '../../../shared/types';
 
 const DEFAULT_UPDATE = '{\n  "$set": {}\n}';
+const PIPELINE_EXAMPLE = '[\n  { "$set": { "data.name": "$title" } }\n]';
 
 const editorTheme = EditorView.theme({
   '&': { height: '100%' },
@@ -47,9 +49,9 @@ export function UpdateManyDialog() {
 
   const handleConfirm = async (): Promise<void> => {
     const editorText = viewRef.current?.state.doc.toString() ?? '';
-    let update: Record<string, unknown>;
+    let update: UpdateManyInput;
     try {
-      update = JSON5.parse(editorText);
+      update = JSON5.parse(editorText) as UpdateManyInput;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Invalid JSON');
       return;
@@ -91,7 +93,9 @@ export function UpdateManyDialog() {
                 <span className="text-muted-foreground font-normal"> in {selectedCollection}</span>
               )}
             </DialogTitle>
-            <DialogDescription>Enter the update-operator document applied to every matching document</DialogDescription>
+            <DialogDescription>
+              Enter an update document or an update pipeline to apply to every matching document
+            </DialogDescription>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
             Updates all <span className="font-medium text-foreground">{totalCount.toLocaleString()}</span> {docWord}{' '}
@@ -105,6 +109,10 @@ export function UpdateManyDialog() {
               The filter is empty — this will update ALL documents in the collection.
             </div>
           )}
+          <div className="text-xs text-muted-foreground">
+            <div>Use an array for an update pipeline:</div>
+            <pre className="mt-1 bg-muted rounded p-2 overflow-auto font-mono">{PIPELINE_EXAMPLE}</pre>
+          </div>
           <div ref={editorRefCallback} className="w-full border rounded overflow-hidden h-64" />
           <div className="flex justify-end">
             <Button onClick={handleConfirm} disabled={saving}>

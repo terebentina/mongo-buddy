@@ -446,6 +446,21 @@ describe('store', () => {
     expect(mockApi.find).not.toHaveBeenCalled();
   });
 
+  it('updateManyDocs() passes an update pipeline unchanged', async () => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      filter: { status: 'active' },
+    });
+    mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 3, modifiedCount: 3 } });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+    const update = [{ $set: { 'data.name': '$title' } }];
+
+    await useStore.getState().updateManyDocs(update);
+
+    expect(mockApi.updateMany).toHaveBeenCalledWith('testdb', 'users', { status: 'active' }, update);
+  });
+
   it('updateManyDocs() returns an error Result and skips the API when no collection selected', async () => {
     useStore.setState({ selectedDb: null, selectedCollection: null });
 

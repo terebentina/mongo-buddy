@@ -33,11 +33,35 @@ describe('updateManyCommand', () => {
     expect(mockClient.db).toHaveBeenCalledWith('d');
   });
 
-  it('schema requires filter and update', () => {
+  it('passes an update pipeline to updateMany unchanged', async () => {
+    const update = [{ $set: { 'data.name': '$title' } }];
+
+    await updateManyCommand.run(active, {
+      db: 'd',
+      collection: 'c',
+      filter: { status: 'active' },
+      update,
+    });
+
+    expect(mockCollection.updateMany).toHaveBeenCalledWith({ status: 'active' }, update);
+  });
+
+  it('schema accepts an update document or update pipeline', () => {
     expect(updateManyCommand.input.safeParse({ db: 'd', collection: 'c', update: { $set: {} } }).success).toBe(false);
     expect(updateManyCommand.input.safeParse({ db: 'd', collection: 'c', filter: {} }).success).toBe(false);
     expect(
       updateManyCommand.input.safeParse({ db: 'd', collection: 'c', filter: {}, update: { $set: { a: 1 } } }).success
     ).toBe(true);
+    expect(
+      updateManyCommand.input.safeParse({
+        db: 'd',
+        collection: 'c',
+        filter: {},
+        update: [{ $set: { 'data.name': '$title' } }],
+      }).success
+    ).toBe(true);
+    expect(updateManyCommand.input.safeParse({ db: 'd', collection: 'c', filter: {}, update: [1] }).success).toBe(
+      false
+    );
   });
 });
