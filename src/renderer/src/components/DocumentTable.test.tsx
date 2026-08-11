@@ -111,6 +111,20 @@ describe('DocumentTable', () => {
     expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
   });
 
+  it('shows Delete results immediately before Update results in the footer', () => {
+    useStore.setState({
+      docs: [{ _id: '1' }],
+      totalCount: 1,
+      queryMode: 'filter',
+    });
+
+    render(<DocumentTable />);
+
+    const deleteResults = screen.getByRole('button', { name: 'Delete results' });
+    const updateResults = screen.getByRole('button', { name: 'Update results' });
+    expect(deleteResults.nextElementSibling).toBe(updateResults);
+  });
+
   it('Next button disabled on last page', () => {
     useStore.setState({
       docs: [{ _id: '1' }],

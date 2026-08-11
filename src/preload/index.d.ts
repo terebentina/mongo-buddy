@@ -77,6 +77,7 @@ interface MongoApi {
     filter: Record<string, unknown>,
     update: UpdateManyInput
   ): Promise<Result<UpdateManyResult>>;
+  deleteMany(db: string, collection: string, filter: Record<string, unknown>): Promise<Result<number>>;
   deleteOne(db: string, collection: string, id: unknown): Promise<Result<undefined>>;
   dropCollection(db: string, collection: string): Promise<Result<undefined>>;
   emptyCollection(db: string, collection: string): Promise<Result<number>>;

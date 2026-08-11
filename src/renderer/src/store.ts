@@ -60,6 +60,7 @@ export interface StoreState {
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
   updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
   updateManyDocs: (update: UpdateManyInput) => Promise<Result<UpdateManyResult>>;
+  deleteResults: () => Promise<Result<number>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
   refreshDocs: () => Promise<void>;
   loadSavedConnections: () => Promise<void>;
@@ -347,6 +348,17 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
     const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update);
     if (result.ok) await get().refreshDocs();
+    return result;
+  },
+
+  deleteResults: async () => {
+    const { selectedDb, selectedCollection, filter } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+    const result = await window.api.deleteMany(selectedDb, selectedCollection, filter);
+    if (result.ok) {
+      set({ skip: 0 });
+      await get().refreshDocs();
+    }
     return result;
   },
 

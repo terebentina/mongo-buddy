@@ -10,6 +10,7 @@ import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
 import { formatCell, isScalarCell } from './DocumentTable.helpers';
 import { UpdateManyDialog } from './UpdateManyDialog';
+import { DeleteResultsDialog } from './DeleteResultsDialog';
 import {
   buildColumnCopyText,
   buildValuesCopyText,
@@ -528,6 +529,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           ))}
         </select>
         <div className="flex-1" />
+        <DeleteResultsDialog />
         <UpdateManyDialog />
         <span className="text-sm text-muted-foreground">
           {totalCount.toLocaleString()} {totalCount === 1 ? 'document' : 'documents'}

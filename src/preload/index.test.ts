@@ -163,6 +163,16 @@ describe('preload createApi', () => {
       expect(invoke).toHaveBeenCalledWith('mongo:deleteOne', { db: 'd', collection: 'c', id: '123' });
     });
 
+    it('deleteMany invokes mongo:deleteMany with the exact filter', async () => {
+      invoke.mockResolvedValue({ ok: true, data: 3 });
+      const api = createApi(ipcRenderer);
+      const filter = { status: 'inactive', attempts: { $gte: 3 } };
+
+      await api.deleteMany('d', 'users', filter);
+
+      expect(invoke).toHaveBeenCalledWith('mongo:deleteMany', { db: 'd', collection: 'users', filter });
+    });
+
     it('updateOne invokes mongo:updateOne with {db, collection, id, doc}', async () => {
       invoke.mockResolvedValue({ ok: true, data: {} });
       const api = createApi(ipcRenderer);

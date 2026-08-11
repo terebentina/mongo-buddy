@@ -14,6 +14,7 @@ const mockApi = {
   insertOne: vi.fn(),
   updateOne: vi.fn(),
   updateMany: vi.fn(),
+  deleteMany: vi.fn(),
   deleteOne: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
@@ -468,6 +469,58 @@ describe('store', () => {
 
     expect(result.ok).toBe(false);
     expect(mockApi.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('uses the applied filter and refreshes page one after the delete results action succeeds', async () => {
+    const filter = { status: 'inactive', attempts: { $gte: 3 } };
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      filter,
+      skip: 20,
+      limit: 20,
+      sort: { name: 1 },
+    });
+    mockApi.deleteMany.mockResolvedValue({ ok: true, data: 7 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: '21' }], totalCount: 1 } });
+
+    const result = await useStore.getState().deleteResults();
+
+    expect(result).toEqual({ ok: true, data: 7 });
+    expect(mockApi.deleteMany).toHaveBeenCalledWith('testdb', 'users', filter);
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+      filter,
+      skip: 0,
+      limit: 20,
+      sort: { name: 1 },
+    });
+    expect(useStore.getState().skip).toBe(0);
+    expect(useStore.getState().docs).toEqual([{ _id: '21' }]);
+  });
+
+  it('does not refresh results when the delete results action fails', async () => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      filter: { status: 'inactive' },
+      skip: 20,
+    });
+    mockApi.deleteMany.mockResolvedValue({ ok: false, error: 'Delete failed' });
+
+    const result = await useStore.getState().deleteResults();
+
+    expect(result).toEqual({ ok: false, error: 'Delete failed' });
+    expect(mockApi.find).not.toHaveBeenCalled();
+    expect(useStore.getState().skip).toBe(20);
+  });
+
+  it('skips the delete results API when no collection is selected', async () => {
+    useStore.setState({ selectedDb: null, selectedCollection: null });
+
+    const result = await useStore.getState().deleteResults();
+
+    expect(result).toEqual({ ok: false, error: 'No collection selected' });
+    expect(mockApi.deleteMany).not.toHaveBeenCalled();
   });
 
   it('deleteDoc() calls deleteOne and refreshes docs', async () => {
