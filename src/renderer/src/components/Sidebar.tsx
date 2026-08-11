@@ -305,6 +305,7 @@ interface DatabaseRowProps {
   collections: { name: string; count?: number }[];
   selectedCollection: string | null;
   loading: boolean;
+  onToggleDb: () => void;
   onSelectDb: () => void;
   onSelectCollection: (dbName: string, collName: string) => void;
   onRemoveGhost: () => void;
@@ -324,6 +325,7 @@ function DatabaseRow({
   collections,
   selectedCollection,
   loading,
+  onToggleDb,
   onSelectDb,
   onSelectCollection,
   onRemoveGhost,
@@ -527,7 +529,7 @@ function DatabaseRow({
             <Button
               variant="ghost"
               className={`group/db w-full justify-between text-sm font-medium ${busy ? 'animate-pulse bg-accent/40' : ''}`}
-              onClick={onSelectDb}
+              onClick={onToggleDb}
             >
               <span className={`truncate ${isGhost ? 'text-muted-foreground' : ''}`}>{dbName}</span>
               <span className="flex items-center gap-1">
@@ -720,8 +722,9 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
   const databases = useStore((s) => s.databases);
   const ghostDatabases = useStore((s) => s.ghostDatabases);
   const collections = useStore((s) => s.collections);
-  const selectedDb = useStore((s) => s.selectedDb);
+  const expandedDb = useStore((s) => s.expandedDb);
   const selectedCollection = useStore((s) => s.selectedCollection);
+  const toggleDb = useStore((s) => s.toggleDb);
   const selectDb = useStore((s) => s.selectDb);
   const selectCollection = useStore((s) => s.selectCollection);
   const addGhostDatabase = useStore((s) => s.addGhostDatabase);
@@ -795,11 +798,12 @@ export function Sidebar({ width, onResize, onChangeConnection }: SidebarProps) {
             <DatabaseRow
               key={db.name}
               dbName={db.name}
-              isOpen={selectedDb === db.name}
+              isOpen={expandedDb === db.name}
               isGhost={db.isGhost}
               collections={collections}
               selectedCollection={selectedCollection}
               loading={loading}
+              onToggleDb={() => toggleDb(db.name)}
               onSelectDb={() => selectDb(db.name)}
               onSelectCollection={selectCollection}
               onRemoveGhost={() => removeGhostDatabase(db.name)}

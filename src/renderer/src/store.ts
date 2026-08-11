@@ -26,6 +26,7 @@ export interface StoreState {
   databases: DbInfo[];
   ghostDatabases: string[];
   collections: CollectionInfo[];
+  expandedDb: string | null;
   selectedDb: string | null;
   selectedCollection: string | null;
   docs: Record<string, unknown>[];
@@ -49,6 +50,7 @@ export interface StoreState {
   disconnect: () => Promise<void>;
   subscribeToConnectionState: () => () => void;
   initMcpStatus: () => () => void;
+  toggleDb: (db: string) => Promise<void>;
   selectDb: (db: string) => Promise<void>;
   selectCollection: (db: string, collection: string) => Promise<void>;
   fetchPage: (skip: number) => Promise<void>;
@@ -87,6 +89,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   databases: [],
   ghostDatabases: [],
   collections: [],
+  expandedDb: null,
   selectedDb: null,
   selectedCollection: null,
   docs: [],
@@ -121,6 +124,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       databases,
       ghostDatabases: [],
       queryHistory,
+      expandedDb: autoSelectedDb,
       selectedDb: autoSelectedDb,
       collections,
     });
@@ -133,6 +137,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       databases: [],
       ghostDatabases: [],
       collections: [],
+      expandedDb: null,
       selectedDb: null,
       selectedCollection: null,
       docs: [],
@@ -153,9 +158,18 @@ export const useStore = create<StoreState>()((set, get) => ({
     return unsubscribe;
   },
 
+  toggleDb: async (db: string) => {
+    if (get().expandedDb === db) {
+      set({ expandedDb: null });
+      return;
+    }
+    await get().selectDb(db);
+  },
+
   selectDb: async (db: string) => {
     set({
       loading: true,
+      expandedDb: db,
       selectedDb: db,
       selectedCollection: null,
       collections: [],
@@ -175,6 +189,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     const { limit } = get();
     set({
       loading: true,
+      expandedDb: db,
       selectedDb: db,
       selectedCollection: collection,
       skip: 0,
@@ -421,7 +436,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   switchCollection: async (db: string, collection: string) => {
-    set({ selectedDb: db, selectedCollection: collection, fieldNames: [] });
+    set({ expandedDb: db, selectedDb: db, selectedCollection: collection, fieldNames: [] });
     const fieldsResult = await window.api.sampleFields(db, collection);
     set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });
   },
@@ -505,6 +520,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     if (selectedDb === name) {
       set({
         ghostDatabases: next,
+        expandedDb: null,
         selectedDb: null,
         selectedCollection: null,
         collections: [],

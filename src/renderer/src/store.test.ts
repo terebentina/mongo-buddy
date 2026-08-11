@@ -54,6 +54,7 @@ beforeEach(() => {
     databases: [],
     ghostDatabases: [],
     collections: [],
+    expandedDb: null,
     selectedDb: null,
     selectedCollection: null,
     docs: [],
@@ -98,6 +99,7 @@ describe('store', () => {
     expect(state.uri).toBe('mongodb://localhost');
     expect(state.databases).toEqual([{ name: 'testdb', sizeOnDisk: 1024, empty: false }]);
     expect(state.queryHistory).toEqual(historyEntries);
+    expect(state.expandedDb).toBe('testdb');
     expect(state.selectedDb).toBe('testdb');
     expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
     expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost');
@@ -148,9 +150,30 @@ describe('store', () => {
     await useStore.getState().selectDb('testdb');
 
     const state = useStore.getState();
+    expect(state.expandedDb).toBe('testdb');
     expect(state.selectedDb).toBe('testdb');
     expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
     expect(mockApi.listCollections).toHaveBeenCalledWith('testdb');
+  });
+
+  it('toggleDb(db) collapses an expanded database without clearing its selection', async () => {
+    useStore.setState({
+      expandedDb: 'testdb',
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      collections: [{ name: 'users', type: 'collection' }],
+      docs: [{ _id: '1' }],
+    });
+
+    await useStore.getState().toggleDb('testdb');
+
+    const state = useStore.getState();
+    expect(state.expandedDb).toBeNull();
+    expect(state.selectedDb).toBe('testdb');
+    expect(state.selectedCollection).toBe('users');
+    expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
+    expect(state.docs).toEqual([{ _id: '1' }]);
+    expect(mockApi.listCollections).not.toHaveBeenCalled();
   });
 
   it('selectCollection(db, coll) loads docs', async () => {

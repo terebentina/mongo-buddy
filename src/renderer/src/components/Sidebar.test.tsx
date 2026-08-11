@@ -28,6 +28,7 @@ beforeEach(() => {
     uri: '',
     databases: [],
     collections: [],
+    expandedDb: null,
     selectedDb: null,
     selectedCollection: null,
     docs: [],
@@ -81,6 +82,30 @@ describe('Sidebar', () => {
       expect(screen.getByText('users')).toBeInTheDocument();
       expect(screen.getByText('posts')).toBeInTheDocument();
     });
+  });
+
+  it('click expanded DB collapses its collections and another click expands them', async () => {
+    mockApi.listCollections.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'users', type: 'collection' }],
+    });
+
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    await userEvent.click(screen.getByText('testdb'));
+    expect(await screen.findByText('users')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('testdb'));
+    expect(screen.queryByText('users')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('testdb'));
+    expect(await screen.findByText('users')).toBeInTheDocument();
+    expect(mockApi.listCollections).toHaveBeenCalledTimes(2);
   });
 
   it('hides the previous collections while the next database loads', async () => {
@@ -160,6 +185,7 @@ describe('Sidebar', () => {
     useStore.setState({
       status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
       databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+      expandedDb: 'testdb',
       selectedDb: 'testdb',
       selectedCollection: 'users',
       collections: [
