@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.15.0](https://github.com/terebentina/mongo-buddy/compare/v2.14.2...v2.15.0) (2026-08-11)
+
+
+### Features
+
+* **update:** accept update pipelines for bulk updates ([a613fec](https://github.com/terebentina/mongo-buddy/commit/a613fec16d79b1a0eb0f56a3fdd50fb6608f7f34))
+
 ## [2.14.2](https://github.com/terebentina/mongo-buddy/compare/v2.14.1...v2.14.2) (2026-08-10)
 
 
