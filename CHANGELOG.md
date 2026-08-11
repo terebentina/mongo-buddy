@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.17.0](https://github.com/terebentina/mongo-buddy/compare/v2.16.0...v2.17.0) (2026-08-11)
+
+
+### Features
+
+* **sidebar:** toggle database expansion ([5585a90](https://github.com/terebentina/mongo-buddy/commit/5585a901161fe4b2e55fe3d8fb5abc0731e7d583))
+
 ## [2.16.0](https://github.com/terebentina/mongo-buddy/compare/v2.15.0...v2.16.0) (2026-08-11)
 
 
