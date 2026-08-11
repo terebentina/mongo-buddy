@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.16.0](https://github.com/terebentina/mongo-buddy/compare/v2.15.0...v2.16.0) (2026-08-11)
+
+
+### Features
+
+* add delete results action ([#59](https://github.com/terebentina/mongo-buddy/issues/59)) ([175215d](https://github.com/terebentina/mongo-buddy/commit/175215d8cd8d06f7b6b71e203f916616f1bf8128))
+* **filter:** support exclusions in filter value actions ([#58](https://github.com/terebentina/mongo-buddy/issues/58)) ([f4772ad](https://github.com/terebentina/mongo-buddy/commit/f4772ad6b3ede35474aa8a3f78f7e6c2b152e4f0))
+
 ## [2.15.0](https://github.com/terebentina/mongo-buddy/compare/v2.14.2...v2.15.0) (2026-08-11)
 
 
