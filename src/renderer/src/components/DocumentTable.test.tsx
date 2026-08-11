@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DocumentTable } from './DocumentTable';
 import { useStore } from '../store';
@@ -11,7 +11,10 @@ const mockApi = {
   listCollections: vi.fn(),
   find: vi.fn(),
   count: vi.fn(),
+  distinct: vi.fn(),
 };
+
+const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -159,5 +162,57 @@ describe('DocumentTable', () => {
       skip: 20,
       limit: 20,
     });
+  });
+
+  it('applies both results-table cell actions and explains Shift+click', () => {
+    const applyFilterValue = vi.fn();
+    useStore.setState({
+      docs: [{ _id: '1', status: 'active' }],
+      totalCount: 1,
+      queryMode: 'filter',
+      applyFilterValue,
+    });
+
+    render(<DocumentTable />);
+
+    const actions = screen.getAllByRole('button', { name: FILTER_VALUE_ACTION_LABEL });
+    const statusAction = actions.at(-1)!;
+    expect(statusAction).toHaveAttribute('title', FILTER_VALUE_ACTION_LABEL);
+
+    fireEvent.click(statusAction);
+    fireEvent.click(statusAction, { shiftKey: true });
+
+    expect(applyFilterValue).toHaveBeenNthCalledWith(1, 'status', 'active', 'include');
+    expect(applyFilterValue).toHaveBeenNthCalledWith(2, 'status', 'active', 'exclude');
+  });
+
+  it.each([
+    ['normal click', false, 'include' as const],
+    ['Shift+click', true, 'exclude' as const],
+  ])('applies a distinct value after a %s', async (_name, shiftKey, action) => {
+    const applyFilterValue = vi.fn();
+    mockApi.distinct.mockResolvedValue({
+      ok: true,
+      data: { values: ['active'], truncated: false },
+    });
+    useStore.setState({
+      docs: [{ _id: '1', status: 'active' }],
+      totalCount: 1,
+      queryMode: 'filter',
+      applyFilterValue,
+    });
+
+    render(<DocumentTable />);
+
+    const statusHeader = screen.getByText('status').closest('th')!;
+    await userEvent.click(within(statusHeader).getByRole('button'));
+    await userEvent.click(await screen.findByText('Show Distinct'));
+    const actions = await screen.findAllByRole('button', { name: FILTER_VALUE_ACTION_LABEL });
+    const distinctAction = actions.at(-1)!;
+    expect(distinctAction).toHaveAttribute('title', FILTER_VALUE_ACTION_LABEL);
+
+    fireEvent.click(distinctAction, { shiftKey });
+
+    expect(applyFilterValue).toHaveBeenCalledWith('status', 'active', action);
   });
 });

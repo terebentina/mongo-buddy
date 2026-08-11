@@ -18,6 +18,8 @@ import {
   isCopyableCell,
 } from '../lib/clipboard';
 
+const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
+
 function ExpandPopover({ cellValue }: { cellValue: unknown }) {
   const [open, setOpen] = useState(false);
   return (
@@ -125,7 +127,7 @@ function DistinctPopover({
   onClose: () => void;
 }) {
   const fetchDistinct = useStore((s) => s.fetchDistinct);
-  const addFilterValue = useStore((s) => s.addFilterValue);
+  const applyFilterValue = useStore((s) => s.applyFilterValue);
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'error'; message: string } | { status: 'done'; data: DistinctResult }
   >({ status: 'loading' });
@@ -176,9 +178,11 @@ function DistinctPopover({
                         </span>
                         {isPrimitive && (
                           <button
+                            aria-label={FILTER_VALUE_ACTION_LABEL}
+                            title={FILTER_VALUE_ACTION_LABEL}
                             className="p-0.5 rounded hover:bg-accent shrink-0"
-                            onClick={() => {
-                              addFilterValue(column, value);
+                            onClick={(event) => {
+                              applyFilterValue(column, value, event.shiftKey ? 'exclude' : 'include');
                               onClose();
                             }}
                           >
@@ -249,7 +253,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const setSort = useStore((s) => s.setSort);
   const queryMode = useStore((s) => s.queryMode);
   const setLimit = useStore((s) => s.setLimit);
-  const addFilterValue = useStore((s) => s.addFilterValue);
+  const applyFilterValue = useStore((s) => s.applyFilterValue);
   const storeFilter = useStore((s) => s.filter);
   const hasFilter = Object.keys(storeFilter).length > 0;
 
@@ -429,8 +433,8 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                   const cellValue = doc[col];
                   const raw = formatCell(cellValue);
                   const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
-                  // A missing field has no value to filter by — addFilterValue would add
-                  // a key that JSON.stringify then drops from the filter text.
+                  // A missing field has no value for the filter value action.
+                  // JSON.stringify removes a property that has an undefined value.
                   const showFilter = isPrimitive && cellValue !== undefined && queryMode === 'filter';
                   const showCopy = isCopyableCell(cellValue);
                   const showExpand = !isScalarCell(cellValue);
@@ -441,12 +445,16 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                         <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
                           {showFilter && (
                             <button
-                              aria-label="Filter by this value"
-                              title="Filter by this value"
+                              aria-label={FILTER_VALUE_ACTION_LABEL}
+                              title={FILTER_VALUE_ACTION_LABEL}
                               className="p-0.5 rounded hover:bg-muted"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                addFilterValue(col, cellValue as string | number | boolean | null);
+                                applyFilterValue(
+                                  col,
+                                  cellValue as string | number | boolean | null,
+                                  e.shiftKey ? 'exclude' : 'include'
+                                );
                               }}
                             >
                               <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />

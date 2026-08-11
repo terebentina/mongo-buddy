@@ -823,14 +823,52 @@ describe('restoreFromHistory', () => {
     expect(useStore.getState().filter).toEqual({});
   });
 
-  it('addFilterValue after restoring empty history produces correct filter', async () => {
+  it('the filter value action uses a restored empty filter', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { status: 'active' } });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
 
     await useStore.getState().restoreFromHistory(makeEntry({ query: '{}' }));
-    useStore.getState().addFilterValue('name', 'Bob');
+    useStore.getState().applyFilterValue('name', 'Bob', 'include');
 
     expect(useStore.getState().filter).toEqual({ name: 'Bob' });
+  });
+});
+
+describe('filter value action', () => {
+  it.each([
+    ['include' as const, 'active'],
+    ['exclude' as const, { $ne: 'active' }],
+  ])('applies the %s action and runs the new query', (action, condition) => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      filter: {},
+      skip: 40,
+      queryHistory: [],
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+
+    useStore.getState().applyFilterValue('status', 'active', action);
+
+    const filter = { status: condition };
+    const query = JSON.stringify(filter, null, 2);
+    const state = useStore.getState();
+    expect(state.filter).toEqual(filter);
+    expect(state.skip).toBe(0);
+    expect(state.pendingFilterText).toBe(query);
+    expect(state.pendingQueryMode).toBe('filter');
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+      filter,
+      skip: 0,
+      limit: 20,
+      sort: undefined,
+    });
+    expect(state.queryHistory[0]).toMatchObject({
+      queryMode: 'filter',
+      query,
+      db: 'testdb',
+      collection: 'users',
+    });
   });
 });
 

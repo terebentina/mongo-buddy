@@ -13,6 +13,7 @@ import type {
   UpdateManyInput,
   UpdateManyResult,
 } from '../../shared/types';
+import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 
 function pushWindowTitle(db: string | null, collection: string | null): void {
   const location = db && collection ? `${db}.${collection}` : null;
@@ -68,7 +69,7 @@ export interface StoreState {
   switchCollection: (db: string, collection: string) => Promise<void>;
   restoreFromHistory: (entry: QueryHistoryEntry) => Promise<void>;
   navigateHistory: (direction: -1 | 1) => Promise<void>;
-  addFilterValue: (column: string, value: unknown) => void;
+  applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => void;
   clearPendingFilterText: () => void;
   autoReconnect: () => Promise<void>;
   fetchDistinct: (field: string, filter?: Record<string, unknown>) => Promise<Result<DistinctResult> | null>;
@@ -438,47 +439,25 @@ export const useStore = create<StoreState>()((set, get) => ({
     await get().restoreFromHistory(queryHistory[target]);
   },
 
-  addFilterValue: (column: string, value: unknown) => {
+  applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => {
     const { filter } = get();
-    const newFilter = { ...filter };
-    const existing = newFilter[column];
-
-    if (existing === undefined) {
-      // No filter for this column yet — exact match
-      newFilter[column] = value;
-    } else if (typeof existing === 'object' && existing !== null && !Array.isArray(existing)) {
-      const keys = Object.keys(existing as Record<string, unknown>);
-      if (keys.length === 1 && keys[0] === '$in') {
-        // Existing $in — append and deduplicate
-        const arr = (existing as Record<string, unknown>)['$in'] as unknown[];
-        if (!arr.includes(value)) {
-          newFilter[column] = { $in: [...arr, value] };
-        }
-      } else if (keys.every((k) => k.startsWith('$'))) {
-        // Other $-operators like $gt — replace entirely
-        newFilter[column] = value;
-      } else {
-        // Plain object value (not an operator) — replace
-        newFilter[column] = value;
-      }
-    } else {
-      // Existing plain value — merge into $in
-      if (existing !== value) {
-        newFilter[column] = { $in: [existing, value] };
-      }
-    }
+    const newFilter = {
+      ...filter,
+      [column]: combineFilterValue(filter[column], value, action),
+    };
+    const query = JSON.stringify(newFilter, null, 2);
 
     set({
       filter: newFilter,
       skip: 0,
-      pendingFilterText: JSON.stringify(newFilter, null, 2),
+      pendingFilterText: query,
       pendingQueryMode: 'filter',
     });
     get().fetchPage(0);
     get().addToHistory({
       id: crypto.randomUUID(),
       queryMode: 'filter',
-      query: JSON.stringify(newFilter, null, 2),
+      query,
       db: get().selectedDb!,
       collection: get().selectedCollection!,
       timestamp: Date.now(),

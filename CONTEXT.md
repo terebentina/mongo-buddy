@@ -47,7 +47,7 @@ _Avoid_: move (implies cross-database, which we don't support), change name.
 ### Destructive actions
 
 **type-to-confirm**:
-The gate on a destructive action: the confirm button stays disabled until the user types the exact name of the object being acted on. Applied to **drop** collection, **drop** collections, and empty collection; deliberately not applied to **rename** (reversible) or to dropping an index (cheap to recreate). A second precondition can compose with it — dropping collections also requires at least one collection selected — but the typed name is always required.
+The gate on a destructive action that requires the exact object name. It applies to collection drops, empty collection, and **delete results** with an empty filter.
 _Avoid_: confirm-by-name, type-to-delete.
 
 ### Query types
@@ -55,6 +55,10 @@ _Avoid_: confirm-by-name, type-to-delete.
 **QueryMode**:
 The discriminator between the two query shapes the user can run against a collection: `'filter'` (a find filter document) or `'aggregate'` (an aggregation pipeline). Defined in `shared/types.ts` as `type QueryMode = 'filter' | 'aggregate'`. Used as the field name `queryMode` everywhere it appears: store state, `QueryHistoryEntry.queryMode`, `MongoService.explain` parameter, MCP tool input, IPC handler, preload API.
 _Avoid_: `mode`, `type` (as a field name on a query/history entry), `kind`. The single canonical name keeps the discriminator the same word at every layer.
+
+**filter value action**:
+An action that includes a value after a normal click or excludes it after Shift+click. The action is available on a results-table cell and a distinct value, and it keeps all filter conditions, including conflicting conditions.
+_Avoid_: filter button, cell filter.
 
 ### MongoDB operations
 
@@ -78,6 +82,10 @@ _Avoid_: update-operator document, operator update.
 **update pipeline**:
 The array form of a bulk update. It permits supported aggregation stages and expressions that refer to fields in each document.
 _Avoid_: aggregate-like update, aggregation query.
+
+**delete results**:
+The action that deletes all documents which match the applied filter, not only the visible page.
+_Avoid_: bulk delete, delete page.
 
 ### Indexes
 
@@ -118,7 +126,7 @@ One of the affordances revealed on a results-table cell when it is hovered or fo
 
 - **copy** — the cell displays a scalar with visible text.
 - **expand** — the cell does *not* display a scalar, i.e. it shows JSON. Expanding a scalar would only restate the cell, and copying it is already a cell action of its own; for the JSON cells that keep it, expand remains the only way to read the whole value and the only way to copy it.
-- **filter** — `filter` **QueryMode**, and the value is one the filter can name: a non-object with a value. Deliberately narrower than copy, so an ObjectId or date cell offers copy but not filter.
+- **filter** — `filter` **QueryMode**, and the value is one the filter can name: a non-object with a value. It runs the **filter value action**.
 
 A cell where none of the three qualifies — an empty or missing field in `aggregate` mode — reveals nothing at all on hover.
 _Avoid_: cell button, row action.
