@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.17.1](https://github.com/terebentina/mongo-buddy/compare/v2.17.0...v2.17.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* **results:** group pagination controls ([3576a0b](https://github.com/terebentina/mongo-buddy/commit/3576a0ba79552d0c7dfc376ae887b55fdcef543c))
+
 ## [2.17.0](https://github.com/terebentina/mongo-buddy/compare/v2.16.0...v2.17.0) (2026-08-11)
 
 
