@@ -92,7 +92,7 @@ describe('DocumentTable', () => {
     expect(screen.getByText('{"city":"NYC","zip":"10001"}')).toBeInTheDocument();
   });
 
-  it('shows pagination controls (Next/Prev/page info)', () => {
+  it('groups the pagination controls on the left', () => {
     useStore.setState({
       docs: Array.from({ length: 20 }, (_, i) => ({ _id: String(i) })),
       totalCount: 50,
@@ -102,16 +102,17 @@ describe('DocumentTable', () => {
 
     render(<DocumentTable />);
 
-    const pageInput = screen.getByRole('spinbutton');
+    const pagination = screen.getByRole('navigation', { name: 'Pagination' });
+    const pageInput = within(pagination).getByRole('spinbutton');
     expect(pageInput).toHaveValue(1);
     expect(
-      screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent?.includes('of 3') === true)
+      within(pagination).getByText((_, el) => el?.tagName === 'SPAN' && el.textContent?.includes('of 3') === true)
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /previous/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /next/i })).toBeInTheDocument();
+    expect(within(pagination).getByRole('button', { name: /previous/i })).toBeInTheDocument();
+    expect(within(pagination).getByRole('button', { name: /next/i })).toBeInTheDocument();
   });
 
-  it('shows Delete results immediately before Update results in the footer', () => {
+  it('groups the result actions and total count on the right', () => {
     useStore.setState({
       docs: [{ _id: '1' }],
       totalCount: 1,
@@ -120,9 +121,11 @@ describe('DocumentTable', () => {
 
     render(<DocumentTable />);
 
-    const deleteResults = screen.getByRole('button', { name: 'Delete results' });
-    const updateResults = screen.getByRole('button', { name: 'Update results' });
+    const resultActions = screen.getByRole('group', { name: 'Result actions' });
+    const deleteResults = within(resultActions).getByRole('button', { name: 'Delete results' });
+    const updateResults = within(resultActions).getByRole('button', { name: 'Update results' });
     expect(deleteResults.nextElementSibling).toBe(updateResults);
+    expect(within(resultActions).getByText('1 document')).toBeInTheDocument();
   });
 
   it('Next button disabled on last page', () => {

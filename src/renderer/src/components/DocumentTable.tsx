@@ -493,55 +493,63 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           />
         )}
       </div>
-      <div className="flex items-center gap-4 px-4 py-2 border-t">
-        <Button variant="outline" size="sm" disabled={skip === 0} onClick={() => fetchPage(Math.max(0, skip - limit))}>
-          Previous
-        </Button>
-        <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          Page
-          <input
-            type="number"
-            className="w-14 h-7 px-1.5 text-center text-sm border rounded bg-background"
-            value={pageInput}
-            min={1}
-            max={totalPages}
-            onChange={(e) => setPageInput(e.target.value)}
-            onBlur={() => {
-              const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1));
-              setPageInput(String(page));
-              fetchPage((page - 1) * limit);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-            }}
-          />
-          of {totalPages}
-        </span>
-        <select
-          className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value))}
-        >
-          {[10, 20, 50, 100].map((n) => (
-            <option key={n} value={n}>
-              {n} / page
-            </option>
-          ))}
-        </select>
-        <div className="flex-1" />
-        <DeleteResultsDialog />
-        <UpdateManyDialog />
-        <span className="text-sm text-muted-foreground">
-          {totalCount.toLocaleString()} {totalCount === 1 ? 'document' : 'documents'}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={skip + limit >= totalCount}
-          onClick={() => fetchPage(skip + limit)}
-        >
-          Next
-        </Button>
+      <div className="flex items-center justify-between gap-4 px-4 py-2 border-t">
+        <nav aria-label="Pagination" className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={skip === 0}
+            onClick={() => fetchPage(Math.max(0, skip - limit))}
+          >
+            Previous
+          </Button>
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            Page
+            <input
+              type="number"
+              className="w-14 h-7 px-1.5 text-center text-sm border rounded bg-background"
+              value={pageInput}
+              min={1}
+              max={totalPages}
+              onChange={(e) => setPageInput(e.target.value)}
+              onBlur={() => {
+                const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1));
+                setPageInput(String(page));
+                fetchPage((page - 1) * limit);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+            />
+            of {totalPages}
+          </span>
+          <select
+            className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+          >
+            {[10, 20, 50, 100].map((n) => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={skip + limit >= totalCount}
+            onClick={() => fetchPage(skip + limit)}
+          >
+            Next
+          </Button>
+        </nav>
+        <div role="group" aria-label="Result actions" className="flex items-center gap-4">
+          <DeleteResultsDialog />
+          <UpdateManyDialog />
+          <span className="text-sm text-muted-foreground">
+            {totalCount.toLocaleString()} {totalCount === 1 ? 'document' : 'documents'}
+          </span>
+        </div>
       </div>
     </div>
   );
