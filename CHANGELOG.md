@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.17.3](https://github.com/terebentina/mongo-buddy/compare/v2.17.2...v2.17.3) (2026-08-13)
+
+
+### Bug Fixes
+
+* **dialog:** space the confirm instruction ([8287a83](https://github.com/terebentina/mongo-buddy/commit/8287a83db2319ec0c161af2a0683fa1770388663))
+
 ## [2.17.2](https://github.com/terebentina/mongo-buddy/compare/v2.17.1...v2.17.2) (2026-08-12)
 
 ## [2.17.1](https://github.com/terebentina/mongo-buddy/compare/v2.17.0...v2.17.1) (2026-08-12)
