@@ -56,6 +56,10 @@ _Avoid_: confirm-by-name, type-to-delete.
 The discriminator between the two query shapes the user can run against a collection: `'filter'` (a find filter document) or `'aggregate'` (an aggregation pipeline). Defined in `shared/types.ts` as `type QueryMode = 'filter' | 'aggregate'`. Used as the field name `queryMode` everywhere it appears: store state, `QueryHistoryEntry.queryMode`, `MongoService.explain` parameter, MCP tool input, IPC handler, preload API.
 _Avoid_: `mode`, `type` (as a field name on a query/history entry), `kind`. The single canonical name keeps the discriminator the same word at every layer.
 
+**projection**:
+A temporary selection of fields that a filter query returns. It stays with the selected collection and is not part of query history.
+_Avoid_: field filter, column filter, view.
+
 **filter value action**:
 An action that includes a value after a normal click or excludes it after Shift+click. The action is available on a results-table cell and a distinct value, and it keeps all filter conditions, including conflicting conditions.
 _Avoid_: filter button, cell filter.
