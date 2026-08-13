@@ -62,9 +62,11 @@ export function TypeToConfirmDialog({
         {children}
 
         <div className="space-y-1">
-          <label htmlFor={inputId} className="text-sm text-muted-foreground">
-            Type <span className="font-medium text-foreground">{expectedName}</span> to confirm
-          </label>
+          <p className="text-sm text-muted-foreground">
+            <label htmlFor={inputId}>
+              Type <span className="font-medium text-foreground">{expectedName}</span> to confirm
+            </label>
+          </p>
           <Input
             id={inputId}
             placeholder={expectedName}

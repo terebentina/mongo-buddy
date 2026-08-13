@@ -123,4 +123,12 @@ describe('TypeToConfirmDialog content', () => {
     expect(dialog.textContent).toContain('This cannot be undone.');
     expect(dialog.textContent).toContain('pick something first');
   });
+
+  it('renders the confirm instruction as a paragraph', () => {
+    renderDialog();
+
+    const instruction = screen.getByLabelText(/type users to confirm/i).previousElementSibling;
+    expect(instruction?.tagName).toBe('P');
+    expect(instruction).toHaveTextContent('Type users to confirm');
+  });
 });
