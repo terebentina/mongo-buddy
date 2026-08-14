@@ -25,3 +25,8 @@ export function formatCell(value: unknown): string {
   }
   return String(value);
 }
+
+export function canEditProjectedDocument(projection: Record<string, unknown> | null): boolean {
+  if (!projection || !Object.prototype.hasOwnProperty.call(projection, '_id')) return true;
+  return projection._id === 1;
+}

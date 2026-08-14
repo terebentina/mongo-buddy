@@ -64,7 +64,7 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
   },
   {
     command: findCommand,
-    description: `Find documents in a collection. Returns { docs, totalCount } where totalCount ignores skip/limit — use it to paginate via skip. Default limit is ${DEFAULT_FIND_LIMIT}, max is ${MAX_FIND_LIMIT} (values above are clamped). ${EJSON_HINT}`,
+    description: `Find documents in a collection. Use projection for the full MongoDB find projection syntax. Returns { docs, totalCount } where totalCount uses only the filter — use it to paginate via skip. Default limit is ${DEFAULT_FIND_LIMIT}, max is ${MAX_FIND_LIMIT} (values above are clamped). ${EJSON_HINT}`,
     transformInput: (input) => {
       const i = input as Record<string, unknown>;
       return { ...i, limit: clampLimit(i.limit as number | undefined) };
