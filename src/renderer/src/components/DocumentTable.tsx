@@ -5,10 +5,19 @@ import { Button } from './ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Popover as BasePopover } from '@base-ui/react/popover';
 import { Loader } from './Loader';
-import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
+import {
+  Maximize2,
+  Copy,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  ListFilter,
+  EllipsisVertical,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
-import { formatCell, isScalarCell } from './DocumentTable.helpers';
+import { canEditProjectedDocument, formatCell, isScalarCell } from './DocumentTable.helpers';
 import { UpdateManyDialog } from './UpdateManyDialog';
 import { DeleteResultsDialog } from './DeleteResultsDialog';
 import {
@@ -20,6 +29,98 @@ import {
 } from '../lib/clipboard';
 
 const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
+
+function ProjectionPopover() {
+  const projection = useStore((s) => s.projection);
+  const queryMode = useStore((s) => s.queryMode);
+  const applyProjection = useStore((s) => s.applyProjection);
+  const clearProjection = useStore((s) => s.clearProjection);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState('{}');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const active = projection !== null;
+  const paused = active && queryMode === 'aggregate';
+
+  const handleOpenChange = (nextOpen: boolean): void => {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      setDraft(projection ? JSON.stringify(projection, null, 2) : '{}');
+      setError(null);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger
+        render={
+          <button
+            aria-label="Projection options"
+            title={paused ? 'Projection paused' : active ? 'Projection active' : 'Projection options'}
+            className={`relative inline-flex rounded p-1 hover:bg-muted ${active ? 'text-primary' : 'text-muted-foreground'}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            {active && <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-primary" />}
+          </button>
+        }
+      />
+      <PopoverContent className="w-96" align="start" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-2 text-xs font-medium text-muted-foreground">
+          {paused ? 'Projection paused in Aggregate mode' : active ? 'Projection active' : 'No projection'}
+        </div>
+        <textarea
+          aria-label="Projection JSON5"
+          className="h-36 w-full resize-y rounded border bg-background p-2 font-mono text-xs outline-hidden focus:ring-1 focus:ring-ring"
+          spellCheck={false}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
+        <div className="mt-3 flex justify-end gap-2">
+          <Button
+            aria-label="Clear projection"
+            variant="outline"
+            size="sm"
+            disabled={!active || submitting}
+            onClick={async () => {
+              setSubmitting(true);
+              const nextError = await clearProjection();
+              setSubmitting(false);
+              if (nextError) {
+                setError(nextError);
+                return;
+              }
+              setDraft('{}');
+              setError(null);
+              setOpen(false);
+            }}
+          >
+            Clear
+          </Button>
+          <Button
+            aria-label="Apply projection"
+            size="sm"
+            disabled={queryMode === 'aggregate' || submitting}
+            onClick={async () => {
+              setSubmitting(true);
+              const nextError = await applyProjection(draft);
+              setSubmitting(false);
+              if (nextError) {
+                setError(nextError);
+                return;
+              }
+              setError(null);
+              setOpen(false);
+            }}
+          >
+            Apply
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function ExpandPopover({ cellValue }: { cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -253,6 +354,8 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const sort = useStore((s) => s.sort);
   const setSort = useStore((s) => s.setSort);
   const queryMode = useStore((s) => s.queryMode);
+  const resultQueryMode = useStore((s) => s.resultQueryMode);
+  const projection = useStore((s) => s.projection);
   const setLimit = useStore((s) => s.setLimit);
   const applyFilterValue = useStore((s) => s.applyFilterValue);
   const storeFilter = useStore((s) => s.filter);
@@ -343,12 +446,6 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
     return <Loader className="flex-1" />;
   }
 
-  if (docs.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">No documents found</div>
-    );
-  }
-
   return (
     <div className={`flex flex-col ${className ?? ''}`}>
       <div className="flex-1 overflow-auto">
@@ -356,7 +453,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           <TableHeader className="sticky top-0 z-10 bg-background">
             <TableRow>
               <TableHead className="w-12 px-2 text-right text-muted-foreground select-none border-r border-border">
-                #
+                <ProjectionPopover />
               </TableHead>
               {columns.map((col) => {
                 const isAggregate = queryMode === 'aggregate';
@@ -423,65 +520,75 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {docs.map((doc, i) => (
-              <TableRow
-                key={doc._id != null ? formatCell(doc._id) || i : i}
-                className={`group/row even:bg-muted-row ${onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}`}
-                onClick={() => onRowClick?.(doc)}
-              >
-                <TableCell className="w-12 px-2 text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
-                {columns.map((col) => {
-                  const cellValue = doc[col];
-                  const raw = formatCell(cellValue);
-                  const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
-                  // A missing field has no value for the filter value action.
-                  // JSON.stringify removes a property that has an undefined value.
-                  const showFilter = isPrimitive && cellValue !== undefined && queryMode === 'filter';
-                  const showCopy = isCopyableCell(cellValue);
-                  const showExpand = !isScalarCell(cellValue);
-                  return (
-                    <TableCell key={col} className="overflow-visible relative group">
-                      <span className="block truncate">{raw}</span>
-                      {(showFilter || showCopy || showExpand) && (
-                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
-                          {showFilter && (
-                            <button
-                              aria-label={FILTER_VALUE_ACTION_LABEL}
-                              title={FILTER_VALUE_ACTION_LABEL}
-                              className="p-0.5 rounded hover:bg-muted"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                applyFilterValue(
-                                  col,
-                                  cellValue as string | number | boolean | null,
-                                  e.shiftKey ? 'exclude' : 'include'
-                                );
-                              }}
-                            >
-                              <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                          )}
-                          {showCopy && (
-                            <button
-                              aria-label="Copy value"
-                              title="Copy value"
-                              className="p-0.5 rounded hover:bg-muted"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void copyText(formatValueForCellCopy(cellValue));
-                              }}
-                            >
-                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                          )}
-                          {showExpand && <ExpandPopover cellValue={cellValue} />}
-                        </div>
-                      )}
-                    </TableCell>
-                  );
-                })}
+            {docs.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={Math.max(columns.length + 1, 1)} className="h-24 text-center text-muted-foreground">
+                  No documents found
+                </TableCell>
               </TableRow>
-            ))}
+            )}
+            {docs.map((doc, i) => {
+              const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);
+              return (
+                <TableRow
+                  key={doc._id != null ? formatCell(doc._id) || i : i}
+                  className={`group/row even:bg-muted-row ${onRowClick && canEdit ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                  onClick={onRowClick && canEdit ? () => onRowClick(doc) : undefined}
+                >
+                  <TableCell className="w-12 px-2 text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
+                  {columns.map((col) => {
+                    const cellValue = doc[col];
+                    const raw = formatCell(cellValue);
+                    const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
+                    // A missing field has no value for the filter value action.
+                    // JSON.stringify removes a property that has an undefined value.
+                    const showFilter = isPrimitive && cellValue !== undefined && queryMode === 'filter';
+                    const showCopy = isCopyableCell(cellValue);
+                    const showExpand = !isScalarCell(cellValue);
+                    return (
+                      <TableCell key={col} className="overflow-visible relative group">
+                        <span className="block truncate">{raw}</span>
+                        {(showFilter || showCopy || showExpand) && (
+                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
+                            {showFilter && (
+                              <button
+                                aria-label={FILTER_VALUE_ACTION_LABEL}
+                                title={FILTER_VALUE_ACTION_LABEL}
+                                className="p-0.5 rounded hover:bg-muted"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  applyFilterValue(
+                                    col,
+                                    cellValue as string | number | boolean | null,
+                                    e.shiftKey ? 'exclude' : 'include'
+                                  );
+                                }}
+                              >
+                                <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
+                              </button>
+                            )}
+                            {showCopy && (
+                              <button
+                                aria-label="Copy value"
+                                title="Copy value"
+                                className="p-0.5 rounded hover:bg-muted"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void copyText(formatValueForCellCopy(cellValue));
+                                }}
+                              >
+                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                              </button>
+                            )}
+                            {showExpand && <ExpandPopover cellValue={cellValue} />}
+                          </div>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
         {distinctState && (

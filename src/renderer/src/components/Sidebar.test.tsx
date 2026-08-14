@@ -18,6 +18,7 @@ const mockApi = {
   operationCancel: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   onOperationUpdate: vi.fn().mockReturnValue(() => {}),
   dropCollection: vi.fn().mockResolvedValue({ ok: true }),
+  renameCollection: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   setWindowTitle: vi.fn(),
 };
 
@@ -199,5 +200,37 @@ describe('Sidebar', () => {
     // Collapsible is controlled by selectedDb === db.name, so it should be open
     const usersItem = screen.getByText('users').closest('[role="button"]');
     expect(usersItem).toHaveClass('bg-primary');
+  });
+
+  it('clears the projection after the selected collection is renamed', async () => {
+    const projection = { name: 1 };
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+    mockApi.listCollections.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'members', type: 'collection' }],
+    });
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+      expandedDb: 'testdb',
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      collections: [{ name: 'users', type: 'collection' }],
+      projection,
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    const collectionRow = screen.getByText('users').closest('[role="button"]')!;
+    await userEvent.click(collectionRow.querySelector('button')!);
+    await userEvent.click(await screen.findByText('Rename'));
+    const input = screen.getByPlaceholderText('Collection name');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'members');
+    await userEvent.click(screen.getByRole('button', { name: 'Rename' }));
+
+    await waitFor(() => expect(mockApi.renameCollection).toHaveBeenCalledWith('testdb', 'users', 'members'));
+    expect(useStore.getState().selectedCollection).toBe('members');
+    expect(useStore.getState().projection).toBeNull();
   });
 });

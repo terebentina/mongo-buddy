@@ -6,6 +6,7 @@ const input = z.object({
   db: z.string(),
   collection: z.string(),
   filter: z.record(z.string(), z.unknown()).optional(),
+  projection: z.record(z.string(), z.unknown()).optional(),
   sort: z.record(z.string(), z.union([z.literal(1), z.literal(-1)])).optional(),
   skip: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).optional(),
@@ -14,10 +15,11 @@ const input = z.object({
 export const findCommand: MongoCommand<typeof input, FindResult> = {
   name: 'find',
   input,
-  async run(active, { db, collection, filter, sort, skip, limit }) {
+  async run(active, { db, collection, filter, projection, sort, skip, limit }) {
     const coll = active.client.db(db).collection(collection);
     const filterDoc = filter ?? {};
     const cursor = coll.find(filterDoc);
+    if (projection) cursor.project(projection);
     if (sort) cursor.sort(sort);
     if (skip !== undefined) cursor.skip(skip);
     if (limit !== undefined) cursor.limit(limit);

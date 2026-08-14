@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCell, isScalarCell, unwrapEjsonScalar } from './DocumentTable.helpers';
+import { canEditProjectedDocument, formatCell, isScalarCell, unwrapEjsonScalar } from './DocumentTable.helpers';
 
 describe('unwrapEjsonScalar', () => {
   it('unwraps $date', () => {
@@ -26,6 +26,21 @@ describe('unwrapEjsonScalar', () => {
 
   it('returns null for an out-of-range date, which nests $numberLong', () => {
     expect(unwrapEjsonScalar({ $date: { $numberLong: '1000000000000000' } })).toBeNull();
+  });
+});
+
+describe('canEditProjectedDocument', () => {
+  it.each([
+    ['no projection', null, true],
+    ['empty projection', {}, true],
+    ['implicit _id', { name: 1 }, true],
+    ['numeric _id inclusion', { _id: 1 }, true],
+    ['numeric _id exclusion', { _id: 0 }, false],
+    ['boolean _id inclusion', { _id: true }, false],
+    ['computed _id', { _id: '$otherId' }, false],
+    ['null _id', { _id: null }, false],
+  ])('%s returns %s', (_name, projection, expected) => {
+    expect(canEditProjectedDocument(projection)).toBe(expected);
   });
 });
 
