@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.18.0](https://github.com/terebentina/mongo-buddy/compare/v2.17.3...v2.18.0) (2026-08-14)
+
+
+### Features
+
+* add query projections ([#60](https://github.com/terebentina/mongo-buddy/issues/60)) ([1d7f6b4](https://github.com/terebentina/mongo-buddy/commit/1d7f6b4037153d34666588dc3415d34a00948e17))
+
 ## [2.17.3](https://github.com/terebentina/mongo-buddy/compare/v2.17.2...v2.17.3) (2026-08-13)
 
 
