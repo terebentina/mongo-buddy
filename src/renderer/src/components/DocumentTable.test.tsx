@@ -30,6 +30,8 @@ beforeEach(() => {
     skip: 0,
     limit: 20,
     filter: {},
+    projection: null,
+    queryMode: 'filter',
     error: null,
     loading: false,
   });
@@ -54,7 +56,7 @@ describe('DocumentTable', () => {
     expect(screen.getByText('age')).toBeInTheDocument();
   });
 
-  it('renders row number column first, then _id', () => {
+  it('renders projection options first, then _id', () => {
     useStore.setState({
       docs: [{ name: 'Alice', _id: '1', email: 'alice@test.com' }],
       totalCount: 1,
@@ -63,8 +65,69 @@ describe('DocumentTable', () => {
     render(<DocumentTable />);
 
     const headers = screen.getAllByRole('columnheader');
-    expect(headers[0]).toHaveTextContent('#');
+    expect(within(headers[0]).getByRole('button', { name: 'Projection options' })).toBeInTheDocument();
     expect(headers[1]).toHaveTextContent('_id');
+  });
+
+  it('keeps the projection header and empty body state when no documents match', () => {
+    render(<DocumentTable />);
+
+    expect(screen.getByRole('columnheader')).toContainElement(
+      screen.getByRole('button', { name: 'Projection options' })
+    );
+    expect(screen.getByText('No documents found')).toBeInTheDocument();
+  });
+
+  it('shows the active projection and clears it from the popover', async () => {
+    const clearProjection = vi.fn().mockResolvedValue(null);
+    useStore.setState({ projection: { name: 1 }, clearProjection });
+
+    render(<DocumentTable />);
+
+    const trigger = screen.getByRole('button', { name: 'Projection options' });
+    expect(trigger).toHaveAttribute('title', 'Projection active');
+    await userEvent.click(trigger);
+    expect(screen.getByText('Projection active')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear projection' }));
+    expect(clearProjection).toHaveBeenCalledOnce();
+  });
+
+  it('shows a paused projection in Aggregate mode and disables Apply', async () => {
+    useStore.setState({ projection: { name: 1 }, queryMode: 'aggregate' });
+
+    render(<DocumentTable />);
+
+    const trigger = screen.getByRole('button', { name: 'Projection options' });
+    expect(trigger).toHaveAttribute('title', 'Projection paused');
+    await userEvent.click(trigger);
+    expect(screen.getByText('Projection paused in Aggregate mode')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Apply projection' })).toBeDisabled();
+  });
+
+  it('keeps the projection content and shows the Apply error', async () => {
+    const applyProjection = vi.fn().mockResolvedValue('Cannot mix inclusion and exclusion');
+    useStore.setState({ applyProjection });
+
+    render(<DocumentTable />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Projection options' }));
+    const editor = screen.getByRole('textbox', { name: 'Projection JSON5' });
+    fireEvent.change(editor, { target: { value: '{ name: 1, secret: 0 }' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Apply projection' }));
+
+    expect(applyProjection).toHaveBeenCalledWith('{ name: 1, secret: 0 }');
+    expect(screen.getByText('Cannot mix inclusion and exclusion')).toBeInTheDocument();
+    expect(editor).toHaveValue('{ name: 1, secret: 0 }');
+  });
+
+  it('does not open a row when the projection gives _id an unsupported value', async () => {
+    const onRowClick = vi.fn();
+    useStore.setState({ docs: [{ _id: 'computed', name: 'Alice' }], totalCount: 1, projection: { _id: 0 } });
+
+    render(<DocumentTable onRowClick={onRowClick} />);
+    await userEvent.click(screen.getByText('Alice'));
+
+    expect(onRowClick).not.toHaveBeenCalled();
   });
 
   it('renders long cell values with truncation class', () => {

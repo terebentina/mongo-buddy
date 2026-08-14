@@ -6,6 +6,7 @@ import { findCommand } from './find';
 
 describe('findCommand', () => {
   let mockCursor: {
+    project: ReturnType<typeof vi.fn>;
     sort: ReturnType<typeof vi.fn>;
     skip: ReturnType<typeof vi.fn>;
     limit: ReturnType<typeof vi.fn>;
@@ -18,12 +19,14 @@ describe('findCommand', () => {
 
   beforeEach(() => {
     mockCursor = {
+      project: vi.fn().mockReturnThis(),
       sort: vi.fn().mockReturnThis(),
       skip: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       toArray: vi.fn(),
     };
     mockCursor.sort = vi.fn().mockReturnValue(mockCursor);
+    mockCursor.project = vi.fn().mockReturnValue(mockCursor);
     mockCursor.skip = vi.fn().mockReturnValue(mockCursor);
     mockCursor.limit = vi.fn().mockReturnValue(mockCursor);
     mockCollection = {
@@ -68,6 +71,26 @@ describe('findCommand', () => {
     expect(mockCursor.limit).toHaveBeenCalledWith(20);
   });
 
+  it('applies the projection before the cursor runs', async () => {
+    const projection = { name: 1, score: { $meta: 'textScore' }, _id: 0 };
+    mockCursor.toArray.mockResolvedValue([{ name: 'Alice', score: 1 }]);
+    mockCollection.countDocuments.mockResolvedValue(1);
+
+    await findCommand.run(active, { db: 'd', collection: 'c', filter: { active: true }, projection });
+
+    expect(mockCursor.project).toHaveBeenCalledWith(projection);
+    expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true });
+  });
+
+  it('does not apply a projection when it is absent', async () => {
+    mockCursor.toArray.mockResolvedValue([]);
+    mockCollection.countDocuments.mockResolvedValue(0);
+
+    await findCommand.run(active, { db: 'd', collection: 'c' });
+
+    expect(mockCursor.project).not.toHaveBeenCalled();
+  });
+
   it('does not apply skip/limit when undefined', async () => {
     mockCursor.toArray.mockResolvedValue([]);
     mockCollection.countDocuments.mockResolvedValue(0);
@@ -79,5 +102,13 @@ describe('findCommand', () => {
 
   it('schema rejects when collection is missing', () => {
     expect(findCommand.input.safeParse({ db: 'd' }).success).toBe(false);
+  });
+
+  it('schema accepts a full projection document', () => {
+    const projection = { name: 1, secret: 0, score: { $meta: 'textScore' }, alias: '$profile.name' };
+    const parsed = findCommand.input.safeParse({ db: 'd', collection: 'c', projection });
+
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.projection).toEqual(projection);
   });
 });

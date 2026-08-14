@@ -7,13 +7,31 @@ import { QueryEditor } from './components/QueryEditor';
 import { DocumentEditor } from './components/DocumentEditor';
 import { QueryHistory } from './components/QueryHistory';
 import { Toaster } from './components/ui/sonner';
+import { toast } from 'sonner';
 
 function App() {
   const connected = useStore(selectConnected);
   const selectedCollection = useStore((s) => s.selectedCollection);
+  const loadDocument = useStore((s) => s.loadDocument);
   const [dialogOpen, setDialogOpen] = useState(!connected);
   const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
+
+  const handleRowClick = useCallback(
+    async (doc: Record<string, unknown>) => {
+      if (!Object.prototype.hasOwnProperty.call(doc, '_id')) {
+        toast.error('Document has no _id');
+        return;
+      }
+      const result = await loadDocument(doc._id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setEditDoc(result.data);
+    },
+    [loadDocument]
+  );
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -58,7 +76,7 @@ function App() {
               <QueryHistory />
             </div>
             <QueryEditor />
-            <DocumentTable className="flex-1 min-h-0" onRowClick={(doc) => setEditDoc(doc)} />
+            <DocumentTable className="flex-1 min-h-0" onRowClick={(doc) => void handleRowClick(doc)} />
             {editDoc && <DocumentEditor editDoc={editDoc} onClose={() => setEditDoc(null)} />}
           </>
         )}

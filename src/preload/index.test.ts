@@ -104,11 +104,18 @@ describe('preload createApi', () => {
     it('find invokes mongo:find with merged options object', async () => {
       invoke.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
       const api = createApi(ipcRenderer);
-      await api.find('d', 'c', { filter: { x: 1 }, sort: { name: 1 }, skip: 5, limit: 20 });
+      await api.find('d', 'c', {
+        filter: { x: 1 },
+        projection: { name: 1, _id: 0 },
+        sort: { name: 1 },
+        skip: 5,
+        limit: 20,
+      });
       expect(invoke).toHaveBeenCalledWith('mongo:find', {
         db: 'd',
         collection: 'c',
         filter: { x: 1 },
+        projection: { name: 1, _id: 0 },
         sort: { name: 1 },
         skip: 5,
         limit: 20,

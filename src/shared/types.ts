@@ -14,6 +14,7 @@ export interface CollectionInfo {
 
 export interface FindOpts {
   filter?: Record<string, unknown>;
+  projection?: Record<string, unknown>;
   sort?: Record<string, 1 | -1>;
   skip?: number;
   limit?: number;

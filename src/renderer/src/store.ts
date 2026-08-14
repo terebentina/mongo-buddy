@@ -34,6 +34,7 @@ export interface StoreState {
   skip: number;
   limit: number;
   filter: Record<string, unknown>;
+  projection: Record<string, unknown> | null;
   error: string | null;
   loading: boolean;
   savedConnections: SavedConnection[];
@@ -56,6 +57,9 @@ export interface StoreState {
   fetchPage: (skip: number) => Promise<void>;
   runQuery: (queryText: string, opts?: { skipHistory?: boolean }) => Promise<string | null>;
   runExplain: (queryText: string) => Promise<Result<Record<string, unknown>> | null>;
+  applyProjection: (projectionText: string) => Promise<string | null>;
+  clearProjection: () => Promise<string | null>;
+  loadDocument: (id: unknown) => Promise<Result<Record<string, unknown>>>;
   setQueryMode: (mode: QueryMode) => void;
   setSort: (field: string) => void;
   setLimit: (newLimit: number) => void;
@@ -97,6 +101,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   skip: 0,
   limit: 20,
   filter: {},
+  projection: null,
   error: null,
   loading: false,
   savedConnections: [],
@@ -127,6 +132,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       expandedDb: autoSelectedDb,
       selectedDb: autoSelectedDb,
       collections,
+      projection: null,
     });
   },
 
@@ -144,6 +150,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       totalCount: 0,
       skip: 0,
       filter: {},
+      projection: null,
       error: null,
       fieldNames: [],
     });
@@ -176,6 +183,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       docs: [],
       totalCount: 0,
       fieldNames: [],
+      projection: null,
     });
     const result = await window.api.listCollections(db);
     if (!result.ok) {
@@ -198,6 +206,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       filter: {},
       pendingFilterText: '{}',
       pendingQueryMode: 'filter',
+      projection: null,
     });
     pushWindowTitle(db, collection);
     const [result, fieldsResult] = await Promise.all([
@@ -225,11 +234,12 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   fetchPage: async (skip: number) => {
-    const { selectedDb, selectedCollection, limit, filter, sort } = get();
+    const { selectedDb, selectedCollection, limit, filter, projection, sort } = get();
     if (!selectedDb || !selectedCollection) return;
     set({ loading: true, skip });
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
+      ...(projection ? { projection } : {}),
       skip,
       limit,
       sort: sort ?? undefined,
@@ -242,7 +252,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   runQuery: async (queryText: string, opts?: { skipHistory?: boolean }) => {
-    const { selectedDb, selectedCollection, limit, queryMode } = get();
+    const { selectedDb, selectedCollection, limit, queryMode, projection } = get();
     if (!selectedDb || !selectedCollection) return null;
 
     let parsed: unknown;
@@ -282,7 +292,12 @@ export const useStore = create<StoreState>()((set, get) => ({
     // filter mode
     const filter = parsed as Record<string, unknown>;
     set({ filter });
-    const result = await window.api.find(selectedDb, selectedCollection, { filter, skip: 0, limit });
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(projection ? { projection } : {}),
+      skip: 0,
+      limit,
+    });
     if (!result.ok) {
       set({ loading: false, error: result.error });
       return result.error;
@@ -315,6 +330,75 @@ export const useStore = create<StoreState>()((set, get) => ({
     );
     set({ loading: false });
     return result;
+  },
+
+  applyProjection: async (projectionText: string) => {
+    const { selectedDb, selectedCollection, filter, sort, skip, limit, queryMode } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    if (queryMode === 'aggregate') return 'Projection is paused in Aggregate mode';
+
+    let parsed: unknown;
+    try {
+      parsed = JSON5.parse(projectionText);
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Invalid JSON';
+    }
+    if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+      return 'Projection must be a JSON object';
+    }
+
+    const nextProjection = Object.keys(parsed).length > 0 ? (parsed as Record<string, unknown>) : null;
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(nextProjection ? { projection: nextProjection } : {}),
+      ...(sort ? { sort } : {}),
+      skip,
+      limit,
+    });
+    if (!result.ok) return result.error;
+
+    set({
+      projection: nextProjection,
+      docs: result.data.docs,
+      totalCount: result.data.totalCount,
+      error: null,
+    });
+    return null;
+  },
+
+  clearProjection: async () => {
+    const { selectedDb, selectedCollection, filter, sort, skip, limit, queryMode } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    if (queryMode === 'aggregate') {
+      set({ projection: null });
+      return null;
+    }
+
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(sort ? { sort } : {}),
+      skip,
+      limit,
+    });
+    if (!result.ok) return result.error;
+
+    set({ projection: null, docs: result.data.docs, totalCount: result.data.totalCount, error: null });
+    return null;
+  },
+
+  loadDocument: async (id: unknown) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter: { _id: id },
+      skip: 0,
+      limit: 1,
+    });
+    if (!result.ok) return result;
+    const document = result.data.docs[0];
+    if (!document) return { ok: false, error: 'Document not found' };
+    return { ok: true, data: document };
   },
 
   setQueryMode: (mode: QueryMode) => {
@@ -387,10 +471,11 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   refreshDocs: async () => {
-    const { selectedDb, selectedCollection, skip, limit, filter, sort } = get();
+    const { selectedDb, selectedCollection, skip, limit, filter, projection, sort } = get();
     if (!selectedDb || !selectedCollection) return;
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
+      ...(projection ? { projection } : {}),
       skip,
       limit,
       sort: sort ?? undefined,
@@ -436,7 +521,14 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   switchCollection: async (db: string, collection: string) => {
-    set({ expandedDb: db, selectedDb: db, selectedCollection: collection, fieldNames: [] });
+    const changed = db !== get().selectedDb || collection !== get().selectedCollection;
+    set({
+      expandedDb: db,
+      selectedDb: db,
+      selectedCollection: collection,
+      fieldNames: [],
+      ...(changed ? { projection: null } : {}),
+    });
     const fieldsResult = await window.api.sampleFields(db, collection);
     set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });
   },
@@ -524,6 +616,7 @@ export const useStore = create<StoreState>()((set, get) => ({
         selectedDb: null,
         selectedCollection: null,
         collections: [],
+        projection: null,
       });
     } else {
       set({ ghostDatabases: next });
