@@ -14,6 +14,9 @@ import type {
   UpdateManyResult,
 } from '../../shared/types';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
+import { createRequestFreshness } from './lib/request-freshness';
+
+const resultRequests = createRequestFreshness();
 
 function pushWindowTitle(db: string | null, collection: string | null): void {
   const location = db && collection ? `${db}.${collection}` : null;
@@ -35,6 +38,7 @@ export interface StoreState {
   limit: number;
   filter: Record<string, unknown>;
   projection: Record<string, unknown> | null;
+  resultQueryMode: QueryMode;
   error: string | null;
   loading: boolean;
   savedConnections: SavedConnection[];
@@ -102,6 +106,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   limit: 20,
   filter: {},
   projection: null,
+  resultQueryMode: 'filter',
   error: null,
   loading: false,
   savedConnections: [],
@@ -115,6 +120,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   mcpStatus: { running: false, port: null },
 
   connect: async (uri: string) => {
+    resultRequests.invalidate();
     if (selectConnected(get())) await get().disconnect();
     set({ loading: true, error: null });
     const result = await window.api.connect(uri);
@@ -137,6 +143,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   disconnect: async () => {
+    resultRequests.invalidate();
     await window.api.disconnect();
     set({
       uri: '',
@@ -174,6 +181,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   selectDb: async (db: string) => {
+    resultRequests.invalidate();
     set({
       loading: true,
       expandedDb: db,
@@ -195,6 +203,7 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   selectCollection: async (db: string, collection: string) => {
     const { limit } = get();
+    const requestIsCurrent = resultRequests.start();
     set({
       loading: true,
       expandedDb: db,
@@ -213,6 +222,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       window.api.find(db, collection, { filter: {}, skip: 0, limit }),
       window.api.sampleFields(db, collection),
     ]);
+    if (!requestIsCurrent()) return;
     if (!result.ok) {
       set({ loading: false, error: result.error });
       return;
@@ -221,6 +231,7 @@ export const useStore = create<StoreState>()((set, get) => ({
       loading: false,
       docs: result.data.docs,
       totalCount: result.data.totalCount,
+      resultQueryMode: 'filter',
       fieldNames: fieldsResult.ok ? fieldsResult.data : [],
     });
     get().addToHistory({
@@ -236,6 +247,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   fetchPage: async (skip: number) => {
     const { selectedDb, selectedCollection, limit, filter, projection, sort } = get();
     if (!selectedDb || !selectedCollection) return;
+    const requestIsCurrent = resultRequests.start();
     set({ loading: true, skip });
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
@@ -244,11 +256,12 @@ export const useStore = create<StoreState>()((set, get) => ({
       limit,
       sort: sort ?? undefined,
     });
+    if (!requestIsCurrent()) return;
     if (!result.ok) {
       set({ loading: false, error: result.error });
       return;
     }
-    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount });
+    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
   },
 
   runQuery: async (queryText: string, opts?: { skipHistory?: boolean }) => {
@@ -273,36 +286,38 @@ export const useStore = create<StoreState>()((set, get) => ({
       });
     }
 
-    set({ loading: true, skip: 0, error: null, sort: null });
-
     if (queryMode === 'aggregate') {
       if (!Array.isArray(parsed)) {
-        set({ loading: false });
         return 'Aggregate pipeline must be a JSON array';
       }
+      const requestIsCurrent = resultRequests.start();
+      set({ loading: true, skip: 0, error: null, sort: null });
       const result = await window.api.aggregate(selectedDb, selectedCollection, parsed as Record<string, unknown>[]);
+      if (!requestIsCurrent()) return null;
       if (!result.ok) {
         set({ loading: false, error: result.error });
         return result.error;
       }
-      set({ loading: false, docs: result.data, totalCount: result.data.length });
+      set({ loading: false, docs: result.data, totalCount: result.data.length, resultQueryMode: 'aggregate' });
       return null;
     }
 
     // filter mode
     const filter = parsed as Record<string, unknown>;
-    set({ filter });
+    const requestIsCurrent = resultRequests.start();
+    set({ loading: true, skip: 0, error: null, sort: null, filter });
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
       ...(projection ? { projection } : {}),
       skip: 0,
       limit,
     });
+    if (!requestIsCurrent()) return null;
     if (!result.ok) {
       set({ loading: false, error: result.error });
       return result.error;
     }
-    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount });
+    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
     return null;
   },
 
@@ -348,6 +363,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     }
 
     const nextProjection = Object.keys(parsed).length > 0 ? (parsed as Record<string, unknown>) : null;
+    const requestIsCurrent = resultRequests.start();
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
       ...(nextProjection ? { projection: nextProjection } : {}),
@@ -355,12 +371,14 @@ export const useStore = create<StoreState>()((set, get) => ({
       skip,
       limit,
     });
+    if (!requestIsCurrent()) return null;
     if (!result.ok) return result.error;
 
     set({
       projection: nextProjection,
       docs: result.data.docs,
       totalCount: result.data.totalCount,
+      resultQueryMode: 'filter',
       error: null,
     });
     return null;
@@ -374,15 +392,23 @@ export const useStore = create<StoreState>()((set, get) => ({
       return null;
     }
 
+    const requestIsCurrent = resultRequests.start();
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
       ...(sort ? { sort } : {}),
       skip,
       limit,
     });
+    if (!requestIsCurrent()) return null;
     if (!result.ok) return result.error;
 
-    set({ projection: null, docs: result.data.docs, totalCount: result.data.totalCount, error: null });
+    set({
+      projection: null,
+      docs: result.data.docs,
+      totalCount: result.data.totalCount,
+      resultQueryMode: 'filter',
+      error: null,
+    });
     return null;
   },
 
@@ -473,6 +499,7 @@ export const useStore = create<StoreState>()((set, get) => ({
   refreshDocs: async () => {
     const { selectedDb, selectedCollection, skip, limit, filter, projection, sort } = get();
     if (!selectedDb || !selectedCollection) return;
+    const requestIsCurrent = resultRequests.start();
     const result = await window.api.find(selectedDb, selectedCollection, {
       filter,
       ...(projection ? { projection } : {}),
@@ -480,8 +507,9 @@ export const useStore = create<StoreState>()((set, get) => ({
       limit,
       sort: sort ?? undefined,
     });
+    if (!requestIsCurrent()) return;
     if (result.ok) {
-      set({ docs: result.data.docs, totalCount: result.data.totalCount });
+      set({ docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
     }
   },
 
@@ -522,6 +550,7 @@ export const useStore = create<StoreState>()((set, get) => ({
 
   switchCollection: async (db: string, collection: string) => {
     const changed = db !== get().selectedDb || collection !== get().selectedCollection;
+    if (changed) resultRequests.invalidate();
     set({
       expandedDb: db,
       selectedDb: db,
@@ -610,6 +639,7 @@ export const useStore = create<StoreState>()((set, get) => ({
     const { ghostDatabases, selectedDb } = get();
     const next = ghostDatabases.filter((n) => n !== name);
     if (selectedDb === name) {
+      resultRequests.invalidate();
       set({
         ghostDatabases: next,
         expandedDb: null,

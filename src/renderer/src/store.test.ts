@@ -44,6 +44,14 @@ function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSessio
   };
 }
 
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mockApi.onConnectionState.mockImplementation(() => () => {});
@@ -64,6 +72,7 @@ beforeEach(() => {
     limit: 20,
     filter: {},
     projection: null,
+    resultQueryMode: 'filter' as const,
     error: null,
     loading: false,
     savedConnections: [],
@@ -630,6 +639,163 @@ describe('projection', () => {
     expect(error).toBe('Cannot mix inclusion and exclusion');
     expect(useStore.getState().projection).toEqual({ name: 1 });
     expect(useStore.getState().docs).toEqual([{ _id: 'old', name: 'Old' }]);
+  });
+
+  it('discards a late Apply response after a newer page request', async () => {
+    const applyResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    const pageResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    mockApi.find.mockReturnValueOnce(applyResponse.promise).mockReturnValueOnce(pageResponse.promise);
+
+    const applyPromise = useStore.getState().applyProjection('{ name: 1 }');
+    const pagePromise = useStore.getState().fetchPage(40);
+    pageResponse.resolve({ ok: true, data: { docs: [{ _id: 'page' }], totalCount: 61 } });
+    await pagePromise;
+    applyResponse.resolve({ ok: true, data: { docs: [{ name: 'stale Apply' }], totalCount: 1 } });
+    await applyPromise;
+
+    expect(useStore.getState().projection).toBeNull();
+    expect(useStore.getState().docs).toEqual([{ _id: 'page' }]);
+    expect(useStore.getState().skip).toBe(40);
+  });
+
+  it('discards a late Clear response after a newer page request', async () => {
+    useStore.setState({ projection: activeProjection });
+    const clearResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    const pageResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    mockApi.find.mockReturnValueOnce(clearResponse.promise).mockReturnValueOnce(pageResponse.promise);
+
+    const clearPromise = useStore.getState().clearProjection();
+    const pagePromise = useStore.getState().fetchPage(40);
+    pageResponse.resolve({ ok: true, data: { docs: [{ _id: 'page' }], totalCount: 61 } });
+    await pagePromise;
+    clearResponse.resolve({ ok: true, data: { docs: [{ _id: 'stale Clear' }], totalCount: 1 } });
+    await clearPromise;
+
+    expect(useStore.getState().projection).toEqual(activeProjection);
+    expect(useStore.getState().docs).toEqual([{ _id: 'page' }]);
+    expect(useStore.getState().skip).toBe(40);
+  });
+
+  it('discards a late Apply response after a newer sort request', async () => {
+    const applyResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    const sortResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    mockApi.find.mockReturnValueOnce(applyResponse.promise).mockReturnValueOnce(sortResponse.promise);
+
+    const applyPromise = useStore.getState().applyProjection('{ name: 1 }');
+    useStore.getState().setSort('age');
+    sortResponse.resolve({ ok: true, data: { docs: [{ _id: 'sorted' }], totalCount: 1 } });
+    await vi.waitFor(() => expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]));
+    applyResponse.resolve({ ok: true, data: { docs: [{ name: 'stale Apply' }], totalCount: 1 } });
+    await applyPromise;
+
+    expect(useStore.getState().projection).toBeNull();
+    expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]);
+    expect(useStore.getState().sort).toEqual({ age: 1 });
+  });
+
+  it('discards a late Clear response after a newer sort request', async () => {
+    useStore.setState({ projection: activeProjection });
+    const clearResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    const sortResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    mockApi.find.mockReturnValueOnce(clearResponse.promise).mockReturnValueOnce(sortResponse.promise);
+
+    const clearPromise = useStore.getState().clearProjection();
+    useStore.getState().setSort('age');
+    sortResponse.resolve({ ok: true, data: { docs: [{ _id: 'sorted' }], totalCount: 1 } });
+    await vi.waitFor(() => expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]));
+    clearResponse.resolve({ ok: true, data: { docs: [{ _id: 'stale Clear' }], totalCount: 1 } });
+    await clearPromise;
+
+    expect(useStore.getState().projection).toEqual(activeProjection);
+    expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]);
+    expect(useStore.getState().sort).toEqual({ age: 1 });
+  });
+
+  it('discards a late Apply response after a newer collection request', async () => {
+    const applyResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    const collectionResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    mockApi.find.mockReturnValueOnce(applyResponse.promise).mockReturnValueOnce(collectionResponse.promise);
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+
+    const applyPromise = useStore.getState().applyProjection('{ name: 1 }');
+    const collectionPromise = useStore.getState().selectCollection('testdb', 'orders');
+    collectionResponse.resolve({ ok: true, data: { docs: [{ _id: 'order' }], totalCount: 1 } });
+    await collectionPromise;
+    applyResponse.resolve({ ok: true, data: { docs: [{ name: 'stale Apply' }], totalCount: 1 } });
+    await applyPromise;
+
+    expect(useStore.getState().selectedCollection).toBe('orders');
+    expect(useStore.getState().projection).toBeNull();
+    expect(useStore.getState().docs).toEqual([{ _id: 'order' }]);
+  });
+
+  it('discards a late Clear response after a newer collection request', async () => {
+    useStore.setState({ projection: activeProjection });
+    const clearResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    const collectionResponse = deferred<{
+      ok: true;
+      data: { docs: Record<string, unknown>[]; totalCount: number };
+    }>();
+    mockApi.find.mockReturnValueOnce(clearResponse.promise).mockReturnValueOnce(collectionResponse.promise);
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+
+    const clearPromise = useStore.getState().clearProjection();
+    const collectionPromise = useStore.getState().selectCollection('testdb', 'orders');
+    collectionResponse.resolve({ ok: true, data: { docs: [{ _id: 'order' }], totalCount: 1 } });
+    await collectionPromise;
+    clearResponse.resolve({ ok: true, data: { docs: [{ _id: 'stale Clear' }], totalCount: 1 } });
+    await clearPromise;
+
+    expect(useStore.getState().selectedCollection).toBe('orders');
+    expect(useStore.getState().projection).toBeNull();
+    expect(useStore.getState().docs).toEqual([{ _id: 'order' }]);
+  });
+
+  it('updates the result QueryMode only after a successful request replaces the rows', async () => {
+    useStore.setState({ resultQueryMode: 'filter', queryMode: 'aggregate' });
+    mockApi.aggregate.mockResolvedValueOnce({ ok: false, error: 'Aggregate failed' });
+
+    await useStore.getState().runQuery('[{ $match: {} }]');
+
+    expect(useStore.getState().resultQueryMode).toBe('filter');
+
+    mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ _id: 'aggregate' }] });
+    await useStore.getState().runQuery('[{ $match: {} }]');
+
+    expect(useStore.getState().resultQueryMode).toBe('aggregate');
   });
 
   it('treats an empty projection as no projection', async () => {

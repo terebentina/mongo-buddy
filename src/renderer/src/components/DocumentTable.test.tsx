@@ -32,6 +32,7 @@ beforeEach(() => {
     filter: {},
     projection: null,
     queryMode: 'filter',
+    resultQueryMode: 'filter',
     error: null,
     loading: false,
   });
@@ -123,6 +124,22 @@ describe('DocumentTable', () => {
   it('does not open a row when the projection gives _id an unsupported value', async () => {
     const onRowClick = vi.fn();
     useStore.setState({ docs: [{ _id: 'computed', name: 'Alice' }], totalCount: 1, projection: { _id: 0 } });
+
+    render(<DocumentTable onRowClick={onRowClick} />);
+    await userEvent.click(screen.getByText('Alice'));
+
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Filter edit rule after Aggregate mode is selected', async () => {
+    const onRowClick = vi.fn();
+    useStore.setState({
+      docs: [{ _id: 'computed', name: 'Alice' }],
+      totalCount: 1,
+      projection: { _id: '$otherId' },
+      resultQueryMode: 'filter',
+    });
+    useStore.getState().setQueryMode('aggregate');
 
     render(<DocumentTable onRowClick={onRowClick} />);
     await userEvent.click(screen.getByText('Alice'));

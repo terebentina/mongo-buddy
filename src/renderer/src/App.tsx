@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useLayoutEffect } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { useStore, selectConnected } from './store';
 import { ConnectionDialog } from './components/ConnectionDialog';
 import { Sidebar } from './components/Sidebar';
@@ -8,11 +8,14 @@ import { DocumentEditor } from './components/DocumentEditor';
 import { QueryHistory } from './components/QueryHistory';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
+import { createRequestFreshness } from './lib/request-freshness';
 
 function App() {
   const connected = useStore(selectConnected);
+  const selectedDb = useStore((s) => s.selectedDb);
   const selectedCollection = useStore((s) => s.selectedCollection);
   const loadDocument = useStore((s) => s.loadDocument);
+  const documentRequests = useRef(createRequestFreshness()).current;
   const [dialogOpen, setDialogOpen] = useState(!connected);
   const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
@@ -23,14 +26,21 @@ function App() {
         toast.error('Document has no _id');
         return;
       }
+      const requestIsCurrent = documentRequests.start();
+      const requestDb = selectedDb;
+      const requestCollection = selectedCollection;
       const result = await loadDocument(doc._id);
+      const current = useStore.getState();
+      if (!requestIsCurrent() || current.selectedDb !== requestDb || current.selectedCollection !== requestCollection) {
+        return;
+      }
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
       setEditDoc(result.data);
     },
-    [loadDocument]
+    [documentRequests, loadDocument, selectedCollection, selectedDb]
   );
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {

@@ -354,6 +354,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const sort = useStore((s) => s.sort);
   const setSort = useStore((s) => s.setSort);
   const queryMode = useStore((s) => s.queryMode);
+  const resultQueryMode = useStore((s) => s.resultQueryMode);
   const projection = useStore((s) => s.projection);
   const setLimit = useStore((s) => s.setLimit);
   const applyFilterValue = useStore((s) => s.applyFilterValue);
@@ -527,7 +528,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
               </TableRow>
             )}
             {docs.map((doc, i) => {
-              const canEdit = queryMode === 'aggregate' || canEditProjectedDocument(projection);
+              const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);
               return (
                 <TableRow
                   key={doc._id != null ? formatCell(doc._id) || i : i}
