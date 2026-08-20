@@ -38,6 +38,24 @@ async function openAddIndexDialog(): Promise<HTMLElement> {
 }
 
 describe('IndexesDialog index creation', () => {
+  it('shows whether each listed index is unique', async () => {
+    mockApi.listIndexes.mockResolvedValue({
+      ok: true,
+      data: [
+        { name: '_id_', key: { _id: 1 } },
+        { name: 'email_1', key: { email: 1 }, unique: true },
+        { name: 'createdAt_1', key: { createdAt: 1 } },
+      ],
+    });
+
+    render(<IndexesDialog open onOpenChange={() => {}} db="app" collection="users" />);
+
+    expect(await screen.findByRole('columnheader', { name: 'Unique' })).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /_id_/ })).getByText('Yes')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /email_1/ })).getByText('Yes')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /createdAt_1/ })).getByText('No')).toBeInTheDocument();
+  });
+
   it('shows the add button when the collection has no listed indexes', async () => {
     mockApi.listIndexes.mockResolvedValue({ ok: true, data: [] });
     render(<IndexesDialog open onOpenChange={() => {}} db="app" collection="users" />);

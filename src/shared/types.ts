@@ -88,6 +88,7 @@ export interface DistinctResult {
 export interface IndexInfo {
   name: string;
   key: Record<string, unknown>;
+  unique?: boolean;
   [k: string]: unknown;
 }
 

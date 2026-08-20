@@ -241,6 +241,7 @@ function IndexesDialogBody({ db, collection }: { db: string; collection: string 
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Keys</TableHead>
+                <TableHead className="w-20">Unique</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -252,6 +253,9 @@ function IndexesDialogBody({ db, collection }: { db: string; collection: string 
                     {Object.entries(idx.key)
                       .map(([field, value]) => `${field}: ${formatKeyValue(value)}`)
                       .join('\n')}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    {idx.unique === true || idx.name === '_id_' ? 'Yes' : 'No'}
                   </TableCell>
                   <TableCell className="align-top text-right">
                     {idx.name !== '_id_' && (
