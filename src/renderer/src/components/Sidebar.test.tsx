@@ -17,6 +17,7 @@ const mockApi = {
   operationStart: vi.fn().mockResolvedValue({ ok: true, data: 'op-1' }),
   operationCancel: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   onOperationUpdate: vi.fn().mockReturnValue(() => {}),
+  createCollection: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   dropCollection: vi.fn().mockResolvedValue({ ok: true }),
   renameCollection: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   setWindowTitle: vi.fn(),
@@ -28,6 +29,7 @@ beforeEach(() => {
     status: { status: 'disconnected' },
     uri: '',
     databases: [],
+    ghostDatabases: [],
     collections: [],
     expandedDb: null,
     selectedDb: null,
@@ -200,6 +202,115 @@ describe('Sidebar', () => {
     // Collapsible is controlled by selectedDb === db.name, so it should be open
     const usersItem = screen.getByText('users').closest('[role="button"]');
     expect(usersItem).toHaveClass('bg-primary');
+  });
+
+  it('creates and selects a collection from a database menu', async () => {
+    mockApi.listCollections
+      .mockResolvedValueOnce({ ok: true, data: [{ name: 'orders', type: 'collection' }] })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: [
+          { name: 'orders', type: 'collection' },
+          { name: 'users', type: 'collection' },
+        ],
+      });
+    mockApi.listDatabases.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    const databaseRow = screen.getByText('testdb').closest('button')!;
+    await userEvent.click(databaseRow.querySelector('[aria-haspopup="menu"]')!);
+    await userEvent.click(await screen.findByText('Create collection…'));
+    await userEvent.type(screen.getByPlaceholderText('Collection name'), 'users');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(mockApi.createCollection).toHaveBeenCalledWith('testdb', 'users'));
+    await waitFor(() => expect(useStore.getState().selectedCollection).toBe('users'));
+    expect(mockApi.listCollections).toHaveBeenNthCalledWith(1, 'testdb');
+    expect(mockApi.listCollections).toHaveBeenNthCalledWith(2, 'testdb');
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: {}, skip: 0, limit: 20 });
+  });
+
+  it('creates a collection in a placeholder database and clears the placeholder', async () => {
+    mockApi.listCollections
+      .mockResolvedValueOnce({ ok: true, data: [] })
+      .mockResolvedValueOnce({ ok: true, data: [{ name: 'users', type: 'collection' }] });
+    mockApi.listDatabases.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'newdb', sizeOnDisk: 1024, empty: false }],
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [],
+      ghostDatabases: ['newdb'],
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    const databaseRow = screen.getByText('newdb').closest('button')!;
+    await userEvent.click(databaseRow.querySelector('[aria-haspopup="menu"]')!);
+    await userEvent.click(await screen.findByText('Create collection…'));
+    await userEvent.type(screen.getByPlaceholderText('Collection name'), 'users');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(useStore.getState().selectedCollection).toBe('users'));
+    expect(useStore.getState().ghostDatabases).toEqual([]);
+    expect(useStore.getState().databases.map((database) => database.name)).toContain('newdb');
+  });
+
+  it('uses collection names from the menu database for validation', async () => {
+    mockApi.listCollections.mockResolvedValueOnce({ ok: true, data: [] });
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [
+        { name: 'first-db', sizeOnDisk: 1024, empty: false },
+        { name: 'second-db', sizeOnDisk: 1024, empty: false },
+      ],
+      expandedDb: 'first-db',
+      selectedDb: 'first-db',
+      collections: [{ name: 'users', type: 'collection' }],
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    const databaseRow = screen.getByText('second-db').closest('button')!;
+    await userEvent.click(databaseRow.querySelector('[aria-haspopup="menu"]')!);
+    await userEvent.click(await screen.findByText('Create collection…'));
+    await userEvent.type(screen.getByPlaceholderText('Collection name'), 'users');
+
+    expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled();
+    expect(mockApi.listCollections).toHaveBeenCalledWith('second-db');
+  });
+
+  it('keeps the create dialog open when the server rejects creation', async () => {
+    mockApi.listCollections.mockResolvedValueOnce({ ok: true, data: [] });
+    mockApi.createCollection.mockResolvedValueOnce({ ok: false, error: 'collection already exists' });
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
+    });
+
+    render(<Sidebar width={240} onResize={() => {}} />);
+
+    const databaseRow = screen.getByText('testdb').closest('button')!;
+    await userEvent.click(databaseRow.querySelector('[aria-haspopup="menu"]')!);
+    await userEvent.click(await screen.findByText('Create collection…'));
+    const input = screen.getByPlaceholderText('Collection name');
+    await userEvent.type(input, 'users');
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create' })).toBeEnabled());
+    expect(input).toHaveValue('users');
+    expect(useStore.getState().selectedCollection).toBeNull();
   });
 
   it('clears the projection after the selected collection is renamed', async () => {

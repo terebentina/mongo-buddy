@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { validateCollectionName } from './validate-collection-name';
+import { validateCollectionName, validateNewCollectionName } from './validate-collection-name';
+
+describe('validateNewCollectionName', () => {
+  it('accepts an available name', () => {
+    expect(validateNewCollectionName('  users  ', ['orders'])).toEqual({ ok: true });
+  });
+
+  it('rejects an existing name', () => {
+    const r = validateNewCollectionName('users', ['users']);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/already exists/i);
+  });
+});
 
 describe('validateCollectionName', () => {
   it('accepts a simple name', () => {

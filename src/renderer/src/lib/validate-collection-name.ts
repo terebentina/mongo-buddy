@@ -2,19 +2,11 @@ const FORBIDDEN_CHARS = ['$', '\0'];
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
 
-export function validateCollectionName(
-  rawName: string,
-  currentName: string,
-  existing: readonly string[]
-): ValidationResult {
+function validateAvailableCollectionName(rawName: string, existing: readonly string[]): ValidationResult {
   const name = rawName.trim();
 
   if (name.length === 0) {
     return { ok: false, error: 'Name is required' };
-  }
-
-  if (name === currentName) {
-    return { ok: false, error: 'Enter a different name' };
   }
 
   for (const ch of FORBIDDEN_CHARS) {
@@ -33,4 +25,19 @@ export function validateCollectionName(
   }
 
   return { ok: true };
+}
+
+export function validateNewCollectionName(rawName: string, existing: readonly string[]): ValidationResult {
+  return validateAvailableCollectionName(rawName, existing);
+}
+
+export function validateCollectionName(
+  rawName: string,
+  currentName: string,
+  existing: readonly string[]
+): ValidationResult {
+  if (rawName.trim() === currentName) {
+    return { ok: false, error: 'Enter a different name' };
+  }
+  return validateAvailableCollectionName(rawName, existing);
 }

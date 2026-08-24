@@ -136,6 +136,13 @@ describe('preload createApi', () => {
       expect(invoke).toHaveBeenCalledWith('mongo:dropCollection', { db: 'd', collection: 'c' });
     });
 
+    it('createCollection invokes mongo:createCollection with {db, collection}', async () => {
+      invoke.mockResolvedValue({ ok: true, data: undefined });
+      const api = createApi(ipcRenderer);
+      await api.createCollection('d', 'c');
+      expect(invoke).toHaveBeenCalledWith('mongo:createCollection', { db: 'd', collection: 'c' });
+    });
+
     it('renameCollection invokes mongo:renameCollection with {db, from, to}', async () => {
       invoke.mockResolvedValue({ ok: true, data: undefined });
       const api = createApi(ipcRenderer);

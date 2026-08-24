@@ -30,6 +30,10 @@ _Avoid_: connection id, uri hash.
 
 ### Verbs
 
+**create**:
+The verb for adding an empty MongoDB collection as a real server object. Unlike the sidebar's database placeholder, a created collection exists immediately, even without documents.
+_Avoid_: add, new.
+
 **drop**:
 The verb for destructive removal of a MongoDB object (collection, index, eventually database, view…). Used everywhere: backend service methods (`dropIndex`, `dropCollection`), IPC channels (`mongo:drop-index`), UI labels ("Drop index", "Drop collection"), confirmation dialogs, button labels, internal state and handler names (`dropDialogOpen`, `handleDrop`), and toasts ("Dropped index 'X'").
 _Avoid_: delete, remove. We say "drop" because that is the MongoDB driver's word and the cost is meaningfully higher than a row-level delete — choosing one verb across the stack prevents drift between UI copy and backend vocabulary.

@@ -24,6 +24,7 @@ import { ImportDialog } from './ImportDialog';
 import { ExportDatabaseDialog } from './ExportDatabaseDialog';
 import { DropCollectionsDialog } from './DropCollectionsDialog';
 import { NewDatabaseDialog } from './NewDatabaseDialog';
+import { CreateCollectionDialog } from './CreateCollectionDialog';
 import { RenameCollectionDialog } from './RenameCollectionDialog';
 import { IndexesDialog } from './IndexesDialog';
 import { McpStatusPill } from './McpStatusPill';
@@ -338,6 +339,8 @@ function DatabaseRow({
   const [exportableCollections, setExportableCollections] = useState<CollectionInfo[]>([]);
   const [dropDialogOpen, setDropDialogOpen] = useState(false);
   const [droppableCollections, setDroppableCollections] = useState<CollectionInfo[]>([]);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [existingCollectionNames, setExistingCollectionNames] = useState<string[]>([]);
 
   const exp = useOperation('export-database');
   const imp = useOperation('import-collection');
@@ -345,6 +348,7 @@ function DatabaseRow({
   const refreshDocs = useStore((s) => s.refreshDocs);
   const refreshDatabases = useStore((s) => s.refreshDatabases);
   const selectDb = useStore((s) => s.selectDb);
+  const selectCollection = useStore((s) => s.selectCollection);
   const storeSelectedDb = useStore((s) => s.selectedDb);
   const storeSelectedCollection = useStore((s) => s.selectedCollection);
 
@@ -353,6 +357,35 @@ function DatabaseRow({
   const busy = importing || exporting;
 
   const exportStage = parseStage(exp.progress.stage);
+
+  const handleCreateClick = async (e: React.MouseEvent): Promise<void> => {
+    e.stopPropagation();
+    if (busy) return;
+    const list = await window.api.listCollections(dbName);
+    if (!list.ok) {
+      toast.error(list.error);
+      return;
+    }
+    setExistingCollectionNames(list.data.map((collection) => collection.name));
+    setCreateDialogOpen(true);
+  };
+
+  const handleCreateConfirm = async (name: string): Promise<boolean> => {
+    const result = await window.api.createCollection(dbName, name);
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+
+    await refreshDatabases();
+    if (isGhost && useStore.getState().databases.some((database) => database.name === dbName)) {
+      onRemoveGhost();
+    }
+    await selectDb(dbName);
+    await selectCollection(dbName, name);
+    toast.success(`Created collection "${name}"`);
+    return true;
+  };
 
   const handleUploadClick = async (e: React.MouseEvent): Promise<void> => {
     e.stopPropagation();
@@ -571,6 +604,16 @@ function DatabaseRow({
                     <Menu.Portal>
                       <Menu.Positioner sideOffset={4} align="start" className="z-50">
                         <Menu.Popup className="min-w-[120px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
+                          <Menu.Item
+                            className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleCreateClick(e);
+                            }}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Create collection…
+                          </Menu.Item>
                           {!isGhost && (
                             <Menu.Item
                               className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs cursor-pointer outline-hidden hover:bg-accent hover:text-accent-foreground data-highlighted:bg-accent data-highlighted:text-accent-foreground"
@@ -678,6 +721,13 @@ function DatabaseRow({
           </div>
         </CollapsibleContent>
       </Collapsible>
+      <CreateCollectionDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        dbName={dbName}
+        existingNames={existingCollectionNames}
+        onCreate={handleCreateConfirm}
+      />
       {pickedFiles.length > 0 && (
         <ImportDialog
           open={importDialogOpen}
