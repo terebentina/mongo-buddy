@@ -26,6 +26,17 @@ export function formatCell(value: unknown): string {
   return String(value);
 }
 
+export function getDocumentFieldValue(doc: Record<string, unknown>, field: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(doc, field)) return doc[field];
+
+  let value: unknown = doc;
+  for (const segment of field.split('.')) {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    value = (value as Record<string, unknown>)[segment];
+  }
+  return value;
+}
+
 export function canEditProjectedDocument(projection: Record<string, unknown> | null): boolean {
   if (!projection || !Object.prototype.hasOwnProperty.call(projection, '_id')) return true;
   return projection._id === 1;

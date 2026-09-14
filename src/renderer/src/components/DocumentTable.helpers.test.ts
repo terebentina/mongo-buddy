@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { canEditProjectedDocument, formatCell, isScalarCell, unwrapEjsonScalar } from './DocumentTable.helpers';
+import {
+  canEditProjectedDocument,
+  formatCell,
+  getDocumentFieldValue,
+  isScalarCell,
+  unwrapEjsonScalar,
+} from './DocumentTable.helpers';
 
 describe('unwrapEjsonScalar', () => {
   it('unwraps $date', () => {
@@ -41,6 +47,21 @@ describe('canEditProjectedDocument', () => {
     ['null _id', { _id: null }, false],
   ])('%s returns %s', (_name, projection, expected) => {
     expect(canEditProjectedDocument(projection)).toBe(expected);
+  });
+});
+
+describe('getDocumentFieldValue', () => {
+  it('reads top-level and nested fields', () => {
+    const doc = { status: 'active', data: { id: 42, name: 'some name' } };
+
+    expect(getDocumentFieldValue(doc, 'status')).toBe('active');
+    expect(getDocumentFieldValue(doc, 'data.id')).toBe(42);
+    expect(getDocumentFieldValue(doc, 'data.name')).toBe('some name');
+    expect(getDocumentFieldValue(doc, 'data.missing')).toBeUndefined();
+  });
+
+  it('prefers an exact dotted key over traversing a nested document', () => {
+    expect(getDocumentFieldValue({ 'data.id': 7, data: { id: 42 } }, 'data.id')).toBe(7);
   });
 });
 

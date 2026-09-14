@@ -70,6 +70,51 @@ describe('DocumentTable', () => {
     expect(headers[1]).toHaveTextContent('_id');
   });
 
+  it('renders dotted projection fields as separate columns', () => {
+    const applyFilterValue = vi.fn();
+    useStore.setState({
+      docs: [{ data: { id: 42, name: 'some name' } }],
+      totalCount: 1,
+      projection: { 'data.id': 1, 'data.name': 1, _id: 0 },
+      applyFilterValue,
+    });
+
+    render(<DocumentTable />);
+
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers).toHaveLength(3);
+    expect(headers[1]).toHaveTextContent('data.id');
+    expect(headers[2]).toHaveTextContent('data.name');
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('some name')).toBeInTheDocument();
+    expect(screen.queryByText('{"id":42,"name":"some name"}')).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(screen.getByText('42').closest('td')!).getByRole('button', { name: FILTER_VALUE_ACTION_LABEL })
+    );
+    expect(applyFilterValue).toHaveBeenCalledWith('data.id', 42, 'include');
+  });
+
+  it.each([
+    ['a dotted exclusion', { 'data.name': 0 }, 'filter' as const],
+    ['an aggregate result', { 'data.id': 1 }, 'aggregate' as const],
+  ])('keeps the parent document column for %s', (_name, projection, resultQueryMode) => {
+    useStore.setState({
+      docs: [{ data: { id: 42, name: 'some name' } }],
+      totalCount: 1,
+      projection,
+      queryMode: resultQueryMode,
+      resultQueryMode,
+    });
+
+    render(<DocumentTable />);
+
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers).toHaveLength(2);
+    expect(headers[1]).toHaveTextContent('data');
+    expect(screen.getByText('{"id":42,"name":"some name"}')).toBeInTheDocument();
+  });
+
   it('keeps the projection header and empty body state when no documents match', () => {
     render(<DocumentTable />);
 

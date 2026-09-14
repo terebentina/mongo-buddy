@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
-import { canEditProjectedDocument, formatCell, isScalarCell } from './DocumentTable.helpers';
+import { canEditProjectedDocument, formatCell, getDocumentFieldValue, isScalarCell } from './DocumentTable.helpers';
 import { UpdateManyDialog } from './UpdateManyDialog';
 import { DeleteResultsDialog } from './DeleteResultsDialog';
 import {
@@ -361,7 +361,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   const storeFilter = useStore((s) => s.filter);
   const hasFilter = Object.keys(storeFilter).length > 0;
 
-  const columns = useMemo(() => getColumns(docs), [docs]);
+  const columns = useMemo(() => getColumns(docs, projection, resultQueryMode), [docs, projection, resultQueryMode]);
   const currentPage = Math.floor(skip / limit) + 1;
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
   const tableRef = useRef<HTMLTableElement>(null);
@@ -410,7 +410,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
       const cellPadding = 24; // px-3 (12px) * 2
       let maxWidth = headerWidth;
       for (const doc of docs) {
-        const textWidth = ctx.measureText(formatCell(doc[col])).width;
+        const textWidth = ctx.measureText(formatCell(getDocumentFieldValue(doc, col))).width;
         maxWidth = Math.max(maxWidth, textWidth + cellPadding);
       }
 
@@ -537,7 +537,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
                 >
                   <TableCell className="w-12 px-2 text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
                   {columns.map((col) => {
-                    const cellValue = doc[col];
+                    const cellValue = getDocumentFieldValue(doc, col);
                     const raw = formatCell(cellValue);
                     const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
                     // A missing field has no value for the filter value action.
@@ -662,11 +662,26 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   );
 }
 
-function getColumns(docs: Record<string, unknown>[]): string[] {
+function getColumns(
+  docs: Record<string, unknown>[],
+  projection: Record<string, unknown> | null,
+  resultQueryMode: 'filter' | 'aggregate'
+): string[] {
+  const dottedProjectionFields =
+    projection && resultQueryMode === 'filter'
+      ? Object.entries(projection)
+          .filter(([field, value]) => field.includes('.') && value !== 0 && value !== false)
+          .map(([field]) => field)
+      : [];
   const keySet = new Set<string>();
   for (const doc of docs.slice(0, 20)) {
     for (const key of Object.keys(doc)) {
-      keySet.add(key);
+      const nestedFields = dottedProjectionFields.filter((field) => field.startsWith(`${key}.`));
+      if (nestedFields.length > 0) {
+        for (const field of nestedFields) keySet.add(field);
+      } else {
+        keySet.add(key);
+      }
     }
   }
   const keys = Array.from(keySet);

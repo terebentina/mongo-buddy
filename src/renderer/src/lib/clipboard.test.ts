@@ -240,6 +240,10 @@ describe('buildColumnCopyText', () => {
     expect(buildColumnCopyText([{ a: { k: 1 } }, { a: { k: 2 } }], 'a')).toBe('{"k":1}\n{"k":2}');
   });
 
+  it('reads values from a dotted field path', () => {
+    expect(buildColumnCopyText([{ data: { id: 1 } }, { data: { id: 2 } }], 'data.id')).toBe('1,\n2');
+  });
+
   it('formats $oid column as quoted inner values, comma + newline', () => {
     expect(buildColumnCopyText([{ a: { $oid: 'abc' } }, { a: { $oid: 'def' } }], 'a')).toBe('"abc",\n"def"');
   });

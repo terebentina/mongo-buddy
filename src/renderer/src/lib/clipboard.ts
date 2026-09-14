@@ -1,6 +1,11 @@
 import { toast } from 'sonner';
 
-import { formatCell, isScalarCell, unwrapEjsonScalar } from '../components/DocumentTable.helpers';
+import {
+  formatCell,
+  getDocumentFieldValue,
+  isScalarCell,
+  unwrapEjsonScalar,
+} from '../components/DocumentTable.helpers';
 
 export async function copyText(text: string, message = 'Copied to clipboard'): Promise<void> {
   try {
@@ -61,5 +66,5 @@ export function buildValuesCopyText(values: unknown[]): string {
 }
 
 export function buildColumnCopyText(docs: Record<string, unknown>[], col: string): string {
-  return buildValuesCopyText(docs.map((d) => d[col]));
+  return buildValuesCopyText(docs.map((doc) => getDocumentFieldValue(doc, col)));
 }
