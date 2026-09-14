@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.19.1](https://github.com/terebentina/mongo-buddy/compare/v2.19.0...v2.19.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* render dotted projection fields as columns ([5c5eab8](https://github.com/terebentina/mongo-buddy/commit/5c5eab8c88bd519ec412a01f097c746c02793e0f))
+
 ## [2.19.0](https://github.com/terebentina/mongo-buddy/compare/v2.18.1...v2.19.0) (2026-08-24)
 
 
