@@ -40,6 +40,42 @@ beforeEach(() => {
 });
 
 describe('DocumentTable', () => {
+  it.each(['filter', 'aggregate'] as const)(
+    'auto-sizes a header longer than its cell values in %s mode',
+    (queryMode) => {
+      const column = 'a_header_longer_than_its_values';
+      useStore.setState({
+        docs: [{ [column]: 'x', next: 'y' }],
+        totalCount: 1,
+        queryMode,
+        resultQueryMode: queryMode,
+      });
+      // jsdom has no text layout; supply deterministic canvas measurements.
+      const headerTextWidth = 200;
+      const context = {
+        font: '',
+        measureText: (text: string) => ({ width: text === column ? headerTextWidth : 8 }),
+      };
+      const getContext = vi
+        .spyOn(HTMLCanvasElement.prototype, 'getContext')
+        .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+
+      try {
+        render(<DocumentTable />);
+        const header = screen.getByRole('columnheader', { name: column });
+        fireEvent.doubleClick(header.querySelector('.cursor-col-resize')!);
+
+        // Match the rendered header: px-4, gap-1, a 14px menu icon with
+        // p-0.5 on both sides, and (in Filter mode) a 14px sort icon + gap-1.
+        const controlsWidth = queryMode === 'filter' ? 14 + 4 + 18 : 18;
+        const availableTextWidth = parseFloat(header.style.width) - 32 - 4 - controlsWidth - 1;
+        expect(availableTextWidth).toBeGreaterThanOrEqual(headerTextWidth);
+      } finally {
+        getContext.mockRestore();
+      }
+    }
+  );
+
   it('renders column headers from doc keys (union of first 20 docs)', () => {
     useStore.setState({
       docs: [

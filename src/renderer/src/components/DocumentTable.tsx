@@ -401,7 +401,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
       ctx.font = `500 ${style.fontSize} ${style.fontFamily}`;
       const headerTextWidth = ctx.measureText(col).width;
       const sortIconWidth = queryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
-      const menuIconWidth = 18; // 14px icon + 4px gap (always visible)
+      const menuIconWidth = 22; // 14px icon + 4px button padding + 4px gap (space reserved even when hidden)
       const headerPadding = 32; // px-4 (16px) * 2
       const headerWidth = headerTextWidth + sortIconWidth + menuIconWidth + headerPadding;
 
