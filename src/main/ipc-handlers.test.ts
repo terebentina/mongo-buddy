@@ -37,10 +37,8 @@ describe('IPC Handlers', () => {
     save: ReturnType<typeof vi.fn>;
     remove: ReturnType<typeof vi.fn>;
     getLastUsed: ReturnType<typeof vi.fn>;
-    setLastUsed: ReturnType<typeof vi.fn>;
   };
   let mockHistoryStore: {
-    getAll: ReturnType<typeof vi.fn>;
     save: ReturnType<typeof vi.fn>;
     clear: ReturnType<typeof vi.fn>;
   };
@@ -62,9 +60,6 @@ describe('IPC Handlers', () => {
   let mockRegistry: {
     start: ReturnType<typeof vi.fn>;
     cancel: ReturnType<typeof vi.fn>;
-    get: ReturnType<typeof vi.fn>;
-    list: ReturnType<typeof vi.fn>;
-    subscribe: ReturnType<typeof vi.fn>;
   };
   let handlers: Record<string, (...args: unknown[]) => unknown>;
 
@@ -89,11 +84,9 @@ describe('IPC Handlers', () => {
       save: vi.fn(),
       remove: vi.fn(),
       getLastUsed: vi.fn(),
-      setLastUsed: vi.fn(),
     };
 
     mockHistoryStore = {
-      getAll: vi.fn(),
       save: vi.fn(),
       clear: vi.fn(),
     };
@@ -101,9 +94,6 @@ describe('IPC Handlers', () => {
     mockRegistry = {
       start: vi.fn(),
       cancel: vi.fn(),
-      get: vi.fn(),
-      list: vi.fn(),
-      subscribe: vi.fn(),
     };
 
     mcpStatusCb = null;
@@ -148,8 +138,6 @@ describe('IPC Handlers', () => {
     expect(handlers['connections:save']).toBeDefined();
     expect(handlers['connections:delete']).toBeDefined();
     expect(handlers['connections:get-last-used']).toBeDefined();
-    expect(handlers['connections:set-last-used']).toBeDefined();
-    expect(handlers['history:load']).toBeDefined();
     expect(handlers['history:save']).toBeDefined();
     expect(handlers['history:clear']).toBeDefined();
     expect(handlers['mongo:pick-import-file']).toBeDefined();
@@ -169,7 +157,6 @@ describe('IPC Handlers', () => {
   describe('mongo:connect', () => {
     const session: ConnectedSession = {
       uri: 'mongodb://localhost:27017',
-      connectionKey: 'localhost:27017',
       databases: [{ name: 'db1', sizeOnDisk: 1, empty: false }],
       queryHistory: [],
       autoSelectedDb: 'db1',
@@ -178,26 +165,14 @@ describe('IPC Handlers', () => {
 
     it('delegates to ConnectionManager.connect and returns full ConnectedSession', async () => {
       mockManager.connect.mockResolvedValue({ ok: true, data: session });
-      const result = await handlers['mongo:connect'](
-        {} as Electron.IpcMainInvokeEvent,
-        'mongodb://localhost:27017',
-        undefined
-      );
-      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017', undefined);
+      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
+      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
       expect(result).toEqual({ ok: true, data: session });
-    });
-
-    it('forwards ConnectOptions to manager.connect', async () => {
-      mockManager.connect.mockResolvedValue({ ok: true, data: session });
-      await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017', {
-        loadHistory: false,
-      });
-      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017', { loadHistory: false });
     });
 
     it('returns error result on failure', async () => {
       mockManager.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
-      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'bad-uri', undefined);
+      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'bad-uri');
       expect(result).toEqual({ ok: false, error: 'Connection refused' });
     });
   });
@@ -214,11 +189,7 @@ describe('IPC Handlers', () => {
   describe('error handling', () => {
     it('catches unexpected errors and returns error result', async () => {
       mockManager.connect.mockRejectedValue(new Error('Unexpected crash'));
-      const result = await handlers['mongo:connect'](
-        {} as Electron.IpcMainInvokeEvent,
-        'mongodb://localhost:27017',
-        undefined
-      );
+      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
       expect(result).toEqual({ ok: false, error: 'Unexpected crash' });
     });
   });
@@ -255,28 +226,12 @@ describe('IPC Handlers', () => {
     });
   });
 
-  describe('connections:set-last-used', () => {
-    it('stores last used URI', () => {
-      handlers['connections:set-last-used']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
-      expect(mockConnStore.setLastUsed).toHaveBeenCalledWith('mongodb://localhost:27017');
-    });
-  });
-
   describe('history (per-connection)', () => {
     const key = 'myhost:9999';
     const active: ActiveConnection = { client: {} as unknown as MongoClient, key };
 
     beforeEach(() => {
       mockManager.getActive.mockReturnValue(active);
-    });
-
-    it('load reads connection key from manager and returns entries', () => {
-      const entries = [{ id: '1', queryMode: 'filter', query: '{}', db: 'test', collection: 'users', timestamp: 1000 }];
-      mockHistoryStore.getAll.mockReturnValue(entries);
-      const result = handlers['history:load']({} as Electron.IpcMainInvokeEvent);
-      expect(mockManager.getActive).toHaveBeenCalled();
-      expect(mockHistoryStore.getAll).toHaveBeenCalledWith(key);
-      expect(result).toEqual(entries);
     });
 
     it('save passes connection key (from manager) to QueryHistoryStore', () => {
@@ -288,12 +243,6 @@ describe('IPC Handlers', () => {
     it('clear passes connection key (from manager) to QueryHistoryStore', () => {
       handlers['history:clear']({} as Electron.IpcMainInvokeEvent);
       expect(mockHistoryStore.clear).toHaveBeenCalledWith(key);
-    });
-
-    it('load throws when manager reports no active connection', () => {
-      mockManager.getActive.mockReturnValue(null);
-      expect(() => handlers['history:load']({} as Electron.IpcMainInvokeEvent)).toThrow('Not connected');
-      expect(mockHistoryStore.getAll).not.toHaveBeenCalled();
     });
 
     it('save throws when manager reports no active connection', () => {

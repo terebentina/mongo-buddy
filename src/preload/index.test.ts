@@ -5,10 +5,6 @@ vi.mock('electron', () => ({
   ipcRenderer: { invoke: vi.fn(), on: vi.fn(), off: vi.fn() },
 }));
 
-vi.mock('@electron-toolkit/preload', () => ({
-  electronAPI: {},
-}));
-
 import { createApi } from './index';
 import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
 import type { McpStatus } from '../shared/types';
@@ -31,7 +27,6 @@ describe('preload createApi', () => {
     it('invokes mongo:connect with uri and forwards the ConnectedSession result', async () => {
       const session: ConnectedSession = {
         uri: 'mongodb://localhost:27017',
-        connectionKey: 'key-1',
         databases: [{ name: 'db1', sizeOnDisk: 100, empty: false }],
         queryHistory: [],
         autoSelectedDb: 'db1',
@@ -42,25 +37,8 @@ describe('preload createApi', () => {
 
       const result = await api.connect('mongodb://localhost:27017');
 
-      expect(invoke).toHaveBeenCalledWith('mongo:connect', 'mongodb://localhost:27017', undefined);
+      expect(invoke).toHaveBeenCalledWith('mongo:connect', 'mongodb://localhost:27017');
       expect(result).toEqual({ ok: true, data: session });
-    });
-
-    it('forwards ConnectOptions to the main process', async () => {
-      invoke.mockResolvedValue({ ok: false, error: 'boom' });
-      const api = createApi(ipcRenderer);
-
-      await api.connect('mongodb://localhost:27017', {
-        autoSelectSingleDb: false,
-        persistAsLastUsed: false,
-        loadHistory: false,
-      });
-
-      expect(invoke).toHaveBeenCalledWith('mongo:connect', 'mongodb://localhost:27017', {
-        autoSelectSingleDb: false,
-        persistAsLastUsed: false,
-        loadHistory: false,
-      });
     });
   });
 

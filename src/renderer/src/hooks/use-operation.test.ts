@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import {
-  useOperation,
-  useOperationById,
-  subscribeOperationStream,
-  resetOperationStore,
-  waitForTerminal,
-} from './use-operation';
+import { useOperation, subscribeOperationStream, resetOperationStore, waitForTerminal } from './use-operation';
 import type { OperationRecord } from '../../../shared/types';
 
 type Listener = (rec: OperationRecord) => void;
@@ -169,27 +163,6 @@ describe('useOperation', () => {
       expect(result.current.status).toBe('idle');
       expect(result.current.result).toBeNull();
       expect(result.current.error).toBeNull();
-    });
-  });
-
-  it('two hooks watching the same id share state (via store)', async () => {
-    mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-shared' });
-    const a = renderHook(() => useOperation('export-collection'));
-    const b = renderHook(() => useOperationById('op-shared'));
-    await act(async () => {
-      await a.result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
-    });
-    act(() => {
-      emit({
-        id: 'op-shared',
-        params: { kind: 'export-collection', db: 'd', collection: 'c' },
-        status: 'running',
-        progress: { processed: 42 },
-      });
-    });
-    await waitFor(() => {
-      expect(a.result.current.progress.processed).toBe(42);
-      expect(b.result.current?.progress.processed).toBe(42);
     });
   });
 

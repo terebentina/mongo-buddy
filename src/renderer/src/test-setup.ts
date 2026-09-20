@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom';
 import { beforeEach } from 'vitest';
 
-global.ResizeObserver = class ResizeObserver {
+globalThis.ResizeObserver = class ResizeObserver {
   observe(): void {}
   unobserve(): void {}
   disconnect(): void {}

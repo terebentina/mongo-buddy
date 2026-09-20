@@ -28,7 +28,6 @@ const mockApi = {
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
-  setLastUsed: vi.fn(),
   saveHistory: vi.fn(),
 };
 

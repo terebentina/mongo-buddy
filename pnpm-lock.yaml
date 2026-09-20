@@ -20,9 +20,6 @@ importers:
       '@codemirror/lang-javascript':
         specifier: 6.2.5
         version: 6.2.5
-      '@codemirror/lang-json':
-        specifier: 6.0.2
-        version: 6.0.2
       '@codemirror/language':
         specifier: 6.12.4
         version: 6.12.4
@@ -38,9 +35,6 @@ importers:
       '@codemirror/view':
         specifier: 6.43.4
         version: 6.43.4
-      '@electron-toolkit/preload':
-        specifier: 3.0.2
-        version: 3.0.2(electron@42.5.1)
       '@electron-toolkit/utils':
         specifier: 4.0.0
         version: 4.0.0(electron@42.5.1)
@@ -56,9 +50,6 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
-      codemirror:
-        specifier: 6.0.2
-        version: 6.0.2
       electron-store:
         specifier: 11.0.2
         version: 11.0.2
@@ -329,9 +320,6 @@ packages:
   '@codemirror/lang-javascript@6.2.5':
     resolution: {integrity: sha512-zD4e5mS+50htS7F+TYjBPsiIFGanfVqg4HyUz6WNFikgOPf2BgKlx+TQedI1w6n/IqRBVBbBWmGFdLB/7uxO4A==}
 
-  '@codemirror/lang-json@6.0.2':
-    resolution: {integrity: sha512-x2OtO+AvwEHrEwR0FyyPtfDUiloG3rnVTSZV1W8UteaLL8/MajQd8DpvUb2YVzC+/T18aSDv0H9mu+xw0EStoQ==}
-
   '@codemirror/language@6.12.4':
     resolution: {integrity: sha512-1q4PaT+o6PbgpkJt4Q8Fv5XJxTy4FUZ4MWETtyiDw3J0Pyr9E2vqcKL+k9wcvjNTIsauxvE7OfmWj3FRPHQ76A==}
 
@@ -389,11 +377,6 @@ packages:
   '@electron-internal/extract-zip@1.0.4':
     resolution: {integrity: sha512-Zr1Vs7E9tpCNhZHDAbFVXc2gEVCG9RqPDjrno5+bdgB6LRAuvgyMHJut4NCVyYwtAieapMzc3fiQ3CSTi75ARg==}
     engines: {node: '>=22.12.0'}
-
-  '@electron-toolkit/preload@3.0.2':
-    resolution: {integrity: sha512-TWWPToXd8qPRfSXwzf5KVhpXMfONaUuRAZJHsKthKgZR/+LqX1dZVSSClQ8OTAEduvLGdecljCsoT2jSshfoUg==}
-    peerDependencies:
-      electron: '>=13.0.0'
 
   '@electron-toolkit/tsconfig@2.0.0':
     resolution: {integrity: sha512-AdPsP770WhW7b260h13SHMdmjEEHJL6xFtgi3jwgdsSQbJOkJLeNnnpZW9qxTPCvmRI6vmdzWz5K3gibFS6SNg==}
@@ -874,9 +857,6 @@ packages:
 
   '@lezer/javascript@1.5.4':
     resolution: {integrity: sha512-vvYx3MhWqeZtGPwDStM2dwgljd5smolYD2lR2UyFcHfxbBQebqx8yjmFmxtJ/E6nN6u1D9srOiVWm3Rb4tmcUA==}
-
-  '@lezer/json@1.0.3':
-    resolution: {integrity: sha512-BP9KzdF9Y35PDpv04r0VeSTKDeox5vVr3efE7eBbx3r4s3oNLfunchejZhjArmeieBH+nVOpgIiBJpEAv8ilqQ==}
 
   '@lezer/lr@1.4.8':
     resolution: {integrity: sha512-bPWa0Pgx69ylNlMlPvBPryqeLYQjyJjqPx+Aupm5zydLIF3NE+6MMLT8Yi23Bd9cif9VS00aUebn+6fDIGBcDA==}
@@ -1632,9 +1612,6 @@ packages:
   clsx@2.1.1:
     resolution: {integrity: sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==}
     engines: {node: '>=6'}
-
-  codemirror@6.0.2:
-    resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
 
   color-convert@1.9.3:
     resolution: {integrity: sha512-QfAUtd+vFdAtFQcC8CCyYt1fYWxSqAiK2cSD6zDB8N3cpsEBAvRxp9zOGg6G/SHHJYAT88/az/IuDGALsNVbGg==}
@@ -4085,11 +4062,6 @@ snapshots:
       '@lezer/common': 1.5.1
       '@lezer/javascript': 1.5.4
 
-  '@codemirror/lang-json@6.0.2':
-    dependencies:
-      '@codemirror/language': 6.12.4
-      '@lezer/json': 1.0.3
-
   '@codemirror/language@6.12.4':
     dependencies:
       '@codemirror/state': 6.7.0
@@ -4154,10 +4126,6 @@ snapshots:
   '@csstools/css-tokenizer@4.0.0': {}
 
   '@electron-internal/extract-zip@1.0.4': {}
-
-  '@electron-toolkit/preload@3.0.2(electron@42.5.1)':
-    dependencies:
-      electron: 42.5.1
 
   '@electron-toolkit/tsconfig@2.0.0(@types/node@24.13.2)':
     dependencies:
@@ -4517,12 +4485,6 @@ snapshots:
       '@lezer/common': 1.5.1
 
   '@lezer/javascript@1.5.4':
-    dependencies:
-      '@lezer/common': 1.5.1
-      '@lezer/highlight': 1.2.3
-      '@lezer/lr': 1.4.8
-
-  '@lezer/json@1.0.3':
     dependencies:
       '@lezer/common': 1.5.1
       '@lezer/highlight': 1.2.3
@@ -5321,16 +5283,6 @@ snapshots:
       mimic-response: 1.0.1
 
   clsx@2.1.1: {}
-
-  codemirror@6.0.2:
-    dependencies:
-      '@codemirror/autocomplete': 6.20.3
-      '@codemirror/commands': 6.10.4
-      '@codemirror/language': 6.12.4
-      '@codemirror/lint': 6.9.5
-      '@codemirror/search': 6.7.1
-      '@codemirror/state': 6.7.0
-      '@codemirror/view': 6.43.4
 
   color-convert@1.9.3:
     dependencies:

@@ -6,11 +6,10 @@ import type {
   QueryHistoryEntry,
   ConnectionState,
   ConnectedSession,
-  ConnectOptions,
 } from '../shared/types';
 import { byNameInsensitive } from '../shared/sort';
 
-export type { ConnectionState, ConnectedSession, ConnectOptions };
+export type { ConnectionState, ConnectedSession };
 
 export type ConnectionKey = string;
 export type ActiveConnection = { client: MongoClient; key: ConnectionKey };
@@ -28,7 +27,7 @@ export interface MongoClientFactoryPort {
 }
 
 export interface ConnectionManager {
-  connect(uri: string, opts?: ConnectOptions): Promise<Result<ConnectedSession>>;
+  connect(uri: string): Promise<Result<ConnectedSession>>;
   disconnect(): Promise<Result<undefined>>;
   getState(): ConnectionState;
   getActive(): ActiveConnection | null;
@@ -79,14 +78,10 @@ export function createConnectionManager(deps: ConnectionManagerDeps): Connection
     for (const cb of subscribers) cb(state);
   };
 
-  const connect = async (uri: string, opts: ConnectOptions = {}): Promise<Result<ConnectedSession>> => {
+  const connect = async (uri: string): Promise<Result<ConnectedSession>> => {
     if (state.status === 'connecting') {
       return { ok: false, error: 'Already connecting' };
     }
-
-    const autoSelectSingleDb = opts.autoSelectSingleDb ?? true;
-    const persistAsLastUsed = opts.persistAsLastUsed ?? true;
-    const loadHistory = opts.loadHistory ?? true;
 
     setState({ status: 'connecting', uri });
 
@@ -110,24 +105,22 @@ export function createConnectionManager(deps: ConnectionManagerDeps): Connection
 
       let autoSelectedDb: string | null = null;
       let collections: CollectionInfo[] = [];
-      if (autoSelectSingleDb && databases.length === 1) {
+      if (databases.length === 1) {
         autoSelectedDb = databases[0].name;
         collections = await loadCollections(created, autoSelectedDb);
       }
 
       const connectionKey = deps.connectionKeyFromUri(uri);
-      const queryHistory = loadHistory ? deps.historyStore.getAll(connectionKey) : [];
+      const queryHistory = deps.historyStore.getAll(connectionKey);
 
-      if (persistAsLastUsed) {
-        deps.connectionStore.setLastUsed(uri);
-      }
+      deps.connectionStore.setLastUsed(uri);
 
       client = created;
       setState({ status: 'connected', uri, connectionKey });
 
       return {
         ok: true,
-        data: { uri, connectionKey, databases, queryHistory, autoSelectedDb, collections },
+        data: { uri, databases, queryHistory, autoSelectedDb, collections },
       };
     } catch (err) {
       try {

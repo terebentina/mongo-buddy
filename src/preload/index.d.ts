@@ -1,4 +1,3 @@
-import { ElectronAPI } from '@electron-toolkit/preload';
 import type {
   Result,
   DbInfo,
@@ -23,9 +22,9 @@ import type {
   McpStatus,
   QueryMode,
 } from '../shared/types';
-import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
+import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
 
-export type { ConnectionState, ConnectedSession, ConnectOptions };
+export type { ConnectionState, ConnectedSession };
 
 export type {
   OperationKind,
@@ -38,7 +37,7 @@ export type {
 };
 
 interface MongoApi {
-  connect(uri: string, opts?: ConnectOptions): Promise<Result<ConnectedSession>>;
+  connect(uri: string): Promise<Result<ConnectedSession>>;
   disconnect(): Promise<Result<undefined>>;
   onConnectionState(cb: (state: ConnectionState) => void): () => void;
   listDatabases(): Promise<Result<DbInfo[]>>;
@@ -95,8 +94,6 @@ interface MongoApi {
   saveConnection(conn: SavedConnection): Promise<void>;
   deleteConnection(name: string): Promise<void>;
   getLastUsed(): Promise<string | null>;
-  setLastUsed(uri: string): Promise<void>;
-  loadHistory(): Promise<QueryHistoryEntry[]>;
   saveHistory(entries: QueryHistoryEntry[]): Promise<void>;
   clearHistory(): Promise<void>;
   pickImportFile(): Promise<Result<PickedFile[] | null>>;
@@ -110,7 +107,6 @@ interface MongoApi {
 
 declare global {
   interface Window {
-    electron: ElectronAPI;
     api: MongoApi;
   }
 }

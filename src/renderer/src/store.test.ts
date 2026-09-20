@@ -21,9 +21,7 @@ const mockApi = {
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
-  setLastUsed: vi.fn(),
   sampleFields: vi.fn(),
-  loadHistory: vi.fn().mockResolvedValue([]),
   saveHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
   distinct: vi.fn(),
@@ -35,7 +33,6 @@ const mockApi = {
 function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSession {
   return {
     uri: 'mongodb://localhost',
-    connectionKey: 'localhost:27017',
     databases: [],
     queryHistory: [],
     autoSelectedDb: null,
@@ -96,7 +93,6 @@ describe('store', () => {
       ok: true,
       data: makeSession({
         uri: 'mongodb://localhost',
-        connectionKey: 'localhost:27017',
         databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
         queryHistory: historyEntries,
         autoSelectedDb: 'testdb',
@@ -116,8 +112,6 @@ describe('store', () => {
     expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost');
     expect(mockApi.listDatabases).not.toHaveBeenCalled();
     expect(mockApi.listCollections).not.toHaveBeenCalled();
-    expect(mockApi.loadHistory).not.toHaveBeenCalled();
-    expect(mockApi.setLastUsed).not.toHaveBeenCalled();
   });
 
   it('connect() multi-db session: autoSelectedDb null, collections empty, databases populated', async () => {
@@ -1591,7 +1585,6 @@ describe('connect() atomicity invariant', () => {
         ok: true,
         data: {
           uri: 'mongodb://localhost',
-          connectionKey: 'localhost:27017',
           databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
           queryHistory: [],
           autoSelectedDb: 'testdb',

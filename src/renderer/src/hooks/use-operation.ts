@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { create } from 'zustand';
-import { useShallow } from 'zustand/react/shallow';
 import type {
   OperationKind,
   OperationStatus,
@@ -117,8 +116,4 @@ export function useOperation<K extends OperationKind>(kind: K): UseOperationRetu
   }
 
   return { start, cancel, status, progress, result, error, reset };
-}
-
-export function useOperationById(id: OperationId | null): OperationRecord | null {
-  return useOperationStore(useShallow((s) => (id ? (s.records[id] ?? null) : null)));
 }

@@ -39,12 +39,6 @@ export interface SavedConnection {
   uri: string;
 }
 
-export interface ExportProgress {
-  db: string;
-  collection: string;
-  count: number;
-}
-
 export type QueryMode = 'filter' | 'aggregate';
 
 export interface QueryHistoryEntry {
@@ -56,23 +50,9 @@ export interface QueryHistoryEntry {
   timestamp: number;
 }
 
-export interface ImportProgress {
-  db: string;
-  collection: string;
-  count: number;
-}
-
 export interface ImportOptions {
   onDuplicate: 'skip' | 'fail' | 'upsert';
   clearFirst: boolean;
-}
-
-export interface ExportDbProgress {
-  db: string;
-  collection: string;
-  index: number;
-  total: number;
-  count: number;
 }
 
 export interface PickedFile {
@@ -105,17 +85,10 @@ export type ConnectionState =
 
 export interface ConnectedSession {
   uri: string;
-  connectionKey: string;
   databases: DbInfo[];
   queryHistory: QueryHistoryEntry[];
   autoSelectedDb: string | null;
   collections: CollectionInfo[];
-}
-
-export interface ConnectOptions {
-  autoSelectSingleDb?: boolean;
-  persistAsLastUsed?: boolean;
-  loadHistory?: boolean;
 }
 
 export type OperationKind = 'export-collection' | 'export-database' | 'import-collection';

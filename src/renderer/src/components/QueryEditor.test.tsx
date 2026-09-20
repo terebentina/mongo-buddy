@@ -9,10 +9,6 @@ vi.mock('sonner', () => ({
 }));
 
 // Mock CodeMirror since jsdom doesn't support it
-vi.mock('codemirror', () => ({}));
-vi.mock('@codemirror/lang-json', () => ({
-  json: vi.fn(() => []),
-}));
 vi.mock('@codemirror/theme-one-dark', () => ({
   oneDark: [],
 }));
@@ -70,8 +66,6 @@ const mockApi = {
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
-  setLastUsed: vi.fn(),
-  loadHistory: vi.fn().mockResolvedValue([]),
   saveHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
 };

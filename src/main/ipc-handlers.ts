@@ -1,7 +1,7 @@
 import { ipcMain, dialog, app, BrowserWindow } from 'electron';
 import path from 'path';
 import type { ConnectionStore } from './connection-store';
-import type { ActiveConnection, ConnectionManager, ConnectOptions } from './connection-manager';
+import type { ActiveConnection, ConnectionManager } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
 import type { OperationRegistry } from './operation-registry';
 import type { McpStatusEmitter } from './mcp/status';
@@ -68,7 +68,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 
   ipcMain.handle(
     'mongo:connect',
-    wrap((uri: unknown, opts: unknown) => manager.connect(uri as string, opts as ConnectOptions | undefined))
+    wrap((uri: unknown) => manager.connect(uri as string))
   );
   ipcMain.handle(
     'mongo:disconnect',
@@ -96,15 +96,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(
     'connections:get-last-used',
     wrapSync(() => connStore.getLastUsed())
-  );
-  ipcMain.handle(
-    'connections:set-last-used',
-    wrapSync((uri: unknown) => connStore.setLastUsed(uri as string))
-  );
-
-  ipcMain.handle(
-    'history:load',
-    wrapSync(() => historyStore.getAll(requireActive().key))
   );
   ipcMain.handle(
     'history:save',

@@ -11,7 +11,6 @@ function sessionOk(uri = 'mongodb://localhost:27017'): { ok: true; data: Connect
     ok: true,
     data: {
       uri,
-      connectionKey: 'localhost:27017',
       databases: [],
       queryHistory: [],
       autoSelectedDb: null,
@@ -38,8 +37,6 @@ const mockApi = {
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
-  setLastUsed: vi.fn(),
-  loadHistory: vi.fn().mockResolvedValue([]),
   saveHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
 };

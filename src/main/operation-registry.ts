@@ -72,9 +72,6 @@ export interface DialogProviderPort {
 export interface OperationRegistry {
   start(params: OperationParams, active: ActiveConnection): Result<OperationId>;
   cancel(id: OperationId): Result<undefined>;
-  get(id: OperationId): OperationRecord | undefined;
-  list(): OperationRecord[];
-  subscribe(cb: (rec: OperationRecord) => void): () => void;
 }
 
 interface RegistryDeps {
@@ -108,13 +105,7 @@ function formatZodError(err: z.ZodError): string {
 export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
   const records = new Map<OperationId, OperationRecord>();
   const inFlight = new Map<string, { id: OperationId; ac: AbortController }>();
-  const subscribers = new Set<(rec: OperationRecord) => void>();
   const byKind = new Map<OperationKind, AnyOperationDef>(deps.kinds.map((k) => [k.kind, k]));
-
-  const fanout = (rec: OperationRecord): void => {
-    deps.emit(rec);
-    for (const cb of subscribers) cb(rec);
-  };
 
   const emitUpdate = (id: OperationId, patch: Partial<OperationRecord>): void => {
     const current = records.get(id);
@@ -125,7 +116,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
       progress: patch.progress ?? current.progress,
     };
     records.set(id, next);
-    fanout(next);
+    deps.emit(next);
   };
 
   const updateProgress = (id: OperationId, patch: Partial<OperationProgress>): void => {
@@ -134,7 +125,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     const nextProgress: OperationProgress = { ...current.progress, ...patch };
     const next: OperationRecord = { ...current, progress: nextProgress };
     records.set(id, next);
-    fanout(next);
+    deps.emit(next);
   };
 
   const runDef = async (
@@ -175,7 +166,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
 
     const aborted = ac.signal.aborted;
 
-    // Invariant: release in-flight BEFORE emitting terminal, so a subscriber
+    // Invariant: release in-flight BEFORE emitting terminal, so a consumer
     // that re-starts the same scope on terminal doesn't hit a stale guard.
     inFlight.delete(key);
 
@@ -219,7 +210,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     };
     records.set(id, rec);
     inFlight.set(key, { id, ac });
-    fanout(rec);
+    deps.emit(rec);
 
     queueMicrotask(() => {
       void runDef(id, def, parsed.data, ac, key, active);
@@ -238,12 +229,5 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     return { ok: false, error: 'No active operation with that id' };
   };
 
-  const get = (id: OperationId): OperationRecord | undefined => records.get(id);
-  const list = (): OperationRecord[] => Array.from(records.values());
-  const subscribe = (cb: (rec: OperationRecord) => void): (() => void) => {
-    subscribers.add(cb);
-    return () => subscribers.delete(cb);
-  };
-
-  return { start, cancel, get, list, subscribe };
+  return { start, cancel };
 }

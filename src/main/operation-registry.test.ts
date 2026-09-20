@@ -3,7 +3,7 @@ import { Writable, Readable } from 'stream';
 import type { MongoClient } from 'mongodb';
 import { z } from 'zod';
 import { createOperationRegistry } from './operation-registry';
-import type { MongoServicePort } from './operation-registry';
+import type { MongoServicePort, OperationRegistry } from './operation-registry';
 import { OPERATIONS } from './operations';
 import { exportCollectionOp } from './operations/export-collection';
 import type { AnyOperationDef } from './operations/types';
@@ -208,12 +208,14 @@ function makeMongoPort(
 
 type Emits = OperationRecord[];
 
-function makeEmitSpy(): { emits: Emits; emit: (rec: OperationRecord) => void } {
+function makeEmitSpy(onEmit?: (rec: OperationRecord) => void): { emits: Emits; emit: (rec: OperationRecord) => void } {
   const emits: Emits = [];
   return {
     emits,
     emit: (rec) => {
-      emits.push(JSON.parse(JSON.stringify(rec)) as OperationRecord);
+      const snapshot = JSON.parse(JSON.stringify(rec)) as OperationRecord;
+      emits.push(snapshot);
+      onEmit?.(snapshot);
     },
   };
 }
@@ -1012,24 +1014,20 @@ describe('OperationRegistry', () => {
   });
 
   describe('in-flight key released before terminal emit', () => {
-    it('a subscriber that re-starts same scope on terminal succeeds without "already running"', async () => {
+    it('an emit consumer that re-starts the same scope succeeds without "already running"', async () => {
       const fs = makeFsPort();
       const dialog = makeDialogPort({ savePath: '/tmp/x.bson.gz' });
       const mongo = makeMongoPort();
-      const { emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
-
       const params: OperationParams = { kind: 'export-collection', db: 'd', collection: 'c' };
       let restartResult: Result<string> | null = null;
-
-      registry.subscribe((rec: OperationRecord) => {
+      const { emit } = makeEmitSpy((rec) => {
         if (rec.status === 'succeeded' && rec.params.kind === 'export-collection' && restartResult === null) {
           restartResult = registry.start(params, TEST_ACTIVE);
         }
       });
+      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
       registry.start(params, TEST_ACTIVE);
-      // wait for both terminals
       await vi.waitFor(() => {
         expect(restartResult).not.toBeNull();
       });
@@ -1038,11 +1036,11 @@ describe('OperationRegistry', () => {
   });
 
   describe('wrapper, fake def', () => {
-    function buildRegistry(def: AnyOperationDef) {
+    function buildRegistry(def: AnyOperationDef, onEmit?: (rec: OperationRecord, registry: OperationRegistry) => void) {
       const fs = makeFsPort();
       const dialog = makeDialogPort();
       const mongo = makeMongoPort();
-      const { emits, emit } = makeEmitSpy();
+      const { emits, emit } = makeEmitSpy((rec) => onEmit?.(rec, registry));
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: [def] });
       return { registry, emits };
     }
@@ -1059,7 +1057,6 @@ describe('OperationRegistry', () => {
       if (res.ok) return;
       expect(res.error).toContain('unknown operation kind');
       expect(emits).toHaveLength(0);
-      expect(registry.list()).toHaveLength(0);
     });
 
     it('start() rejects when params fail Zod validation', () => {
@@ -1081,7 +1078,7 @@ describe('OperationRegistry', () => {
           collections: z.array(z.string()).optional(),
         }),
         async run(_a, _p, ctx) {
-          // Wait one microtask so a subscriber that cancels on 'running' can fire.
+          // Wait one microtask so the emit consumer can cancel on 'running'.
           await Promise.resolve();
           expect(ctx.signal.aborted).toBe(true);
           // Return ok with partial data despite the abort (the export-database pattern).
@@ -1091,9 +1088,8 @@ describe('OperationRegistry', () => {
           };
         },
       };
-      const { registry, emits } = buildRegistry(fakeDef);
-      registry.subscribe((rec) => {
-        if (rec.status === 'running') registry.cancel(rec.id);
+      const { registry, emits } = buildRegistry(fakeDef, (rec, runningRegistry) => {
+        if (rec.status === 'running') runningRegistry.cancel(rec.id);
       });
       registry.start({ kind: 'export-database', db: 'd' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
@@ -1129,15 +1125,14 @@ describe('OperationRegistry', () => {
           collection: z.string(),
         }),
         async run(_a, _p, ctx) {
-          // Wait one microtask so the subscriber can cancel us, then throw.
+          // Wait one microtask so the emit consumer can cancel, then throw.
           await Promise.resolve();
           expect(ctx.signal.aborted).toBe(true);
           throw new Error('driver aborted');
         },
       };
-      const { registry, emits } = buildRegistry(fakeDef);
-      registry.subscribe((rec) => {
-        if (rec.status === 'running') registry.cancel(rec.id);
+      const { registry, emits } = buildRegistry(fakeDef, (rec, runningRegistry) => {
+        if (rec.status === 'running') runningRegistry.cancel(rec.id);
       });
       registry.start({ kind: 'export-collection', db: 'd', collection: 'c' }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);

@@ -105,7 +105,6 @@ describe('ConnectionManager', () => {
       if (!result.ok) return;
       expect(result.data).toEqual({
         uri: 'mongodb://localhost/',
-        connectionKey: 'key:mongodb://localhost/',
         databases: [{ name: 'mydb', sizeOnDisk: 1024, empty: false }],
         queryHistory: [{ id: 'h1', queryMode: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 }],
         autoSelectedDb: 'mydb',
@@ -306,59 +305,22 @@ describe('ConnectionManager', () => {
     });
   });
 
-  describe('ConnectOptions', () => {
-    function makeSingleDbSetup(): {
-      client: FakeClient;
-      built: ReturnType<typeof makeDeps>;
-    } {
-      const client = makeFakeClient({
-        listDatabasesImpl: async () => ({ databases: [{ name: 'only' }] }),
-        listCollectionsImpl: () => [{ name: 'c', type: 'collection' }],
-      });
-      const built = makeDeps({ client });
-      return { client, built };
-    }
-
-    it('autoSelectSingleDb: false skips listCollections and leaves autoSelectedDb null', async () => {
-      const { client, built } = makeSingleDbSetup();
-      mgr = createConnectionManager(built.deps);
-
-      const result = await mgr.connect('mongodb://localhost/', { autoSelectSingleDb: false });
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.data.autoSelectedDb).toBeNull();
-      expect(result.data.collections).toEqual([]);
-      // db('only') would be the listCollections call; db() with no args is for admin.listDatabases.
-      expect(client.db).not.toHaveBeenCalledWith('only');
+  it('connect loads session state and persists the last-used URI', async () => {
+    const client = makeFakeClient({
+      listDatabasesImpl: async () => ({ databases: [{ name: 'only' }] }),
+      listCollectionsImpl: () => [{ name: 'c', type: 'collection' }],
     });
+    const built = makeDeps({ client });
+    mgr = createConnectionManager(built.deps);
 
-    it('persistAsLastUsed: false skips connectionStore.setLastUsed', async () => {
-      const { built } = makeSingleDbSetup();
-      mgr = createConnectionManager(built.deps);
+    const result = await mgr.connect('mongodb://localhost/');
 
-      await mgr.connect('mongodb://localhost/', { persistAsLastUsed: false });
-      expect(built.setLastUsed).not.toHaveBeenCalled();
-    });
-
-    it('loadHistory: false skips historyStore.getAll and returns empty queryHistory', async () => {
-      const { built } = makeSingleDbSetup();
-      mgr = createConnectionManager(built.deps);
-
-      const result = await mgr.connect('mongodb://localhost/', { loadHistory: false });
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.data.queryHistory).toEqual([]);
-      expect(built.getAll).not.toHaveBeenCalled();
-    });
-
-    it('defaults: all three port calls happen when no options supplied', async () => {
-      const { built } = makeSingleDbSetup();
-      mgr = createConnectionManager(built.deps);
-
-      await mgr.connect('mongodb://localhost/');
-      expect(built.setLastUsed).toHaveBeenCalledWith('mongodb://localhost/');
-      expect(built.getAll).toHaveBeenCalledWith('key:mongodb://localhost/');
-    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.autoSelectedDb).toBe('only');
+    expect(result.data.collections).toEqual([{ name: 'c', type: 'collection', count: 0 }]);
+    expect(built.setLastUsed).toHaveBeenCalledWith('mongodb://localhost/');
+    expect(built.getAll).toHaveBeenCalledWith('key:mongodb://localhost/');
   });
 
   describe('onStateChange unsubscribe', () => {

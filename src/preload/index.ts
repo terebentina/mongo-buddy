@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { electronAPI } from '@electron-toolkit/preload';
 import type {
   Result,
   DbInfo,
@@ -20,9 +19,9 @@ import type {
   McpStatus,
   QueryMode,
 } from '../shared/types';
-import type { ConnectionState, ConnectedSession, ConnectOptions } from '../main/connection-manager';
+import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
 
-export type { ConnectionState, ConnectedSession, ConnectOptions };
+export type { ConnectionState, ConnectedSession };
 
 type IpcLike = {
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
@@ -32,8 +31,8 @@ type IpcLike = {
 
 export function createApi(ipc: IpcLike) {
   return {
-    connect: (uri: string, opts?: ConnectOptions): Promise<Result<ConnectedSession>> =>
-      ipc.invoke('mongo:connect', uri, opts) as Promise<Result<ConnectedSession>>,
+    connect: (uri: string): Promise<Result<ConnectedSession>> =>
+      ipc.invoke('mongo:connect', uri) as Promise<Result<ConnectedSession>>,
     disconnect: (): Promise<Result<undefined>> => ipc.invoke('mongo:disconnect') as Promise<Result<undefined>>,
     onConnectionState: (cb: (state: ConnectionState) => void): (() => void) => {
       const handler = (_event: unknown, state: ConnectionState): void => cb(state);
@@ -124,8 +123,6 @@ export function createApi(ipc: IpcLike) {
     saveConnection: (conn: SavedConnection): Promise<void> => ipc.invoke('connections:save', conn) as Promise<void>,
     deleteConnection: (name: string): Promise<void> => ipc.invoke('connections:delete', name) as Promise<void>,
     getLastUsed: (): Promise<string | null> => ipc.invoke('connections:get-last-used') as Promise<string | null>,
-    setLastUsed: (uri: string): Promise<void> => ipc.invoke('connections:set-last-used', uri) as Promise<void>,
-    loadHistory: (): Promise<QueryHistoryEntry[]> => ipc.invoke('history:load') as Promise<QueryHistoryEntry[]>,
     saveHistory: (entries: QueryHistoryEntry[]): Promise<void> => ipc.invoke('history:save', entries) as Promise<void>,
     clearHistory: (): Promise<void> => ipc.invoke('history:clear') as Promise<void>,
     pickImportFile: (): Promise<Result<PickedFile[] | null>> =>
@@ -156,14 +153,11 @@ export type MongoApi = ReturnType<typeof createApi>;
 
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI);
     contextBridge.exposeInMainWorld('api', api);
   } catch (error) {
     console.error(error);
   }
 } else if (typeof window !== 'undefined') {
-  // @ts-expect-error (define in dts)
-  window.electron = electronAPI;
   // @ts-expect-error (define in dts)
   window.api = api;
 }
