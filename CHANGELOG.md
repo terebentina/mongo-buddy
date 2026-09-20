@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.19.2](https://github.com/terebentina/mongo-buddy/compare/v2.19.1...v2.19.2) (2026-09-20)
+
+
+### Bug Fixes
+
+* include header menu padding in column auto-size ([79fe818](https://github.com/terebentina/mongo-buddy/commit/79fe8188ff7326d7c8a4aba3081f1e98ee610215))
+
 ## [2.19.1](https://github.com/terebentina/mongo-buddy/compare/v2.19.0...v2.19.1) (2026-09-14)
 
 
