@@ -28,6 +28,7 @@ export interface FindResult {
 export type UpdateDocument = Record<string, unknown>;
 export type UpdatePipeline = UpdateDocument[];
 export type UpdateManyInput = UpdateDocument | UpdatePipeline;
+export type UpdateManyOptions = Record<string, unknown>;
 
 export interface UpdateManyResult {
   matchedCount: number;

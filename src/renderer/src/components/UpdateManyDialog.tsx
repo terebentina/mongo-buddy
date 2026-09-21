@@ -8,9 +8,10 @@ import { EditorState } from '@codemirror/state';
 import JSON5 from 'json5';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { baseExtensions } from '../lib/editor';
-import type { UpdateManyInput } from '../../../shared/types';
+import type { UpdateManyInput, UpdateManyOptions } from '../../../shared/types';
 
 const DEFAULT_UPDATE = '{\n  "$set": {}\n}';
+const DEFAULT_OPTIONS = '{}';
 const PIPELINE_EXAMPLE = '[\n  { "$set": { "data.name": "$title" } }\n]';
 
 const editorTheme = EditorView.theme({
@@ -21,7 +22,8 @@ const editorTheme = EditorView.theme({
 export function UpdateManyDialog() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const viewRef = useRef<EditorView | null>(null);
+  const updateViewRef = useRef<EditorView | null>(null);
+  const optionsViewRef = useRef<EditorView | null>(null);
   const updateManyDocs = useStore((s) => s.updateManyDocs);
   const selectedCollection = useStore((s) => s.selectedCollection);
   const queryMode = useStore((s) => s.queryMode);
@@ -29,16 +31,39 @@ export function UpdateManyDialog() {
   const totalCount = useStore((s) => s.totalCount);
   const filter = useStore((s) => s.filter);
 
-  const editorRefCallback = useCallback((node: HTMLDivElement | null) => {
+  const updateEditorRefCallback = useCallback((node: HTMLDivElement | null) => {
     if (node) {
       const state = EditorState.create({
         doc: DEFAULT_UPDATE,
-        extensions: [...baseExtensions({ extraKeymaps: foldKeymap }), editorTheme, foldGutter()],
+        extensions: [
+          ...baseExtensions({ extraKeymaps: foldKeymap }),
+          editorTheme,
+          foldGutter(),
+          EditorView.contentAttributes.of({ 'aria-label': 'Update document or pipeline' }),
+        ],
       });
-      viewRef.current = new EditorView({ state, parent: node });
+      updateViewRef.current = new EditorView({ state, parent: node });
     } else {
-      viewRef.current?.destroy();
-      viewRef.current = null;
+      updateViewRef.current?.destroy();
+      updateViewRef.current = null;
+    }
+  }, []);
+
+  const optionsEditorRefCallback = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      const state = EditorState.create({
+        doc: DEFAULT_OPTIONS,
+        extensions: [
+          ...baseExtensions({ extraKeymaps: foldKeymap }),
+          editorTheme,
+          foldGutter(),
+          EditorView.contentAttributes.of({ 'aria-label': 'Update options' }),
+        ],
+      });
+      optionsViewRef.current = new EditorView({ state, parent: node });
+    } else {
+      optionsViewRef.current?.destroy();
+      optionsViewRef.current = null;
     }
   }, []);
 
@@ -48,17 +73,32 @@ export function UpdateManyDialog() {
   };
 
   const handleConfirm = async (): Promise<void> => {
-    const editorText = viewRef.current?.state.doc.toString() ?? '';
+    const updateText = updateViewRef.current?.state.doc.toString() ?? '';
+    const optionsText = optionsViewRef.current?.state.doc.toString() ?? '';
     let update: UpdateManyInput;
+    let options: UpdateManyOptions;
     try {
-      update = JSON5.parse(editorText) as UpdateManyInput;
+      update = JSON5.parse(updateText) as UpdateManyInput;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Invalid JSON');
+      const message = e instanceof Error ? e.message : 'Invalid JSON';
+      toast.error(`Invalid update: ${message}`);
+      return;
+    }
+    try {
+      const parsedOptions = JSON5.parse(optionsText) as unknown;
+      if (parsedOptions === null || typeof parsedOptions !== 'object' || Array.isArray(parsedOptions)) {
+        toast.error('Options must be an object');
+        return;
+      }
+      options = parsedOptions as UpdateManyOptions;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Invalid JSON';
+      toast.error(`Invalid options: ${message}`);
       return;
     }
 
     setSaving(true);
-    const result = await updateManyDocs(update);
+    const result = await updateManyDocs(update, options);
     if (!result.ok) {
       setSaving(false);
       toast.error(result.error);
@@ -85,7 +125,7 @@ export function UpdateManyDialog() {
         Update results
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent initialFocus={() => viewRef.current?.contentDOM ?? null}>
+        <DialogContent className="max-w-4xl" initialFocus={() => updateViewRef.current?.contentDOM ?? null}>
           <DialogHeader>
             <DialogTitle>
               Update results
@@ -94,7 +134,7 @@ export function UpdateManyDialog() {
               )}
             </DialogTitle>
             <DialogDescription>
-              Enter an update document or an update pipeline to apply to every matching document
+              Enter an update document or an update pipeline, plus optional options, to apply to every matching document
             </DialogDescription>
           </DialogHeader>
           <div className="text-sm text-muted-foreground">
@@ -113,7 +153,18 @@ export function UpdateManyDialog() {
             <div>Use an array for an update pipeline:</div>
             <pre className="mt-1 bg-muted rounded p-2 overflow-auto font-mono">{PIPELINE_EXAMPLE}</pre>
           </div>
-          <div ref={editorRefCallback} className="w-full border rounded overflow-hidden h-64" />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="min-w-0 space-y-2">
+              <div className="text-sm font-medium">Update document or pipeline</div>
+              <div ref={updateEditorRefCallback} className="w-full border rounded overflow-hidden h-64" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="text-sm font-medium">
+                Options <span className="font-normal text-muted-foreground">(optional third argument)</span>
+              </div>
+              <div ref={optionsEditorRefCallback} className="w-full border rounded overflow-hidden h-64" />
+            </div>
+          </div>
           <div className="flex justify-end">
             <Button onClick={handleConfirm} disabled={saving}>
               Update {totalCount.toLocaleString()} {docWord}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { UpdateOptions } from 'mongodb';
 import type { UpdateManyResult } from '../../shared/types';
 import type { MongoCommand } from './dispatch';
 
@@ -9,16 +10,18 @@ const input = z.object({
   collection: z.string(),
   filter: z.record(z.string(), z.unknown()),
   update: z.union([updateDocument, z.array(updateDocument)]),
+  options: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const updateManyCommand: MongoCommand<typeof input, UpdateManyResult> = {
   name: 'updateMany',
   input,
-  async run(active, { db, collection, filter, update }) {
-    const { matchedCount, modifiedCount } = await active.client
-      .db(db)
-      .collection(collection)
-      .updateMany(filter, update);
+  async run(active, { db, collection, filter, update, options }) {
+    const target = active.client.db(db).collection(collection);
+    const { matchedCount, modifiedCount } =
+      options === undefined
+        ? await target.updateMany(filter, update)
+        : await target.updateMany(filter, update, options as UpdateOptions);
     return { matchedCount, modifiedCount };
   },
 };

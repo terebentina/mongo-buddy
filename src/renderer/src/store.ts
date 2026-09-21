@@ -11,6 +11,7 @@ import type {
   ConnectionState,
   McpStatus,
   UpdateManyInput,
+  UpdateManyOptions,
   UpdateManyResult,
 } from '../../shared/types';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
@@ -69,7 +70,7 @@ export interface StoreState {
   setLimit: (newLimit: number) => void;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
   updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
-  updateManyDocs: (update: UpdateManyInput) => Promise<Result<UpdateManyResult>>;
+  updateManyDocs: (update: UpdateManyInput, options?: UpdateManyOptions) => Promise<Result<UpdateManyResult>>;
   deleteResults: () => Promise<Result<number>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
   refreshDocs: () => Promise<void>;
@@ -468,10 +469,13 @@ export const useStore = create<StoreState>()((set, get) => ({
     return null;
   },
 
-  updateManyDocs: async (update: UpdateManyInput) => {
+  updateManyDocs: async (update: UpdateManyInput, options?: UpdateManyOptions) => {
     const { selectedDb, selectedCollection, filter } = get();
     if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-    const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update);
+    const result =
+      options === undefined
+        ? await window.api.updateMany(selectedDb, selectedCollection, filter, update)
+        : await window.api.updateMany(selectedDb, selectedCollection, filter, update, options);
     if (result.ok) await get().refreshDocs();
     return result;
   },

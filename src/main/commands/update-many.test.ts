@@ -46,7 +46,32 @@ describe('updateManyCommand', () => {
     expect(mockCollection.updateMany).toHaveBeenCalledWith({ status: 'active' }, update);
   });
 
-  it('schema accepts an update document or update pipeline', () => {
+  it('passes update options unchanged as the third argument', async () => {
+    const options = {
+      arrayFilters: [{ 'item.status': 'pending' }],
+      bypassDocumentValidation: true,
+      collation: { locale: 'en', strength: 2 },
+      comment: 'archive active users',
+      hint: { status: 1 },
+      let: { archiveReason: 'expired' },
+      maxTimeMS: 5_000,
+      timeoutMS: 10_000,
+      upsert: true,
+      writeConcern: { w: 'majority' },
+    };
+
+    await updateManyCommand.run(active, {
+      db: 'd',
+      collection: 'c',
+      filter: { status: 'active' },
+      update: { $set: { archived: true } },
+      options,
+    });
+
+    expect(mockCollection.updateMany).toHaveBeenCalledWith({ status: 'active' }, { $set: { archived: true } }, options);
+  });
+
+  it('schema accepts an update document or pipeline with optional object options', () => {
     expect(updateManyCommand.input.safeParse({ db: 'd', collection: 'c', update: { $set: {} } }).success).toBe(false);
     expect(updateManyCommand.input.safeParse({ db: 'd', collection: 'c', filter: {} }).success).toBe(false);
     expect(
@@ -60,6 +85,24 @@ describe('updateManyCommand', () => {
         update: [{ $set: { 'data.name': '$title' } }],
       }).success
     ).toBe(true);
+    expect(
+      updateManyCommand.input.safeParse({
+        db: 'd',
+        collection: 'c',
+        filter: {},
+        update: { $set: { a: 1 } },
+        options: { upsert: true, futureDriverOption: 'supported without an allowlist' },
+      }).success
+    ).toBe(true);
+    expect(
+      updateManyCommand.input.safeParse({
+        db: 'd',
+        collection: 'c',
+        filter: {},
+        update: { $set: { a: 1 } },
+        options: [],
+      }).success
+    ).toBe(false);
     expect(updateManyCommand.input.safeParse({ db: 'd', collection: 'c', filter: {}, update: [1] }).success).toBe(
       false
     );
