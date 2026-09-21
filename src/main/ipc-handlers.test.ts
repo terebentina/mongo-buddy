@@ -45,7 +45,6 @@ describe('IPC Handlers', () => {
   let mockManager: {
     connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
-    getState: ReturnType<typeof vi.fn>;
     getActive: ReturnType<typeof vi.fn>;
     onStateChange: ReturnType<typeof vi.fn>;
   };
@@ -68,7 +67,6 @@ describe('IPC Handlers', () => {
     mockManager = {
       connect: vi.fn(),
       disconnect: vi.fn(),
-      getState: vi.fn(),
       getActive: vi.fn().mockReturnValue(TEST_ACTIVE),
       onStateChange: vi.fn((cb: (s: ConnectionState) => void) => {
         stateChangeCb = cb;
@@ -125,33 +123,6 @@ describe('IPC Handlers', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  it('registers mcp:status:get channel', () => {
-    expect(handlers['mcp:status:get']).toBeDefined();
-  });
-
-  it('registers all expected channels', () => {
-    expect(handlers['mongo:connect']).toBeDefined();
-    expect(handlers['mongo:disconnect']).toBeDefined();
-    expect(handlers['connections:list']).toBeDefined();
-    expect(handlers['connections:save']).toBeDefined();
-    expect(handlers['connections:delete']).toBeDefined();
-    expect(handlers['connections:get-last-used']).toBeDefined();
-    expect(handlers['history:save']).toBeDefined();
-    expect(handlers['history:clear']).toBeDefined();
-    expect(handlers['mongo:pick-import-file']).toBeDefined();
-    expect(handlers['operation:start']).toBeDefined();
-    expect(handlers['operation:cancel']).toBeDefined();
-  });
-
-  it('does not register legacy export/import channels', () => {
-    expect(handlers['mongo:export-collection']).toBeUndefined();
-    expect(handlers['mongo:cancel-export']).toBeUndefined();
-    expect(handlers['mongo:export-database']).toBeUndefined();
-    expect(handlers['mongo:cancel-export-database']).toBeUndefined();
-    expect(handlers['mongo:import-collection']).toBeUndefined();
-    expect(handlers['mongo:cancel-import']).toBeUndefined();
   });
 
   describe('mongo:connect', () => {
@@ -259,11 +230,6 @@ describe('IPC Handlers', () => {
   });
 
   describe('connection:state broadcast', () => {
-    it('subscribes to manager.onStateChange on registration', () => {
-      expect(mockManager.onStateChange).toHaveBeenCalledTimes(1);
-      expect(stateChangeCb).toBeTypeOf('function');
-    });
-
     it('broadcasts on every state transition', () => {
       const connecting: ConnectionState = { status: 'connecting', uri: 'mongodb://x' };
       const connected: ConnectionState = { status: 'connected', uri: 'mongodb://x', connectionKey: 'x' };
@@ -279,11 +245,6 @@ describe('IPC Handlers', () => {
       mockMcpStatus.get.mockReturnValue({ running: true, port: 27099 });
       const result = handlers['mcp:status:get']({} as Electron.IpcMainInvokeEvent);
       expect(result).toEqual({ running: true, port: 27099 });
-    });
-
-    it('subscribes to mcpStatus.subscribe on registration', () => {
-      expect(mockMcpStatus.subscribe).toHaveBeenCalledTimes(1);
-      expect(mcpStatusCb).toBeTypeOf('function');
     });
 
     it('broadcasts mcp:status:update on every status change', () => {

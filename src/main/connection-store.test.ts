@@ -53,6 +53,12 @@ describe('ConnectionStore', () => {
     expect(result).toEqual([{ name: 'Local', uri: 'mongodb://localhost:27017' }]);
   });
 
+  it('rejects unencrypted stored connection data', () => {
+    store.save({ name: 'Local', uri: 'mongodb://localhost:27017' });
+    store.getRawConnections()[0].uri = 'mongodb://plaintext:27017';
+    expect(() => store.getAll()).toThrow('Stored connection data is not encrypted');
+  });
+
   it('save overwrites connection with same name', () => {
     store.save({ name: 'Local', uri: 'mongodb://localhost:27017' });
     store.save({ name: 'Local', uri: 'mongodb://localhost:27018' });

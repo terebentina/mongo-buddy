@@ -79,7 +79,7 @@ describe('registerMongoMcpTools', () => {
     expect(result.content[0].text).toBe('boom');
   });
 
-  it('replaces "Not connected" error text with custom notConnectedMessage when provided', async () => {
+  it('replaces "Not connected" error text with GUI guidance', async () => {
     const cmd = makeCommand();
     dispatch.mockResolvedValue({ ok: false, error: 'Not connected' });
     registerMongoMcpTools({
@@ -89,27 +89,13 @@ describe('registerMongoMcpTools', () => {
         {
           command: cmd,
           description: 'd',
-          notConnectedMessage: 'Connect via the GUI first.',
         },
       ],
     });
     const handler = registered(server)['count'].handler;
     const result = await handler({ db: 'test' });
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toBe('Connect via the GUI first.');
-  });
-
-  it('does not replace non-Not-connected errors with notConnectedMessage', async () => {
-    const cmd = makeCommand();
-    dispatch.mockResolvedValue({ ok: false, error: 'something else' });
-    registerMongoMcpTools({
-      server,
-      dispatch: dispatch as unknown as Dispatch,
-      tools: [{ command: cmd, description: 'd', notConnectedMessage: 'GUI' }],
-    });
-    const handler = registered(server)['count'].handler;
-    const result = await handler({ db: 'test' });
-    expect(result.content[0].text).toBe('something else');
+    expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
   });
 
   it('applies transformInput before dispatching', async () => {

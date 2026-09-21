@@ -29,7 +29,6 @@ export interface MongoClientFactoryPort {
 export interface ConnectionManager {
   connect(uri: string): Promise<Result<ConnectedSession>>;
   disconnect(): Promise<Result<undefined>>;
-  getState(): ConnectionState;
   getActive(): ActiveConnection | null;
   onStateChange(cb: (s: ConnectionState) => void): () => void;
 }
@@ -149,7 +148,6 @@ export function createConnectionManager(deps: ConnectionManagerDeps): Connection
   return {
     connect,
     disconnect,
-    getState: () => state,
     getActive: () => {
       if (!client || state.status !== 'connected') return null;
       return { client, key: state.connectionKey };

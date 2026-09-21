@@ -4,9 +4,7 @@ import { X } from 'lucide-react';
 import { cn } from '@renderer/lib/utils';
 
 const Dialog = BaseDialog.Root;
-const DialogTrigger = BaseDialog.Trigger;
 const DialogPortal = BaseDialog.Portal;
-const DialogClose = BaseDialog.Close;
 
 function DialogOverlay({
   className,
@@ -96,8 +94,6 @@ export {
   Dialog,
   DialogPortal,
   DialogOverlay,
-  DialogClose,
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogFooter,

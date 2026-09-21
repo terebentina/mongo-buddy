@@ -24,11 +24,11 @@ export interface IpcDeps {
   manager: ConnectionManager;
   registry: OperationRegistry;
   mcpStatus: McpStatusEmitter;
-  broadcast?: Broadcast;
+  broadcast: Broadcast;
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const { connStore, historyStore, manager, registry, mcpStatus, broadcast = () => {} } = deps;
+  const { connStore, historyStore, manager, registry, mcpStatus, broadcast } = deps;
 
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {

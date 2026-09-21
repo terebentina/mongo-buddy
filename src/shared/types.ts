@@ -95,7 +95,7 @@ export type OperationKind = 'export-collection' | 'export-database' | 'import-co
 
 export type OperationId = string;
 
-export type OperationStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'rejected';
+export type OperationStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface OperationProgress {
   processed: number;

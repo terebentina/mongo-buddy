@@ -3,11 +3,12 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { Dispatch, MongoCommand } from '../commands/dispatch';
 
+const NOT_CONNECTED_MESSAGE = 'Not connected. Connect via the mongo-buddy GUI first.';
+
 export interface McpToolEntry<S extends z.ZodType, O> {
   command: MongoCommand<S, O>;
   description: string;
   transformInput?: (input: z.infer<S>) => z.infer<S>;
-  notConnectedMessage?: string;
 }
 
 export interface RegisterMongoMcpToolsDeps {
@@ -18,7 +19,7 @@ export interface RegisterMongoMcpToolsDeps {
 
 export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
   for (const entry of deps.tools) {
-    const { command, description, transformInput, notConnectedMessage } = entry;
+    const { command, description, transformInput } = entry;
     const inputSchema = command.input instanceof z.ZodObject ? command.input.shape : command.input;
     deps.server.registerTool(
       command.name,
@@ -29,7 +30,7 @@ export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
         if (result.ok) {
           return { content: [{ type: 'text', text: JSON.stringify(result.data) }] };
         }
-        const text = result.error === 'Not connected' && notConnectedMessage ? notConnectedMessage : result.error;
+        const text = result.error === 'Not connected' ? NOT_CONNECTED_MESSAGE : result.error;
         return { isError: true, content: [{ type: 'text', text }] };
       }
     );

@@ -76,6 +76,12 @@ function makeDeps(
   };
 }
 
+function observeStates(manager: ConnectionManager): ConnectionState[] {
+  const states: ConnectionState[] = [];
+  manager.onStateChange((state) => states.push(state));
+  return states;
+}
+
 describe('ConnectionManager', () => {
   let mgr: ConnectionManager;
 
@@ -177,10 +183,11 @@ describe('ConnectionManager', () => {
       });
       const built = makeDeps({ client });
       mgr = createConnectionManager(built.deps);
+      const states = observeStates(mgr);
 
       const result = await mgr.connect('mongodb://bad/');
       expect(result).toEqual({ ok: false, error: 'refused' });
-      expect(mgr.getState()).toEqual({ status: 'disconnected' });
+      expect(states.at(-1)).toEqual({ status: 'disconnected' });
       expect(client.close).not.toHaveBeenCalled();
       expect(built.setLastUsed).not.toHaveBeenCalled();
     });
@@ -193,10 +200,11 @@ describe('ConnectionManager', () => {
       });
       const built = makeDeps({ client });
       mgr = createConnectionManager(built.deps);
+      const states = observeStates(mgr);
 
       const result = await mgr.connect('mongodb://bad/');
       expect(result).toEqual({ ok: false, error: 'no auth' });
-      expect(mgr.getState()).toEqual({ status: 'disconnected' });
+      expect(states.at(-1)).toEqual({ status: 'disconnected' });
       expect(client.close).toHaveBeenCalledTimes(1);
       expect(built.setLastUsed).not.toHaveBeenCalled();
     });
@@ -210,10 +218,11 @@ describe('ConnectionManager', () => {
       });
       const built = makeDeps({ client });
       mgr = createConnectionManager(built.deps);
+      const states = observeStates(mgr);
 
       const result = await mgr.connect('mongodb://bad/');
       expect(result.ok).toBe(false);
-      expect(mgr.getState()).toEqual({ status: 'disconnected' });
+      expect(states.at(-1)).toEqual({ status: 'disconnected' });
       expect(client.close).toHaveBeenCalledTimes(1);
     });
 
@@ -228,10 +237,11 @@ describe('ConnectionManager', () => {
         },
       });
       mgr = createConnectionManager(built.deps);
+      const states = observeStates(mgr);
 
       const result = await mgr.connect('mongodb://bad/');
       expect(result.ok).toBe(false);
-      expect(mgr.getState()).toEqual({ status: 'disconnected' });
+      expect(states.at(-1)).toEqual({ status: 'disconnected' });
       expect(client.close).toHaveBeenCalledTimes(1);
     });
 
@@ -242,8 +252,7 @@ describe('ConnectionManager', () => {
         },
       });
       mgr = createConnectionManager(makeDeps({ client }).deps);
-      const states: ConnectionState[] = [];
-      mgr.onStateChange((s) => states.push(s));
+      const states = observeStates(mgr);
       await mgr.connect('mongodb://bad/');
       expect(states.map((s) => s.status)).toEqual(['connecting', 'disconnected']);
     });

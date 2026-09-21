@@ -9,7 +9,6 @@ function makeManager(active: ActiveConnection | null): ConnectionManager {
   return {
     connect: vi.fn(),
     disconnect: vi.fn(),
-    getState: vi.fn(),
     getActive: () => active,
     onStateChange: vi.fn().mockReturnValue(() => {}),
   };

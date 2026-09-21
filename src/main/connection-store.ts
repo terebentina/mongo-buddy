@@ -25,11 +25,11 @@ export class ConnectionStore {
   }
 
   private decrypt(str: string): string {
-    if (str.startsWith('enc:')) {
-      const buffer = Buffer.from(str.slice(4), 'base64');
-      return safeStorage.decryptString(buffer);
+    if (!str.startsWith('enc:')) {
+      throw new Error('Stored connection data is not encrypted');
     }
-    return str;
+    const buffer = Buffer.from(str.slice(4), 'base64');
+    return safeStorage.decryptString(buffer);
   }
 
   getRawConnections(): StoredConnection[] {

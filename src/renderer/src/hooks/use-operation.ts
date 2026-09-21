@@ -13,6 +13,8 @@ import type {
 type ParamsFor<K extends OperationKind> = Extract<OperationParams, { kind: K }>;
 type ResultFor<K extends OperationKind> = Extract<OperationResult, { kind: K }>;
 
+type UseOperationStatus = OperationStatus | 'idle' | 'rejected';
+
 interface OperationStoreState {
   records: Record<OperationId, OperationRecord>;
 }
@@ -59,7 +61,7 @@ const EMPTY_PROGRESS: OperationProgress = { processed: 0 };
 interface UseOperationReturn<K extends OperationKind> {
   start: (params: ParamsFor<K>) => Promise<OperationId | null>;
   cancel: () => Promise<void>;
-  status: OperationStatus | 'idle';
+  status: UseOperationStatus;
   progress: OperationProgress;
   result: ResultFor<K> | null;
   error: string | null;
@@ -94,7 +96,7 @@ export function useOperation<K extends OperationKind>(kind: K): UseOperationRetu
     setRejection(null);
   }, []);
 
-  let status: OperationStatus | 'idle';
+  let status: UseOperationStatus;
   let error: string | null = null;
   let result: ResultFor<K> | null = null;
   let progress: OperationProgress = EMPTY_PROGRESS;

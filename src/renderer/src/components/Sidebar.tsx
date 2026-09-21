@@ -77,7 +77,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
     if (rec.status === 'succeeded' && rec.result?.kind === 'export-collection' && rec.result.path !== null) {
       toast.success(`Exported ${rec.result.exported.toLocaleString()} documents`);
       if (rec.warning) toast.warning(rec.warning);
-    } else if (rec.status === 'failed' || rec.status === 'rejected') {
+    } else if (rec.status === 'failed') {
       toast.error(rec.error ?? 'Export failed');
     }
     exp.reset();
@@ -502,7 +502,7 @@ function DatabaseRow({
       if (rec.warning) toast.warning(rec.warning);
     } else if (rec.status === 'cancelled') {
       toast('Export cancelled');
-    } else if (rec.status === 'failed' || rec.status === 'rejected') {
+    } else if (rec.status === 'failed') {
       toast.error(rec.error ?? 'Export failed');
     }
     exp.reset();
