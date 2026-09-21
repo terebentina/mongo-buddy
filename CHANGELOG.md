@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.20.0](https://github.com/terebentina/mongo-buddy/compare/v2.19.3...v2.20.0) (2026-09-21)
+
+
+### Features
+
+* add updateMany options editor ([1cc4772](https://github.com/terebentina/mongo-buddy/commit/1cc4772156fb3022f3901b88aa4264cd2f683353))
+
 ## [2.19.3](https://github.com/terebentina/mongo-buddy/compare/v2.19.2...v2.19.3) (2026-09-21)
 
 ## [2.19.2](https://github.com/terebentina/mongo-buddy/compare/v2.19.1...v2.19.2) (2026-09-20)
