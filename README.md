@@ -33,7 +33,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout
 - 🌙 **Dark by default** — CodeMirror one-dark theme, easy on the eyes
 - 🖥 **Cross-platform native builds** — Windows, macOS (Apple Silicon), and Linux
-- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read-only tools)
+- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (mostly read tools; aggregation output stages can write)
 
 ---
 
@@ -89,18 +89,19 @@ The MCP server uses the **active connection in the app** — open a connection i
 
 ### Tools
 
-All tools are **read-only**. Writes still go through the GUI.
+Most MCP tools read data. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
 
 | Tool | Purpose |
 | --- | --- |
-| `list_databases` | List databases on the connected server |
-| `list_collections` | List collections in a database |
-| `sample_fields` | Sample a collection and return its top-level field names |
+| `listDatabases` | List databases on the connected server |
+| `listCollections` | List collections in a database |
+| `sampleFields` | Sample a collection and return its top-level field names |
 | `find` | Query documents (supports `filter`, `sort`, `skip`, `limit`, EJSON) |
 | `count` | Count documents matching a filter |
-| `aggregate` | Run an aggregation pipeline |
+| `aggregate` | Run an aggregation pipeline; `$out` and `$merge` can write to collections without GUI approval |
 | `distinct` | Distinct values of a field |
-| `list_indexes` | List indexes on a collection |
+| `listIndexes` | List indexes on a collection |
+| `explain` | Return a query plan and execution stats |
 
 ### CLI flags
 

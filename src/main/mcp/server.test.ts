@@ -6,6 +6,7 @@ import { startMcpServer } from './server';
 import { createDispatcher } from '../commands/dispatch';
 import { MCP_TOOLS } from './mongo-tool-entries';
 import type { ConnectionManager } from '../connection-manager';
+import type { MongoClient } from 'mongodb';
 
 const EXPECTED_TOOL_NAMES = [
   'aggregate',
@@ -70,6 +71,54 @@ describe('startMcpServer', () => {
     const listed = await client.listTools();
     const names = listed.tools.map((t) => t.name).sort();
     expect(names).toEqual(EXPECTED_TOOL_NAMES);
+    const aggregate = listed.tools.find((tool) => tool.name === 'aggregate');
+    expect(aggregate?.description).toContain('$out');
+    expect(aggregate?.description).toContain('$merge');
+    expect(aggregate?.description).toContain('without MongoBuddy GUI approval');
+    expect(aggregate?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    expect(names).not.toContain('aggregateWrite');
+  });
+
+  it('runs output-stage aggregations directly over HTTP without an approval gate', async () => {
+    const toArray = vi.fn().mockResolvedValue([]);
+    const aggregate = vi.fn().mockReturnValue({ toArray });
+    const countDocuments = vi.fn().mockResolvedValue(3);
+    const collection = vi.fn().mockReturnValue({ aggregate, countDocuments });
+    const db = vi.fn().mockReturnValue({ collection });
+    const manager = {
+      getActive: () => ({ client: { db } as unknown as MongoClient, key: 'test-connection' }),
+    } as unknown as ConnectionManager;
+    const handle = await startMcpServer({
+      dispatch: createDispatcher(manager),
+      mongoTools: MCP_TOOLS,
+      port: 0,
+    });
+    if (!handle) throw new Error('expected handle');
+    restore.push(() => handle.close());
+
+    const client = new Client({ name: 'mongo-buddy-test', version: '0.0.0' });
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${handle.actualPort}/mcp`)));
+    restore.push(() => client.close());
+
+    for (const pipeline of [[{ $out: 'archive' }], [{ $merge: 'archive' }]]) {
+      const result = await client.callTool({
+        name: 'aggregate',
+        arguments: { db: 'test', collection: 'orders', pipeline },
+      });
+      expect(result).toMatchObject({ content: [{ type: 'text', text: '[]' }] });
+      expect(result.isError).not.toBe(true);
+      expect(aggregate).toHaveBeenLastCalledWith(pipeline);
+    }
+    expect(toArray).toHaveBeenCalledTimes(2);
+    expect(db).toHaveBeenCalledWith('test');
+    expect(collection).toHaveBeenCalledWith('orders');
+
+    const count = await client.callTool({
+      name: 'count',
+      arguments: { db: 'test', collection: 'orders', filter: {} },
+    });
+    expect(count).toMatchObject({ content: [{ type: 'text', text: '3' }] });
+    expect(countDocuments).toHaveBeenCalledWith({});
   });
 
   it('returns null when the port is already in use (does not throw)', async () => {

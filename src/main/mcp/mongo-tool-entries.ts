@@ -51,7 +51,8 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
   },
   {
     command: aggregateCommand,
-    description: `Run an aggregation pipeline against a collection. Returns the resulting documents. ${EJSON_HINT}`,
+    description: `Run an aggregation pipeline against a collection. Pipelines with $out or $merge write to a collection and can replace existing data; they run without MongoBuddy GUI approval. Other pipelines return the resulting documents. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true },
   },
   {
     command: findCommand,

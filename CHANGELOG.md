@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+- Clarify in MCP discovery and documentation that `aggregate` can write via `$out` or `$merge` without MongoBuddy GUI approval (#62).
+
 ## [2.20.0](https://github.com/terebentina/mongo-buddy/compare/v2.19.3...v2.20.0) (2026-09-21)
 
 
