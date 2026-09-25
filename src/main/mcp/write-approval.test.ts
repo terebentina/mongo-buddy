@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { MongoClient } from 'mongodb';
+import { ObjectId } from 'bson';
 import type { ConnectionManager, ConnectionState } from '../connection-manager';
 import { insertOneCommand } from '../commands/insert-one';
 import { createDispatcher } from '../commands/dispatch';
@@ -25,12 +26,23 @@ afterEach(async () => {
 
 async function setup(promptUnavailable = false) {
   const inserted: Record<string, unknown>[] = [];
+  const existingId = new ObjectId('507f1f77bcf86cd799439011');
+  let existing: Record<string, unknown> | null = { _id: existingId, name: 'before', stale: true };
   const insertOne = vi.fn(async (doc: Record<string, unknown>) => {
     inserted.push({ ...doc, _id: 'inserted' });
     return { insertedId: 'inserted' };
   });
-  const findOne = vi.fn(async () => inserted.at(-1));
-  const db = vi.fn(() => ({ collection: () => ({ insertOne, findOne }) }));
+  const findOne = vi.fn(async ({ _id }: { _id: unknown }) => {
+    if (_id === 'inserted') return inserted.at(-1);
+    return _id instanceof ObjectId && _id.equals(existingId) ? existing : null;
+  });
+  const replaceOne = vi.fn(async ({ _id }: { _id: unknown }, replacement: Record<string, unknown>) => {
+    if (_id instanceof ObjectId && _id.equals(existingId) && existing) existing = { ...replacement, _id: existingId };
+  });
+  const deleteOne = vi.fn(async ({ _id }: { _id: unknown }) => {
+    if (_id instanceof ObjectId && _id.equals(existingId)) existing = null;
+  });
+  const db = vi.fn(() => ({ collection: () => ({ insertOne, findOne, replaceOne, deleteOne }) }));
   const client = { db } as unknown as MongoClient;
   let active: { client: MongoClient; key: string } | null = { client, key: 'localhost:27161' };
   const subscribers = new Set<(state: ConnectionState) => void>();
@@ -79,14 +91,21 @@ async function setup(promptUnavailable = false) {
       doc: { name: 'review', date: { $date: '2024-01-01T00:00:00Z' } },
     }
   ) => mcp.callTool({ name: 'insertOne', arguments: args as Record<string, unknown> });
+  const callSingle = (name: 'updateOne' | 'deleteOne', args: Record<string, unknown>) =>
+    mcp.callTool({ name, arguments: args });
   return {
     inserted,
     insertOne,
+    replaceOne,
+    deleteOne,
+    existing: () => existing,
+    existingId: existingId.toHexString(),
     requests,
     promptReady: promptReady.promise,
     abortNotified: abortNotified.promise,
     decide: decision.resolve,
     call,
+    callSingle,
     approval,
     disconnect: () => {
       active = null;
@@ -254,5 +273,104 @@ describe('MCP insertOne approval over HTTP', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('MCP single-document writes over HTTP', () => {
+  it('replaces by EJSON identifier only after approval and returns the stored replacement', async () => {
+    const app = await setup();
+    const args = {
+      db: 'sandbox',
+      collection: 'notes',
+      id: { $oid: app.existingId },
+      doc: { _id: { $oid: '507f1f77bcf86cd799439012' }, name: 'after', at: { $date: '2024-01-01T00:00:00Z' } },
+    };
+    const call = app.callSingle('updateOne', args);
+    await app.promptReady;
+    expect(app.replaceOne).not.toHaveBeenCalled();
+    expect(app.requests).toEqual([
+      {
+        command: 'updateOne',
+        connection: 'localhost:27161',
+        db: 'sandbox',
+        collection: 'notes',
+        input: JSON.stringify(args, null, 2),
+      },
+    ]);
+    app.decide(true);
+    expect(await call).toMatchObject({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ name: 'after', at: { $date: '2024-01-01T00:00:00Z' }, _id: { $oid: app.existingId } }),
+        },
+      ],
+    });
+    expect(app.replaceOne).toHaveBeenCalledExactlyOnceWith(
+      { _id: new ObjectId(app.existingId) },
+      { name: 'after', at: new Date('2024-01-01T00:00:00Z') }
+    );
+  });
+
+  it('denies deletion without execution and returns valid null text when a later deletion is approved', async () => {
+    const denied = await setup();
+    const args = { db: 'sandbox', collection: 'notes', id: { $oid: denied.existingId } };
+    const first = denied.callSingle('deleteOne', args);
+    await denied.promptReady;
+    expect(denied.deleteOne).not.toHaveBeenCalled();
+    expect(denied.requests).toEqual([
+      {
+        command: 'deleteOne',
+        connection: 'localhost:27161',
+        db: 'sandbox',
+        collection: 'notes',
+        input: JSON.stringify(args, null, 2),
+      },
+    ]);
+    denied.decide(false);
+    expect(await first).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('denied') }] });
+    expect(denied.existing()).not.toBeNull();
+    expect(denied.deleteOne).not.toHaveBeenCalled();
+
+    const approved = await setup();
+    const second = approved.callSingle('deleteOne', args);
+    await approved.promptReady;
+    approved.decide(true);
+    expect(await second).toMatchObject({ content: [{ type: 'text', text: 'null' }] });
+    expect(approved.deleteOne).toHaveBeenCalledExactlyOnceWith({ _id: new ObjectId(approved.existingId) });
+    expect(approved.existing()).toBeNull();
+  });
+
+  it('fails closed on connection switch and rejects malformed EJSON before requesting approval', async () => {
+    const app = await setup();
+    const malformed = { db: 'sandbox', collection: 'notes', id: { $oid: 'invalid' } };
+    expect(await app.callSingle('deleteOne', malformed)).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining('Invalid EJSON') }],
+    });
+    expect(app.requests).toEqual([]);
+    const call = app.callSingle('updateOne', { ...malformed, id: { $oid: app.existingId }, doc: { name: 'after' } });
+    await app.promptReady;
+    app.switchClient();
+    app.decide(true);
+    expect(await call).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining('connection changed') }],
+    });
+    expect(app.replaceOne).not.toHaveBeenCalled();
+  });
+
+  it('returns driver errors after approval without disguising them as successful writes', async () => {
+    const app = await setup();
+    app.deleteOne.mockRejectedValueOnce(new Error('database write failed'));
+    const call = app.callSingle('deleteOne', {
+      db: 'sandbox',
+      collection: 'notes',
+      id: { $oid: app.existingId },
+    });
+    await app.promptReady;
+    app.decide(true);
+    expect(await call).toMatchObject({ isError: true, content: [{ text: 'database write failed' }] });
+    expect(app.existing()).not.toBeNull();
   });
 });

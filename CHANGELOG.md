@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 - Clarify in MCP discovery and documentation that `aggregate` can write via `$out` or `$merge` without MongoBuddy GUI approval (#62).
 - Add MCP `insertOne` with per-request MongoBuddy GUI approval and fail-closed connection/lifecycle handling; the aggregation output-stage exception remains (#63).
+- Expose replacement-style `updateOne` and identifier-based `deleteOne` as MCP writes gated by the existing per-request GUI approval, preserving read-back and void-success behavior (#64).
 - Add gated MCP `updateMany` (document or pipeline with options) and `deleteMany`; empty-filter deletion requires exact collection-name typing in the GUI (#65).
 - Add gated MCP `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, and `dropCollections`; destructive collection writes require exact collection-name typing, while batch drop requires the exact database name and reports partial failures (#66).
 

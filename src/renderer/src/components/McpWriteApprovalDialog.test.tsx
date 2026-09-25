@@ -41,6 +41,31 @@ describe('MCP GUI write approval', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Approve once' }));
     expect(respond).toHaveBeenCalledExactlyOnceWith('one', true);
   });
+  it.each(['updateOne', 'deleteOne'])(
+    '%s displays the identifier and any full replacement input, then handles denial and separate approval',
+    async (command) => {
+      render(<McpWriteApprovalDialog />);
+      const input = JSON.stringify({
+        db: 'sandbox',
+        collection: 'notes',
+        id: { $oid: '507f1f77bcf86cd799439011' },
+        ...(command === 'updateOne' ? { doc: { _id: { $oid: '507f1f77bcf86cd799439012' }, name: 'new' } } : {}),
+      });
+      act(() => receive({ ...proposal, command, input }));
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent(`MCP WRITE approval: ${command}`);
+      expect(dialog).toHaveTextContent('localhost:27161');
+      expect(dialog).toHaveTextContent('sandbox');
+      expect(dialog).toHaveTextContent('notes');
+      expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent(input);
+      expect(screen.queryByLabelText(/Type the exact/)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Deny' }));
+      expect(respond).toHaveBeenCalledExactlyOnceWith('one', false);
+      act(() => receive({ ...proposal, id: 'second', command, input }));
+      await userEvent.click(screen.getByRole('button', { name: 'Approve once' }));
+      expect(respond).toHaveBeenLastCalledWith('second', true);
+    }
+  );
   it('approves filtered deletion with a click but requires exact typing for an empty filter', async () => {
     render(<McpWriteApprovalDialog />);
     act(() =>

@@ -9,8 +9,10 @@ import { findCommand } from '../commands/find';
 import { aggregateCommand } from '../commands/aggregate';
 import { explainCommand } from '../commands/explain';
 import { insertOneCommand } from '../commands/insert-one';
+import { updateOneCommand } from '../commands/update-one';
 import { updateManyCommand } from '../commands/update-many';
 import { deleteManyCommand } from '../commands/delete-many';
+import { deleteOneCommand } from '../commands/delete-one';
 import { createCollectionCommand } from '../commands/create-collection';
 import { renameCollectionCommand } from '../commands/rename-collection';
 import { emptyCollectionCommand } from '../commands/empty-collection';
@@ -79,6 +81,20 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     title: 'WRITE — insertOne (MongoBuddy confirmation required)',
     description: `WRITE: Insert one document into a collection. MongoBuddy confirmation required: an explicit, one-time approval in the GUI before execution; MCP tool annotations do not grant permission. ${EJSON_HINT}`,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: updateOneCommand,
+    title: 'WRITE — updateOne (MongoBuddy confirmation required)',
+    description: `WRITE: Replace one document by its EJSON identifier, excluding _id from the replacement, and return the stored document (or null when none matches). Requires one-time MongoBuddy GUI approval after reviewing the identifier and complete replacement. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    requiresApproval: true,
+  },
+  {
+    command: deleteOneCommand,
+    title: 'WRITE — deleteOne (MongoBuddy confirmation required)',
+    description: `WRITE: Delete one document by its EJSON identifier. Requires one-time MongoBuddy GUI approval after reviewing the identifier and complete input. Returns null on success (including when no document matches). ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     requiresApproval: true,
   },
   {

@@ -12,6 +12,7 @@ const EXPECTED_TOOL_NAMES = [
   'aggregate',
   'count',
   'createCollection',
+  'deleteOne',
   'deleteMany',
   'distinct',
   'dropCollection',
@@ -26,6 +27,7 @@ const EXPECTED_TOOL_NAMES = [
   'renameCollection',
   'sampleFields',
   'updateMany',
+  'updateOne',
 ].sort();
 
 function mockManager(): ConnectionManager {
@@ -88,6 +90,17 @@ describe('startMcpServer', () => {
     expect(insert?.title).toContain('WRITE');
     expect(insert?.description).toContain('confirmation required');
     expect(insert?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
+    for (const name of ['updateOne', 'deleteOne']) {
+      const tool = listed.tools.find((item) => item.name === name);
+      expect(tool?.title).toContain('WRITE');
+      expect(tool?.description).toContain('GUI approval');
+      expect(tool?.description).toContain('identifier');
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: name === 'deleteOne',
+        idempotentHint: true,
+      });
+    }
     const update = listed.tools.find((tool) => tool.name === 'updateMany');
     expect(update?.title).toContain('WRITE');
     expect(update?.description).toContain('arrayFilters');
