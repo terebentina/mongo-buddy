@@ -5,9 +5,11 @@ import { Button } from './ui/button';
 
 export function McpWriteApprovalDialog() {
   const [request, setRequest] = useState<McpWriteApprovalRequest | null>(null);
+  const [typedName, setTypedName] = useState('');
 
   useEffect(() => {
     return window.api.onMcpWriteApproval((next) => {
+      setTypedName('');
       if ('cleared' in next) {
         setRequest((current) => (current?.id === next.id ? null : current));
       } else {
@@ -18,7 +20,11 @@ export function McpWriteApprovalDialog() {
 
   const respond = (approve: boolean): void => {
     if (!request) return;
-    window.api.respondToMcpWrite(request.id, approve);
+    if (request.typeToConfirm !== undefined) {
+      window.api.respondToMcpWrite(request.id, approve, typedName);
+    } else {
+      window.api.respondToMcpWrite(request.id, approve);
+    }
     setRequest(null);
   };
 
@@ -57,12 +63,35 @@ export function McpWriteApprovalDialog() {
           >
             {request?.input}
           </pre>
+          {request?.typeToConfirm !== undefined && (
+            <div className="space-y-2">
+              <p className="text-destructive">
+                {request.command === 'deleteMany'
+                  ? 'An empty filter may delete all documents in this collection.'
+                  : 'This write may permanently affect the entire collection.'}
+              </p>
+              <label htmlFor="mcp-type-to-confirm">
+                Type the exact collection name <span className="font-mono">{request.typeToConfirm}</span> to confirm:
+              </label>
+              <input
+                id="mcp-type-to-confirm"
+                className="w-full rounded border p-2 font-mono"
+                autoComplete="off"
+                value={typedName}
+                onChange={(event) => setTypedName(event.target.value)}
+              />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => respond(false)}>
             Deny
           </Button>
-          <Button variant="destructive" onClick={() => respond(true)}>
+          <Button
+            variant="destructive"
+            disabled={request?.typeToConfirm !== undefined && typedName !== request.typeToConfirm}
+            onClick={() => respond(true)}
+          >
             Approve once
           </Button>
         </DialogFooter>

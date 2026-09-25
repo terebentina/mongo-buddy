@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 - Clarify in MCP discovery and documentation that `aggregate` can write via `$out` or `$merge` without MongoBuddy GUI approval (#62).
 - Add MCP `insertOne` with per-request MongoBuddy GUI approval and fail-closed connection/lifecycle handling; the aggregation output-stage exception remains (#63).
+- Add gated MCP `updateMany` (document or pipeline with options) and `deleteMany`; empty-filter deletion requires exact collection-name typing in the GUI (#65).
 
 ## [2.20.0](https://github.com/terebentina/mongo-buddy/compare/v2.19.3...v2.20.0) (2026-09-21)
 

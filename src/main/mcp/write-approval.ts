@@ -10,6 +10,7 @@ export interface WriteProposal {
   db: string;
   collection: string;
   input: string;
+  typeToConfirm?: string;
 }
 
 export interface ApprovalPrompt {
@@ -20,7 +21,8 @@ export interface WriteApproval {
   execute<S extends z.ZodType, O>(
     command: MongoCommand<S, O>,
     rawInput: unknown,
-    signal: AbortSignal
+    signal: AbortSignal,
+    typeToConfirm?: (input: Record<string, unknown>) => string | undefined
   ): Promise<Result<O>>;
   cancel(): void;
 }
@@ -39,7 +41,8 @@ export function createWriteApproval(
     async execute<S extends z.ZodType, O>(
       command: MongoCommand<S, O>,
       rawInput: unknown,
-      signal: AbortSignal
+      signal: AbortSignal,
+      typeToConfirm?: (input: Record<string, unknown>) => string | undefined
     ): Promise<Result<O>> {
       if (stopped) return { ok: false, error: 'MCP server is shutting down' };
       if (pending) return { ok: false, error: 'Another MCP write approval is pending' };
@@ -79,12 +82,14 @@ export function createWriteApproval(
         if (controller.signal.aborted) reject(new Error(failure));
       });
       try {
+        const confirmation = typeToConfirm?.(input as Record<string, unknown>);
         const proposal: WriteProposal = {
           command: command.name,
           connection: active.key,
           db: fields.db ?? '',
           collection: fields.collection ?? '',
           input: JSON.stringify(input, null, 2),
+          ...(confirmation !== undefined ? { typeToConfirm: confirmation } : {}),
         };
         const approved = await Promise.race([prompt.request(proposal, controller.signal), interrupted]);
         if (controller.signal.aborted || signal.aborted) return { ok: false, error: failure };

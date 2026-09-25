@@ -33,7 +33,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout
 - 🌙 **Dark by default** — CodeMirror one-dark theme, easy on the eyes
 - 🖥 **Cross-platform native builds** — Windows, macOS (Apple Silicon), and Linux
-- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read tools plus `insertOne` with one-time GUI approval; aggregation output stages can still write without approval)
+- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read tools plus `insertOne`, `updateMany`, and `deleteMany` with one-time GUI approval; aggregation output stages can still write without approval)
 
 ---
 
@@ -91,7 +91,7 @@ The HTTP server binds `0.0.0.0:27099` by default and has **no authentication**. 
 
 ### Tools
 
-Most MCP tools read data. `insertOne` is a standalone write and requires explicit local approval for each request in the MongoBuddy GUI. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
+Most MCP tools read data. `insertOne`, `updateMany`, and `deleteMany` are standalone writes requiring explicit local approval for each request in the MongoBuddy GUI. With `deleteMany`, an empty filter (`{}`) additionally requires typing the exact collection name because it may delete every document. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
 
 | Tool | Purpose |
 | --- | --- |
@@ -105,6 +105,8 @@ Most MCP tools read data. `insertOne` is a standalone write and requires explici
 | `listIndexes` | List indexes on a collection |
 | `explain` | Return a query plan and execution stats |
 | `insertOne` | **WRITE — MongoBuddy confirmation required.** Insert one EJSON document; review command, connection, namespace and complete input in the GUI, then approve once or deny. Denial, lost GUI, timeout (60 seconds), client cancellation or connection switch prevents execution. |
+| `updateMany` | **WRITE — MongoBuddy confirmation required.** Update matching documents using an EJSON update document or pipeline; optional update options include `arrayFilters`. The dialog shows the full filter, update, and options; approval applies once to that input and returns matched/modified counts. |
+| `deleteMany` | **WRITE — MongoBuddy confirmation required.** Delete matching documents and return the deleted count. A non-empty filter needs an approval click; `{}` also requires typing the exact collection name to approve deletion of all documents. Denial, lost GUI, timeout, cancellation, or connection switch prevents either write. |
 
 ### CLI flags
 

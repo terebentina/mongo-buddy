@@ -106,7 +106,7 @@ interface MongoApi {
   getMcpStatus(): Promise<McpStatus>;
   onMcpStatusUpdate(cb: (status: McpStatus) => void): () => void;
   onMcpWriteApproval(cb: (request: McpWriteApprovalRequest | { id: string; cleared: true }) => void): () => void;
-  respondToMcpWrite(id: string, approve: boolean): void;
+  respondToMcpWrite(id: string, approve: boolean, typedName?: string): void;
   setWindowTitle(arg: { location: string | null }): Promise<void>;
 }
 

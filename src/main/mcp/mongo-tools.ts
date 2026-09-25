@@ -10,6 +10,7 @@ export interface McpToolEntry<S extends z.ZodType, O> {
   command: MongoCommand<S, O>;
   title?: string;
   requiresApproval?: boolean;
+  typeToConfirm?: (input: Record<string, unknown>) => string | undefined;
   description: string;
   annotations?: ToolAnnotations;
   transformInput?: (input: z.infer<S>) => z.infer<S>;
@@ -25,7 +26,7 @@ export interface RegisterMongoMcpToolsDeps {
 
 export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
   for (const entry of deps.tools) {
-    const { command, description, annotations, transformInput, title, requiresApproval } = entry;
+    const { command, description, annotations, transformInput, title, requiresApproval, typeToConfirm } = entry;
     const inputSchema = command.input instanceof z.ZodObject ? command.input.shape : command.input;
     deps.server.registerTool(
       command.name,
@@ -37,7 +38,8 @@ export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
             ? await deps.approval.execute(
                 command,
                 input,
-                deps.signal ? AbortSignal.any([extra.signal, deps.signal]) : extra.signal
+                deps.signal ? AbortSignal.any([extra.signal, deps.signal]) : extra.signal,
+                typeToConfirm
               )
             : { ok: false as const, error: 'MCP write approval unavailable' }
           : await deps.dispatch(command, input);

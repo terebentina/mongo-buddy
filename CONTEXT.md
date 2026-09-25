@@ -51,7 +51,7 @@ _Avoid_: move (implies cross-database, which we don't support), change name.
 ### Destructive actions
 
 **type-to-confirm**:
-The gate on a destructive action that requires the exact object name. It applies to collection drops, empty collection, and **delete results** with an empty filter.
+The gate on a destructive action that requires the exact object name. It applies to collection drops, empty collection, **delete results** with an empty filter, and MCP `deleteMany` with an empty filter. A normal approval click is not enough for those actions.
 _Avoid_: confirm-by-name, type-to-delete.
 
 ### Query types

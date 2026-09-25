@@ -32,10 +32,15 @@ export function createGuiApproval(getWindow: () => BrowserWindow | null): Approv
             }
           }
         };
-        const onResponse = (event: Electron.IpcMainEvent, responseId: unknown, decision: unknown): void => {
+        const onResponse = (
+          event: Electron.IpcMainEvent,
+          responseId: unknown,
+          decision: unknown,
+          typedName: unknown
+        ): void => {
           if (event.sender !== sender || responseId !== id || typeof decision !== 'boolean') return;
           cleanup();
-          resolve(decision);
+          resolve(decision && (proposal.typeToConfirm === undefined || typedName === proposal.typeToConfirm));
         };
         const onGone = (): void => {
           ready.delete(sender);

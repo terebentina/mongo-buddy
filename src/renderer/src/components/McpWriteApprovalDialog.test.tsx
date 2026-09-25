@@ -41,6 +41,42 @@ describe('MCP GUI write approval', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Approve once' }));
     expect(respond).toHaveBeenCalledExactlyOnceWith('one', true);
   });
+  it('approves filtered deletion with a click but requires exact typing for an empty filter', async () => {
+    render(<McpWriteApprovalDialog />);
+    act(() =>
+      receive({ ...proposal, command: 'deleteMany', input: '{"filter":{"status":"expired"}}', id: 'filtered' })
+    );
+    expect(screen.queryByText(/may delete all documents/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Approve once' }));
+    expect(respond).toHaveBeenCalledExactlyOnceWith('filtered', true);
+
+    act(() =>
+      receive({ ...proposal, command: 'deleteMany', input: '{"filter":{}}', id: 'all', typeToConfirm: 'notes' })
+    );
+    expect(screen.getByText(/may delete all documents/)).toBeInTheDocument();
+    const approve = screen.getByRole('button', { name: 'Approve once' });
+    const name = screen.getByLabelText(/Type the exact collection name/);
+    expect(approve).toBeDisabled();
+    await userEvent.type(name, 'Notes');
+    expect(approve).toBeDisabled();
+    await userEvent.clear(name);
+    await userEvent.type(name, 'notes');
+    expect(approve).toBeEnabled();
+    await userEvent.click(approve);
+    expect(respond).toHaveBeenLastCalledWith('all', true, 'notes');
+  });
+
+  it('resets typed confirmation between requests and still permits denial', async () => {
+    render(<McpWriteApprovalDialog />);
+    const all = { ...proposal, command: 'deleteMany', input: '{"filter":{}}', typeToConfirm: 'notes' };
+    act(() => receive({ ...all, id: 'first' }));
+    await userEvent.type(screen.getByLabelText(/Type the exact collection name/), 'notes');
+    act(() => receive({ id: 'first', cleared: true }));
+    act(() => receive({ ...all, id: 'second' }));
+    expect(screen.getByRole('button', { name: 'Approve once' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Deny' }));
+    expect(respond).toHaveBeenCalledExactlyOnceWith('second', false, '');
+  });
 
   it('denies explicitly and clears a cancelled request without granting approval', async () => {
     render(<McpWriteApprovalDialog />);

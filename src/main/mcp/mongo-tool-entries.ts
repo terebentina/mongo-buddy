@@ -9,6 +9,8 @@ import { findCommand } from '../commands/find';
 import { aggregateCommand } from '../commands/aggregate';
 import { explainCommand } from '../commands/explain';
 import { insertOneCommand } from '../commands/insert-one';
+import { updateManyCommand } from '../commands/update-many';
+import { deleteManyCommand } from '../commands/delete-many';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -73,5 +75,21 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     description: `WRITE: Insert one document into a collection. MongoBuddy confirmation required: an explicit, one-time approval in the GUI before execution; MCP tool annotations do not grant permission. ${EJSON_HINT}`,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     requiresApproval: true,
+  },
+  {
+    command: updateManyCommand,
+    title: 'WRITE — updateMany (MongoBuddy confirmation required)',
+    description: `WRITE: Update every matching document with an update document or pipeline. Optional driver options include arrayFilters. Review the entire filter, update and options in the GUI before one-time approval. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: deleteManyCommand,
+    title: 'WRITE — deleteMany (MongoBuddy confirmation required)',
+    description: `WRITE: Delete every document matching the filter. MongoBuddy GUI approval required per request; an empty filter ({}) may delete every document in the collection and additionally requires typing the exact collection name. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) =>
+      Object.keys(input.filter as Record<string, unknown>).length === 0 ? (input.collection as string) : undefined,
   },
 ];

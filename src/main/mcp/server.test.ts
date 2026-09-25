@@ -11,9 +11,11 @@ import type { MongoClient } from 'mongodb';
 const EXPECTED_TOOL_NAMES = [
   'aggregate',
   'count',
+  'deleteMany',
   'distinct',
   'explain',
   'insertOne',
+  'updateMany',
   'find',
   'listCollections',
   'listDatabases',
@@ -81,6 +83,14 @@ describe('startMcpServer', () => {
     expect(insert?.title).toContain('WRITE');
     expect(insert?.description).toContain('confirmation required');
     expect(insert?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
+    const update = listed.tools.find((tool) => tool.name === 'updateMany');
+    expect(update?.title).toContain('WRITE');
+    expect(update?.description).toContain('arrayFilters');
+    expect(update?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    const deleteTool = listed.tools.find((tool) => tool.name === 'deleteMany');
+    expect(deleteTool?.title).toContain('WRITE');
+    expect(deleteTool?.description).toContain('exact collection name');
+    expect(deleteTool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(names).not.toContain('aggregateWrite');
   });
 

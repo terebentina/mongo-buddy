@@ -6,6 +6,7 @@ export interface McpWriteApprovalRequest {
   db: string;
   collection: string;
   input: string;
+  typeToConfirm?: string;
 }
 
 export interface DbInfo {

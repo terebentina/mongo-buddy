@@ -167,8 +167,8 @@ export function createApi(ipc: IpcLike) {
         ipc.off('mcp:approval:clear', onClear as (event: unknown, ...args: unknown[]) => void);
       };
     },
-    respondToMcpWrite: (id: string, approve: boolean): void => {
-      ipc.send('mcp:approval:respond', id, approve);
+    respondToMcpWrite: (id: string, approve: boolean, typedName?: string): void => {
+      ipc.send('mcp:approval:respond', id, approve, typedName);
     },
   };
 }
