@@ -67,7 +67,7 @@ export function McpWriteApprovalDialog() {
             Command: <span className="font-mono">{request?.command}</span>
           </p>
           <p>
-            Connection: <span className="font-mono">{request?.connection}</span>
+            Active connection key (host): <span className="font-mono">{request?.connectionKey}</span>
           </p>
           <p>
             Database: <span className="font-mono">{request?.db}</span>

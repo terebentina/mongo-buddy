@@ -89,7 +89,7 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     command: updateOneCommand,
     title: 'WRITE — updateOne (MongoBuddy confirmation required)',
     description: `WRITE: Replace one document by its EJSON identifier, excluding _id from the replacement, and return the stored document (or null when none matches). Requires one-time MongoBuddy GUI approval after reviewing the identifier and complete replacement. ${EJSON_HINT}`,
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
     requiresApproval: true,
   },
   {
@@ -103,7 +103,7 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     command: updateManyCommand,
     title: 'WRITE — updateMany (MongoBuddy confirmation required)',
     description: `WRITE: Update every matching document with an update document or pipeline. Optional driver options include arrayFilters. Review the entire filter, update and options in the GUI before one-time approval. ${EJSON_HINT}`,
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     requiresApproval: true,
   },
   {
@@ -128,7 +128,7 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     title: 'WRITE — renameCollection (MongoBuddy confirmation required)',
     description:
       'WRITE: Rename a collection within the same database, from the exact old name to the exact new name. Requires one-time MongoBuddy GUI approval; no type-to-confirm.',
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     requiresApproval: true,
   },
   {

@@ -7,7 +7,7 @@ import type { McpWriteApprovalRequest } from '../../../shared/types';
 const proposal: McpWriteApprovalRequest = {
   id: 'one',
   command: 'insertOne',
-  connection: 'localhost:27161',
+  connectionKey: 'localhost:27161',
   db: 'sandbox',
   collection: 'notes',
   input:
@@ -33,7 +33,7 @@ describe('MCP GUI write approval', () => {
     act(() => receive(proposal));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('MCP WRITE approval: insertOne');
-    expect(dialog).toHaveTextContent('localhost:27161');
+    expect(dialog).toHaveTextContent('Active connection key (host): localhost:27161');
     expect(dialog).toHaveTextContent('sandbox');
     expect(dialog).toHaveTextContent('notes');
     expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent(proposal.input);
@@ -54,7 +54,7 @@ describe('MCP GUI write approval', () => {
       act(() => receive({ ...proposal, command, input }));
       const dialog = screen.getByRole('dialog');
       expect(dialog).toHaveTextContent(`MCP WRITE approval: ${command}`);
-      expect(dialog).toHaveTextContent('localhost:27161');
+      expect(dialog).toHaveTextContent('Active connection key (host): localhost:27161');
       expect(dialog).toHaveTextContent('sandbox');
       expect(dialog).toHaveTextContent('notes');
       expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent(input);
@@ -150,7 +150,7 @@ describe('MCP GUI write approval', () => {
     act(() => receive({ ...proposal, command: 'createIndex', input }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('MCP WRITE approval: createIndex');
-    expect(dialog).toHaveTextContent('localhost:27161');
+    expect(dialog).toHaveTextContent('Active connection key (host): localhost:27161');
     expect(dialog).toHaveTextContent('sandbox');
     expect(dialog).toHaveTextContent('notes');
     expect(dialog).toHaveTextContent('Index keys: {"email":1,"createdAt":-1}');

@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file. See [commit
 - Add gated MCP `updateMany` (document or pipeline with options) and `deleteMany`; empty-filter deletion requires exact collection-name typing in the GUI (#65).
 - Add gated MCP `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, and `dropCollections`; destructive collection writes require exact collection-name typing, while batch drop requires the exact database name and reports partial failures (#66).
 - Add gated MCP `createIndex` and `dropIndex` with index details visible in the GUI approval dialog; preserve the driver-assigned index name, `_id_` protection and void-success response (#67).
+- Correct MCP discovery's destructive hints for replacement, bulk update, and collection rename; label approval proposals with the active connection key (host) instead of an ambiguous connection (#61).
 
 ## [2.20.0](https://github.com/terebentina/mongo-buddy/compare/v2.19.3...v2.20.0) (2026-09-21)
 

@@ -12,7 +12,7 @@ vi.mock('electron', async () => {
 
 const proposal: WriteProposal = {
   command: 'insertOne',
-  connection: 'localhost:27161',
+  connectionKey: 'localhost:27161',
   db: 'sandbox',
   collection: 'notes',
   input: '{"doc":{"name":"review"}}',

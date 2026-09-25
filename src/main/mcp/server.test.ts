@@ -99,14 +99,14 @@ describe('startMcpServer', () => {
       expect(tool?.description).toContain('identifier');
       expect(tool?.annotations).toMatchObject({
         readOnlyHint: false,
-        destructiveHint: name === 'deleteOne',
+        destructiveHint: true,
         idempotentHint: true,
       });
     }
     const update = listed.tools.find((tool) => tool.name === 'updateMany');
     expect(update?.title).toContain('WRITE');
     expect(update?.description).toContain('arrayFilters');
-    expect(update?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    expect(update?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     const deleteTool = listed.tools.find((tool) => tool.name === 'deleteMany');
     expect(deleteTool?.title).toContain('WRITE');
     expect(deleteTool?.description).toContain('exact collection name');
@@ -123,6 +123,10 @@ describe('startMcpServer', () => {
       expect(tool?.description).toContain('MongoBuddy GUI approval');
       expect(tool?.annotations?.readOnlyHint).toBe(false);
     }
+    expect(listed.tools.find((tool) => tool.name === 'renameCollection')?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
     for (const [name, destructive, idempotent] of [
       ['createIndex', false, true],
       ['dropIndex', true, false],

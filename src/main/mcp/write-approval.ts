@@ -6,7 +6,7 @@ import type { Dispatch, MongoCommand } from '../commands/dispatch';
 
 export interface WriteProposal {
   command: string;
-  connection: string;
+  connectionKey: string;
   db: string;
   collection: string;
   input: string;
@@ -85,7 +85,7 @@ export function createWriteApproval(
         const confirmation = typeToConfirm?.(input as Record<string, unknown>);
         const proposal: WriteProposal = {
           command: command.name,
-          connection: active.key,
+          connectionKey: active.key,
           db: fields.db ?? '',
           collection:
             fields.collection ??

@@ -132,7 +132,7 @@ describe('MCP insertOne approval over HTTP', () => {
     expect(app.requests).toEqual([
       {
         command: 'insertOne',
-        connection: 'localhost:27161',
+        connectionKey: 'localhost:27161',
         db: 'sandbox',
         collection: 'notes',
         input: JSON.stringify(
@@ -291,7 +291,7 @@ describe('MCP single-document writes over HTTP', () => {
     expect(app.requests).toEqual([
       {
         command: 'updateOne',
-        connection: 'localhost:27161',
+        connectionKey: 'localhost:27161',
         db: 'sandbox',
         collection: 'notes',
         input: JSON.stringify(args, null, 2),
@@ -321,7 +321,7 @@ describe('MCP single-document writes over HTTP', () => {
     expect(denied.requests).toEqual([
       {
         command: 'deleteOne',
-        connection: 'localhost:27161',
+        connectionKey: 'localhost:27161',
         db: 'sandbox',
         collection: 'notes',
         input: JSON.stringify(args, null, 2),

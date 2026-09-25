@@ -106,7 +106,12 @@ describe('MCP bulk writes over HTTP', () => {
     };
     const call = app.call('updateMany', args);
     const proposal = await app.prompted();
-    expect(proposal).toMatchObject({ command: 'updateMany', connection: 'local', db: 'sandbox', collection: 'notes' });
+    expect(proposal).toMatchObject({
+      command: 'updateMany',
+      connectionKey: 'local',
+      db: 'sandbox',
+      collection: 'notes',
+    });
     expect(JSON.parse(proposal.input)).toEqual(args);
     expect(proposal.typeToConfirm).toBeUndefined();
     expect(app.updateMany).not.toHaveBeenCalled();
@@ -208,7 +213,7 @@ describe('MCP bulk writes over HTTP', () => {
     const create = app.call('createCollection', { db: 'sandbox', collection: 'events' });
     expect(await app.prompted()).toMatchObject({
       command: 'createCollection',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: 'events',
       input: JSON.stringify({ db: 'sandbox', collection: 'events' }, null, 2),
@@ -221,7 +226,7 @@ describe('MCP bulk writes over HTTP', () => {
     const rename = app.call('renameCollection', { db: 'sandbox', from: 'events', to: 'archive' });
     expect(await app.prompted()).toMatchObject({
       command: 'renameCollection',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: '"events" → "archive"',
       input: JSON.stringify({ db: 'sandbox', from: 'events', to: 'archive' }, null, 2),
@@ -237,7 +242,7 @@ describe('MCP bulk writes over HTTP', () => {
     const denied = app.call('dropCollection', { db: 'sandbox', collection: 'notes' });
     expect(await app.prompted()).toMatchObject({
       command: 'dropCollection',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: 'notes',
       typeToConfirm: 'notes',
@@ -249,7 +254,7 @@ describe('MCP bulk writes over HTTP', () => {
     const empty = app.call('emptyCollection', { db: 'sandbox', collection: 'notes' });
     expect(await app.prompted()).toMatchObject({
       command: 'emptyCollection',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: 'notes',
       input: JSON.stringify({ db: 'sandbox', collection: 'notes' }, null, 2),
@@ -278,7 +283,7 @@ describe('MCP bulk writes over HTTP', () => {
     const call = app.call('dropCollections', { db: 'sandbox', names });
     expect(await app.prompted()).toMatchObject({
       command: 'dropCollections',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: '["events","archive"]',
       typeToConfirm: 'sandbox',
@@ -318,7 +323,7 @@ describe('MCP bulk writes over HTTP', () => {
     const call = app.call('createIndex', args);
     expect(await app.prompted()).toMatchObject({
       command: 'createIndex',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: 'notes',
       input: JSON.stringify(args, null, 2),
@@ -376,7 +381,7 @@ describe('MCP bulk writes over HTTP', () => {
     const drop = app.call('dropIndex', args);
     expect(await app.prompted()).toMatchObject({
       command: 'dropIndex',
-      connection: 'local',
+      connectionKey: 'local',
       db: 'sandbox',
       collection: 'notes',
       input: JSON.stringify(args, null, 2),
