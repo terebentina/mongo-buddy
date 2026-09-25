@@ -12,11 +12,13 @@ const EXPECTED_TOOL_NAMES = [
   'aggregate',
   'count',
   'createCollection',
+  'createIndex',
   'deleteOne',
   'deleteMany',
   'distinct',
   'dropCollection',
   'dropCollections',
+  'dropIndex',
   'emptyCollection',
   'explain',
   'find',
@@ -120,6 +122,19 @@ describe('startMcpServer', () => {
       expect(tool?.title).toContain('WRITE');
       expect(tool?.description).toContain('MongoBuddy GUI approval');
       expect(tool?.annotations?.readOnlyHint).toBe(false);
+    }
+    for (const [name, destructive, idempotent] of [
+      ['createIndex', false, true],
+      ['dropIndex', true, false],
+    ] as const) {
+      const tool = listed.tools.find((item) => item.name === name);
+      expect(tool?.title).toContain('WRITE');
+      expect(tool?.description).toContain('MongoBuddy GUI approval');
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: destructive,
+        idempotentHint: idempotent,
+      });
     }
     expect(names).not.toContain('aggregateWrite');
   });

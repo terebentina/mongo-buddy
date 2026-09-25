@@ -28,11 +28,13 @@ async function setup() {
   const createCollection = vi.fn().mockResolvedValue(undefined);
   const renameCollection = vi.fn().mockResolvedValue(undefined);
   const dropCollection = vi.fn().mockResolvedValue(true);
+  const createIndex = vi.fn().mockResolvedValue('email_1');
+  const dropIndex = vi.fn().mockResolvedValue(undefined);
   const db = vi.fn(() => ({
     createCollection,
     renameCollection,
     dropCollection,
-    collection: () => ({ updateMany, deleteMany }),
+    collection: () => ({ updateMany, deleteMany, createIndex, dropIndex }),
   }));
   const client = { db } as unknown as MongoClient;
   let active: { client: MongoClient; key: string } | null = { client, key: 'local' };
@@ -71,6 +73,8 @@ async function setup() {
     createCollection,
     renameCollection,
     dropCollection,
+    createIndex,
+    dropIndex,
     requests,
     call: (name: string, args: unknown) => mcp.callTool({ name, arguments: args as Record<string, unknown> }),
     async prompted() {
@@ -299,5 +303,102 @@ describe('MCP bulk writes over HTTP', () => {
       content: [{ text: expect.stringContaining('connection changed') }],
     });
     expect(app.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('creates an index only after approval and preserves the driver-assigned name and options', async () => {
+    const app = await setup();
+    const args = {
+      db: 'sandbox',
+      collection: 'notes',
+      key: { email: 1, createdAt: -1 },
+      indexName: 'unique_email',
+      unique: true,
+    };
+    app.createIndex.mockResolvedValueOnce('unique_email');
+    const call = app.call('createIndex', args);
+    expect(await app.prompted()).toMatchObject({
+      command: 'createIndex',
+      connection: 'local',
+      db: 'sandbox',
+      collection: 'notes',
+      input: JSON.stringify(args, null, 2),
+    });
+    expect(app.createIndex).not.toHaveBeenCalled();
+    app.decide(true);
+    expect(await call).toMatchObject({ content: [{ text: '"unique_email"' }] });
+    expect(app.createIndex).toHaveBeenCalledExactlyOnceWith(args.key, { name: 'unique_email', unique: true });
+  });
+
+  it('returns index validation errors from the driver after approving an otherwise valid input', async () => {
+    const app = await setup();
+    app.createIndex.mockRejectedValueOnce(new Error('Invalid index specification'));
+    const args = { db: 'sandbox', collection: 'notes', key: { email: 3 }, unique: false };
+    const call = app.call('createIndex', args);
+    expect((await app.prompted()).input).toBe(JSON.stringify(args, null, 2));
+    app.decide(true);
+    expect(await call).toMatchObject({ isError: true, content: [{ text: 'Invalid index specification' }] });
+    expect(app.createIndex).toHaveBeenCalledExactlyOnceWith({ email: 3 }, { unique: false });
+  });
+
+  it('denies index creation and refuses an approved index drop after connection switch', async () => {
+    const app = await setup();
+    const create = app.call('createIndex', {
+      db: 'sandbox',
+      collection: 'notes',
+      key: { email: 1 },
+      unique: false,
+    });
+    await app.prompted();
+    app.decide(false);
+    expect(await create).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('denied') }] });
+    expect(app.createIndex).not.toHaveBeenCalled();
+
+    const drop = app.call('dropIndex', { db: 'sandbox', collection: 'notes', indexName: 'email_1' });
+    await app.prompted();
+    app.switchClient();
+    app.decide(true);
+    expect(await drop).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining('connection changed') }],
+    });
+    expect(app.dropIndex).not.toHaveBeenCalled();
+  });
+
+  it('drops a named index after approval with valid void text, but protects _id_ and reports driver rejection', async () => {
+    const app = await setup();
+    const args = { db: 'sandbox', collection: 'notes', indexName: 'email_1' };
+    const denied = app.call('dropIndex', args);
+    await app.prompted();
+    app.decide(false);
+    expect(await denied).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('denied') }] });
+    expect(app.dropIndex).not.toHaveBeenCalled();
+
+    const drop = app.call('dropIndex', args);
+    expect(await app.prompted()).toMatchObject({
+      command: 'dropIndex',
+      connection: 'local',
+      db: 'sandbox',
+      collection: 'notes',
+      input: JSON.stringify(args, null, 2),
+    });
+    expect(app.dropIndex).not.toHaveBeenCalled();
+    app.decide(true);
+    expect(await drop).toMatchObject({ content: [{ text: 'null' }] });
+    expect(app.dropIndex).toHaveBeenCalledExactlyOnceWith('email_1');
+
+    const protectedDrop = app.call('dropIndex', { ...args, indexName: '_id_' });
+    await app.prompted();
+    app.decide(true);
+    expect(await protectedDrop).toMatchObject({
+      isError: true,
+      content: [{ text: 'Cannot drop the _id_ index' }],
+    });
+    expect(app.dropIndex).toHaveBeenCalledTimes(1);
+
+    app.dropIndex.mockRejectedValueOnce(new Error('index not found'));
+    const rejected = app.call('dropIndex', args);
+    await app.prompted();
+    app.decide(true);
+    expect(await rejected).toMatchObject({ isError: true, content: [{ text: 'index not found' }] });
   });
 });

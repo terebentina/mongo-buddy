@@ -137,6 +137,46 @@ describe('MCP GUI write approval', () => {
     await userEvent.click(approve);
     expect(respond).toHaveBeenCalledExactlyOnceWith('one', true, expected);
   });
+
+  it('shows index keys, name, create options including uniqueness, and full input before one-time approval', async () => {
+    render(<McpWriteApprovalDialog />);
+    const input = JSON.stringify({
+      db: 'sandbox',
+      collection: 'notes',
+      key: { email: 1, createdAt: -1 },
+      indexName: 'unique_email',
+      unique: true,
+    });
+    act(() => receive({ ...proposal, command: 'createIndex', input }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('MCP WRITE approval: createIndex');
+    expect(dialog).toHaveTextContent('localhost:27161');
+    expect(dialog).toHaveTextContent('sandbox');
+    expect(dialog).toHaveTextContent('notes');
+    expect(dialog).toHaveTextContent('Index keys: {"email":1,"createdAt":-1}');
+    expect(dialog).toHaveTextContent('Index name: unique_email');
+    expect(dialog).toHaveTextContent('Create options: {"unique":true,"name":"unique_email"}');
+    expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent(input);
+    await userEvent.click(screen.getByRole('button', { name: 'Approve once' }));
+    expect(respond).toHaveBeenCalledExactlyOnceWith('one', true);
+  });
+
+  it('shows the exact index name for drop and denies without requiring collection typing', async () => {
+    render(<McpWriteApprovalDialog />);
+    const input = '{"db":"sandbox","collection":"notes","indexName":"email_1"}';
+    act(() => receive({ ...proposal, command: 'dropIndex', input }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('MCP WRITE approval: dropIndex');
+    expect(dialog).toHaveTextContent('Index name: email_1');
+    expect(dialog).toHaveTextContent('localhost:27161');
+    expect(dialog).toHaveTextContent('sandbox');
+    expect(dialog).toHaveTextContent('notes');
+    expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent(input);
+    expect(screen.queryByLabelText(/Type the exact/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Deny' }));
+    expect(respond).toHaveBeenCalledExactlyOnceWith('one', false);
+  });
+
   it('resets typed confirmation between requests and still permits denial', async () => {
     render(<McpWriteApprovalDialog />);
     const all = { ...proposal, command: 'deleteMany', input: '{"filter":{}}', typeToConfirm: 'notes' };

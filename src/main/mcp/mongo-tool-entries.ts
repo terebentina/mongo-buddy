@@ -18,6 +18,8 @@ import { renameCollectionCommand } from '../commands/rename-collection';
 import { emptyCollectionCommand } from '../commands/empty-collection';
 import { dropCollectionCommand } from '../commands/drop-collection';
 import { dropCollectionsCommand } from '../commands/drop-collections';
+import { createIndexCommand } from '../commands/create-index';
+import { dropIndexCommand } from '../commands/drop-index';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -155,5 +157,21 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
     requiresApproval: true,
     typeToConfirm: (input) => input.db as string,
+  },
+  {
+    command: createIndexCommand,
+    title: 'WRITE — createIndex (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Create an index on a collection using the given key directions, optional indexName and unique setting. Returns the index name assigned by MongoDB. Requires one-time MongoBuddy GUI approval after reviewing the keys, options and complete input.',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    requiresApproval: true,
+  },
+  {
+    command: dropIndexCommand,
+    title: 'WRITE — dropIndex (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Drop the named collection index (the _id_ index cannot be dropped). Requires one-time MongoBuddy GUI approval after reviewing the index name and complete input. Returns null on success; a missing or protected index is an error.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
   },
 ];

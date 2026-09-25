@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { McpWriteApprovalRequest } from '../../../shared/types';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -6,6 +6,25 @@ import { Button } from './ui/button';
 export function McpWriteApprovalDialog() {
   const [request, setRequest] = useState<McpWriteApprovalRequest | null>(null);
   const [typedName, setTypedName] = useState('');
+  const indexDetails = useMemo(() => {
+    if (request?.command !== 'createIndex' && request?.command !== 'dropIndex') return null;
+    const input = JSON.parse(request.input) as {
+      key?: Record<string, unknown>;
+      indexName?: string;
+      unique?: boolean;
+    };
+    return {
+      keys: request.command === 'createIndex' ? JSON.stringify(input.key) : null,
+      name: input.indexName ?? '(MongoDB-generated)',
+      options:
+        request.command === 'createIndex'
+          ? JSON.stringify({
+              unique: input.unique,
+              ...(input.indexName !== undefined ? { name: input.indexName } : {}),
+            })
+          : null,
+    };
+  }, [request]);
 
   useEffect(() => {
     return window.api.onMcpWriteApproval((next) => {
@@ -61,6 +80,23 @@ export function McpWriteApprovalDialog() {
                 : 'Collection'}
             : <span className="font-mono">{request?.collection}</span>
           </p>
+          {indexDetails && (
+            <>
+              {indexDetails.keys !== null && (
+                <p>
+                  Index keys: <span className="font-mono">{indexDetails.keys}</span>
+                </p>
+              )}
+              <p>
+                Index name: <span className="font-mono">{indexDetails.name}</span>
+              </p>
+              {indexDetails.options !== null && (
+                <p>
+                  Create options: <span className="font-mono">{indexDetails.options}</span>
+                </p>
+              )}
+            </>
+          )}
           <p>Complete EJSON input (untrusted text):</p>
           <pre
             aria-label="Complete EJSON input"

@@ -91,7 +91,7 @@ The HTTP server binds `0.0.0.0:27099` by default and has **no authentication**. 
 
 ### Tools
 
-Most MCP tools read data. `insertOne`, `updateOne`, `deleteOne`, `updateMany`, `deleteMany`, `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, and `dropCollections` are standalone writes requiring explicit local approval for each request in the MongoBuddy GUI. Each proposal displays the exact command, connection, database, collection target(s), and complete EJSON input (including a document identifier and replacement for `updateOne`); denial, timeout (60 seconds), lost GUI, client cancellation, or connection switch prevents execution. Empty-filter `deleteMany`, `emptyCollection`, and `dropCollection` additionally require typing the exact collection name; `dropCollections` requires the exact database name. Other writes require only an approval click. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write without this approval gate.
+Most MCP tools read data. `insertOne`, `updateOne`, `deleteOne`, `updateMany`, `deleteMany`, `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, `dropCollections`, `createIndex`, and `dropIndex` are standalone writes requiring explicit local approval for each request in the MongoBuddy GUI. Each proposal displays the exact command, connection, database, collection target(s), and complete EJSON input (including a document identifier and replacement for `updateOne`, or index keys/name and options for `createIndex`); denial, timeout (60 seconds), lost GUI, client cancellation, or connection switch prevents execution. Empty-filter `deleteMany`, `emptyCollection`, and `dropCollection` additionally require typing the exact collection name; `dropCollections` requires the exact database name. Other writes require only an approval click. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write without this approval gate.
 
 | Tool | Purpose |
 | --- | --- |
@@ -114,6 +114,8 @@ Most MCP tools read data. `insertOne`, `updateOne`, `deleteOne`, `updateMany`, `
 | `emptyCollection` | **WRITE — MongoBuddy confirmation required.** Delete all documents without dropping the collection and return the deleted count; type its exact collection name to approve. |
 | `dropCollection` | **WRITE — MongoBuddy confirmation required.** Drop a collection and its data; type its exact collection name to approve. |
 | `dropCollections` | **WRITE — MongoBuddy confirmation required.** Drop named collections in a database; type the exact database name to approve. Returns separate `dropped` names and `failed` entries with error messages when only some drops succeed. |
+| `createIndex` | **WRITE — MongoBuddy confirmation required.** Create an index from key directions, an optional name and a uniqueness flag; review the keys, name (or MongoDB-generated name), options, and complete input before approving once. Returns the index name from MongoDB; invalid index specifications return the driver error. |
+| `dropIndex` | **WRITE — MongoBuddy confirmation required.** Drop the named index after reviewing the name and complete input; the `_id_` index is protected. Returns `null` as valid MCP success text, or an error if MongoDB rejects the drop. |
 
 ### CLI flags
 
