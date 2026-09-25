@@ -66,6 +66,52 @@ describe('MCP GUI write approval', () => {
     expect(respond).toHaveBeenLastCalledWith('all', true, 'notes');
   });
 
+  it.each(['createCollection', 'renameCollection'])(
+    '%s permits click-only approval with the exact target visible',
+    async (command) => {
+      render(<McpWriteApprovalDialog />);
+      const target = command === 'renameCollection' ? '"notes" → "archive"' : 'notes';
+      act(() =>
+        receive({ ...proposal, command, collection: target, input: '{"db":"sandbox","from":"notes","to":"archive"}' })
+      );
+      expect(screen.getByRole('dialog')).toHaveTextContent(target);
+      expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent('"to":"archive"');
+      expect(screen.queryByLabelText(/Type the exact/)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Approve once' }));
+      expect(respond).toHaveBeenCalledExactlyOnceWith('one', true);
+    }
+  );
+
+  it.each([
+    ['emptyCollection', 'notes', 'collection', 'delete every document'],
+    ['dropCollection', 'notes', 'collection', 'drop the collection'],
+    ['dropCollections', 'sandbox', 'database', 'drop the listed collections'],
+  ])('%s requires exact %s typing before approval', async (command, expected, kind, warning) => {
+    render(<McpWriteApprovalDialog />);
+    act(() =>
+      receive({
+        ...proposal,
+        command,
+        typeToConfirm: expected,
+        collection: command === 'dropCollections' ? '["notes","archive"]' : 'notes',
+        input: command === 'dropCollections' ? '{"db":"sandbox","names":["notes","archive"]}' : proposal.input,
+      })
+    );
+    expect(screen.getByRole('dialog')).toHaveTextContent(warning);
+    expect(screen.getByLabelText('Complete EJSON input')).toHaveTextContent(
+      command === 'dropCollections' ? '"names":["notes","archive"]' : proposal.input
+    );
+    const approve = screen.getByRole('button', { name: 'Approve once' });
+    const input = screen.getByLabelText(new RegExp(`Type the exact ${kind} name`));
+    expect(approve).toBeDisabled();
+    await userEvent.type(input, expected.toUpperCase());
+    expect(approve).toBeDisabled();
+    await userEvent.clear(input);
+    await userEvent.type(input, expected);
+    expect(approve).toBeEnabled();
+    await userEvent.click(approve);
+    expect(respond).toHaveBeenCalledExactlyOnceWith('one', true, expected);
+  });
   it('resets typed confirmation between requests and still permits denial', async () => {
     render(<McpWriteApprovalDialog />);
     const all = { ...proposal, command: 'deleteMany', input: '{"filter":{}}', typeToConfirm: 'notes' };

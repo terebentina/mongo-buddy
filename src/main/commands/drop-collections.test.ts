@@ -9,7 +9,7 @@ describe('dropCollectionsCommand', () => {
   let active: ActiveConnection;
 
   beforeEach(() => {
-    mockDb = { dropCollection: vi.fn().mockResolvedValue(undefined) };
+    mockDb = { dropCollection: vi.fn().mockResolvedValue(true) };
     mockClient = { db: vi.fn().mockReturnValue(mockDb) };
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
@@ -29,15 +29,24 @@ describe('dropCollectionsCommand', () => {
 
   it('continues past errors and reports failures separately', async () => {
     mockDb.dropCollection
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(true)
       .mockRejectedValueOnce(new Error('not authorized'))
-      .mockResolvedValueOnce(undefined);
+      .mockResolvedValueOnce(true);
     const out = await dropCollectionsCommand.run(active, { db: 'd', names: ['users', 'orders', 'logs'] });
     expect(out).toEqual({
       dropped: ['users', 'logs'],
       failed: [{ name: 'orders', error: 'not authorized' }],
     });
     expect(mockDb.dropCollection).toHaveBeenCalledTimes(3);
+  });
+
+  it('reports a false driver result as failed, without losing successful drops', async () => {
+    mockDb.dropCollection.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const out = await dropCollectionsCommand.run(active, { db: 'd', names: ['users', 'missing'] });
+    expect(out).toEqual({
+      dropped: ['users'],
+      failed: [{ name: 'missing', error: 'Collection was not dropped' }],
+    });
   });
 
   it('returns empty result for empty input without calling driver', async () => {

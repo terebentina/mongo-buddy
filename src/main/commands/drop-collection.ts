@@ -10,7 +10,7 @@ export const dropCollectionCommand: MongoCommand<typeof input, undefined> = {
   name: 'dropCollection',
   input,
   async run(active, { db, collection }) {
-    await active.client.db(db).dropCollection(collection);
+    if (!(await active.client.db(db).dropCollection(collection))) throw new Error('Collection was not dropped');
     return undefined;
   },
 };

@@ -54,7 +54,12 @@ export function McpWriteApprovalDialog() {
             Database: <span className="font-mono">{request?.db}</span>
           </p>
           <p>
-            Collection: <span className="font-mono">{request?.collection}</span>
+            {request?.command === 'renameCollection'
+              ? 'Collections (from → to)'
+              : request?.command === 'dropCollections'
+                ? 'Collections to drop'
+                : 'Collection'}
+            : <span className="font-mono">{request?.collection}</span>
           </p>
           <p>Complete EJSON input (untrusted text):</p>
           <pre
@@ -68,10 +73,15 @@ export function McpWriteApprovalDialog() {
               <p className="text-destructive">
                 {request.command === 'deleteMany'
                   ? 'An empty filter may delete all documents in this collection.'
-                  : 'This write may permanently affect the entire collection.'}
+                  : request.command === 'emptyCollection'
+                    ? 'This will permanently delete every document in this collection without dropping it.'
+                    : request.command === 'dropCollections'
+                      ? 'This will permanently drop the listed collections and their data. Some drops may succeed even if others fail.'
+                      : 'This will permanently drop the collection and its data.'}
               </p>
               <label htmlFor="mcp-type-to-confirm">
-                Type the exact collection name <span className="font-mono">{request.typeToConfirm}</span> to confirm:
+                Type the exact {request.command === 'dropCollections' ? 'database' : 'collection'} name{' '}
+                <span className="font-mono">{request.typeToConfirm}</span> to confirm:
               </label>
               <input
                 id="mcp-type-to-confirm"

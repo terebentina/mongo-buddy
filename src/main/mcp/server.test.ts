@@ -11,16 +11,21 @@ import type { MongoClient } from 'mongodb';
 const EXPECTED_TOOL_NAMES = [
   'aggregate',
   'count',
+  'createCollection',
   'deleteMany',
   'distinct',
+  'dropCollection',
+  'dropCollections',
+  'emptyCollection',
   'explain',
-  'insertOne',
-  'updateMany',
   'find',
+  'insertOne',
   'listCollections',
   'listDatabases',
   'listIndexes',
+  'renameCollection',
   'sampleFields',
+  'updateMany',
 ].sort();
 
 function mockManager(): ConnectionManager {
@@ -91,6 +96,18 @@ describe('startMcpServer', () => {
     expect(deleteTool?.title).toContain('WRITE');
     expect(deleteTool?.description).toContain('exact collection name');
     expect(deleteTool?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    for (const name of [
+      'createCollection',
+      'renameCollection',
+      'emptyCollection',
+      'dropCollection',
+      'dropCollections',
+    ]) {
+      const tool = listed.tools.find((item) => item.name === name);
+      expect(tool?.title).toContain('WRITE');
+      expect(tool?.description).toContain('MongoBuddy GUI approval');
+      expect(tool?.annotations?.readOnlyHint).toBe(false);
+    }
     expect(names).not.toContain('aggregateWrite');
   });
 

@@ -33,7 +33,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout
 - 🌙 **Dark by default** — CodeMirror one-dark theme, easy on the eyes
 - 🖥 **Cross-platform native builds** — Windows, macOS (Apple Silicon), and Linux
-- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read tools plus `insertOne`, `updateMany`, and `deleteMany` with one-time GUI approval; aggregation output stages can still write without approval)
+- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read tools plus gated document and collection writes; aggregation output stages can still write without approval)
 
 ---
 
@@ -91,7 +91,7 @@ The HTTP server binds `0.0.0.0:27099` by default and has **no authentication**. 
 
 ### Tools
 
-Most MCP tools read data. `insertOne`, `updateMany`, and `deleteMany` are standalone writes requiring explicit local approval for each request in the MongoBuddy GUI. With `deleteMany`, an empty filter (`{}`) additionally requires typing the exact collection name because it may delete every document. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
+Most MCP tools read data. `insertOne`, `updateMany`, `deleteMany`, `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, and `dropCollections` are standalone writes requiring explicit local approval for each request in the MongoBuddy GUI. Each proposal displays the exact connection, database, collection target(s), and complete EJSON input; denial, timeout (60 seconds), lost GUI, client cancellation, or connection switch prevents execution. Empty-filter `deleteMany`, `emptyCollection`, and `dropCollection` additionally require typing the exact collection name; `dropCollections` requires the exact database name. Create and rename require only an approval click. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
 
 | Tool | Purpose |
 | --- | --- |
@@ -107,6 +107,11 @@ Most MCP tools read data. `insertOne`, `updateMany`, and `deleteMany` are standa
 | `insertOne` | **WRITE — MongoBuddy confirmation required.** Insert one EJSON document; review command, connection, namespace and complete input in the GUI, then approve once or deny. Denial, lost GUI, timeout (60 seconds), client cancellation or connection switch prevents execution. |
 | `updateMany` | **WRITE — MongoBuddy confirmation required.** Update matching documents using an EJSON update document or pipeline; optional update options include `arrayFilters`. The dialog shows the full filter, update, and options; approval applies once to that input and returns matched/modified counts. |
 | `deleteMany` | **WRITE — MongoBuddy confirmation required.** Delete matching documents and return the deleted count. A non-empty filter needs an approval click; `{}` also requires typing the exact collection name to approve deletion of all documents. Denial, lost GUI, timeout, cancellation, or connection switch prevents either write. |
+| `createCollection` | **WRITE — MongoBuddy confirmation required.** Create an empty collection; review the target and complete input, then approve once. |
+| `renameCollection` | **WRITE — MongoBuddy confirmation required.** Rename a collection within a database; review the exact source and destination names, then approve once. |
+| `emptyCollection` | **WRITE — MongoBuddy confirmation required.** Delete all documents without dropping the collection and return the deleted count; type its exact collection name to approve. |
+| `dropCollection` | **WRITE — MongoBuddy confirmation required.** Drop a collection and its data; type its exact collection name to approve. |
+| `dropCollections` | **WRITE — MongoBuddy confirmation required.** Drop named collections in a database; type the exact database name to approve. Returns separate `dropped` names and `failed` entries with error messages when only some drops succeed. |
 
 ### CLI flags
 

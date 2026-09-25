@@ -62,7 +62,7 @@ export function createWriteApproval(
       } catch (err) {
         return { ok: false, error: `Invalid EJSON input: ${(err as Error).message}` };
       }
-      const fields = input as { db?: string; collection?: string };
+      const fields = input as { db?: string; collection?: string; from?: string; to?: string; names?: string[] };
       const controller = new AbortController();
       let failure = 'MCP write request cancelled';
       const abort = (reason: string): void => {
@@ -87,7 +87,11 @@ export function createWriteApproval(
           command: command.name,
           connection: active.key,
           db: fields.db ?? '',
-          collection: fields.collection ?? '',
+          collection:
+            fields.collection ??
+            (fields.from !== undefined && fields.to !== undefined
+              ? `${JSON.stringify(fields.from)} → ${JSON.stringify(fields.to)}`
+              : JSON.stringify(fields.names ?? [])),
           input: JSON.stringify(input, null, 2),
           ...(confirmation !== undefined ? { typeToConfirm: confirmation } : {}),
         };

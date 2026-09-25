@@ -25,7 +25,15 @@ afterEach(async () => {
 async function setup() {
   const updateMany = vi.fn().mockResolvedValue({ matchedCount: 5, modifiedCount: 3 });
   const deleteMany = vi.fn().mockResolvedValue({ deletedCount: 4 });
-  const db = vi.fn(() => ({ collection: () => ({ updateMany, deleteMany }) }));
+  const createCollection = vi.fn().mockResolvedValue(undefined);
+  const renameCollection = vi.fn().mockResolvedValue(undefined);
+  const dropCollection = vi.fn().mockResolvedValue(true);
+  const db = vi.fn(() => ({
+    createCollection,
+    renameCollection,
+    dropCollection,
+    collection: () => ({ updateMany, deleteMany }),
+  }));
   const client = { db } as unknown as MongoClient;
   let active: { client: MongoClient; key: string } | null = { client, key: 'local' };
   const subscribers = new Set<(state: ConnectionState) => void>();
@@ -60,6 +68,9 @@ async function setup() {
   return {
     updateMany,
     deleteMany,
+    createCollection,
+    renameCollection,
+    dropCollection,
     requests,
     call: (name: string, args: unknown) => mcp.callTool({ name, arguments: args as Record<string, unknown> }),
     async prompted() {
@@ -187,5 +198,106 @@ describe('MCP bulk writes over HTTP', () => {
       content: [{ text: expect.stringContaining('Not connected') }],
     });
     expect(app.requests).toHaveLength(1);
+  });
+  it('creates and renames only after click approval, showing exact old and new names and returning valid void results', async () => {
+    const app = await setup();
+    const create = app.call('createCollection', { db: 'sandbox', collection: 'events' });
+    expect(await app.prompted()).toMatchObject({
+      command: 'createCollection',
+      connection: 'local',
+      db: 'sandbox',
+      collection: 'events',
+      input: JSON.stringify({ db: 'sandbox', collection: 'events' }, null, 2),
+    });
+    expect(app.createCollection).not.toHaveBeenCalled();
+    app.decide(true);
+    expect(await create).toMatchObject({ content: [{ text: 'null' }] });
+    expect(app.createCollection).toHaveBeenCalledExactlyOnceWith('events');
+
+    const rename = app.call('renameCollection', { db: 'sandbox', from: 'events', to: 'archive' });
+    expect(await app.prompted()).toMatchObject({
+      command: 'renameCollection',
+      connection: 'local',
+      db: 'sandbox',
+      collection: '"events" → "archive"',
+      input: JSON.stringify({ db: 'sandbox', from: 'events', to: 'archive' }, null, 2),
+    });
+    expect(app.renameCollection).not.toHaveBeenCalled();
+    app.decide(true);
+    expect(await rename).toMatchObject({ content: [{ text: 'null' }] });
+    expect(app.renameCollection).toHaveBeenCalledExactlyOnceWith('events', 'archive');
+  });
+
+  it('requires collection-name proposals for empty/drop and does not execute denied destructive writes', async () => {
+    const app = await setup();
+    const denied = app.call('dropCollection', { db: 'sandbox', collection: 'notes' });
+    expect(await app.prompted()).toMatchObject({
+      command: 'dropCollection',
+      connection: 'local',
+      db: 'sandbox',
+      collection: 'notes',
+      typeToConfirm: 'notes',
+    });
+    app.decide(false);
+    expect(await denied).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('denied') }] });
+    expect(app.dropCollection).not.toHaveBeenCalled();
+
+    const empty = app.call('emptyCollection', { db: 'sandbox', collection: 'notes' });
+    expect(await app.prompted()).toMatchObject({
+      command: 'emptyCollection',
+      connection: 'local',
+      db: 'sandbox',
+      collection: 'notes',
+      input: JSON.stringify({ db: 'sandbox', collection: 'notes' }, null, 2),
+      typeToConfirm: 'notes',
+    });
+    expect(app.deleteMany).not.toHaveBeenCalled();
+    app.decide(true);
+    expect(await empty).toMatchObject({ content: [{ text: '4' }] });
+    expect(app.deleteMany).toHaveBeenCalledExactlyOnceWith({});
+
+    app.dropCollection.mockRejectedValueOnce(new Error('drop permission denied'));
+    const drop = app.call('dropCollection', { db: 'sandbox', collection: 'notes' });
+    await app.prompted();
+    app.decide(true);
+    expect(await drop).toMatchObject({ isError: true, content: [{ text: 'drop permission denied' }] });
+    const success = app.call('dropCollection', { db: 'sandbox', collection: 'notes' });
+    await app.prompted();
+    app.decide(true);
+    expect(await success).toMatchObject({ content: [{ text: 'null' }] });
+  });
+
+  it('types the database name for batch drop and reports individual successes and failures after approval', async () => {
+    const app = await setup();
+    app.dropCollection.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('not authorized'));
+    const names = ['events', 'archive'];
+    const call = app.call('dropCollections', { db: 'sandbox', names });
+    expect(await app.prompted()).toMatchObject({
+      command: 'dropCollections',
+      connection: 'local',
+      db: 'sandbox',
+      collection: '["events","archive"]',
+      typeToConfirm: 'sandbox',
+      input: JSON.stringify({ db: 'sandbox', names }, null, 2),
+    });
+    expect(app.dropCollection).not.toHaveBeenCalled();
+    app.decide(true);
+    expect(await call).toMatchObject({
+      content: [{ text: '{"dropped":["events"],"failed":[{"name":"archive","error":"not authorized"}]}' }],
+    });
+    expect(app.dropCollection).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a collection write after connection switch, even if approval arrives later', async () => {
+    const app = await setup();
+    const call = app.call('emptyCollection', { db: 'sandbox', collection: 'notes' });
+    await app.prompted();
+    app.switchClient();
+    app.decide(true);
+    expect(await call).toMatchObject({
+      isError: true,
+      content: [{ text: expect.stringContaining('connection changed') }],
+    });
+    expect(app.deleteMany).not.toHaveBeenCalled();
   });
 });

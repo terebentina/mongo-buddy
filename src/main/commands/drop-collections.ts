@@ -16,8 +16,9 @@ export const dropCollectionsCommand: MongoCommand<typeof input, DropCollectionsR
     const failed: { name: string; error: string }[] = [];
     for (const name of names) {
       try {
-        await database.dropCollection(name);
-        dropped.push(name);
+        const didDrop = await database.dropCollection(name);
+        if (didDrop) dropped.push(name);
+        else failed.push({ name, error: 'Collection was not dropped' });
       } catch (err) {
         failed.push({ name, error: (err as Error).message });
       }

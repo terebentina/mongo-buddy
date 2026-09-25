@@ -11,6 +11,11 @@ import { explainCommand } from '../commands/explain';
 import { insertOneCommand } from '../commands/insert-one';
 import { updateManyCommand } from '../commands/update-many';
 import { deleteManyCommand } from '../commands/delete-many';
+import { createCollectionCommand } from '../commands/create-collection';
+import { renameCollectionCommand } from '../commands/rename-collection';
+import { emptyCollectionCommand } from '../commands/empty-collection';
+import { dropCollectionCommand } from '../commands/drop-collection';
+import { dropCollectionsCommand } from '../commands/drop-collections';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -91,5 +96,48 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
     requiresApproval: true,
     typeToConfirm: (input) =>
       Object.keys(input.filter as Record<string, unknown>).length === 0 ? (input.collection as string) : undefined,
+  },
+  {
+    command: createCollectionCommand,
+    title: 'WRITE — createCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Create an empty collection in the given database. Requires one-time MongoBuddy GUI approval after reviewing the connection, database, collection name and complete input.',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: renameCollectionCommand,
+    title: 'WRITE — renameCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Rename a collection within the same database, from the exact old name to the exact new name. Requires one-time MongoBuddy GUI approval; no type-to-confirm.',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: emptyCollectionCommand,
+    title: 'WRITE — emptyCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Permanently delete all documents in a collection without dropping it. Returns the deleted count. Requires MongoBuddy GUI approval and typing the exact collection name.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) => input.collection as string,
+  },
+  {
+    command: dropCollectionCommand,
+    title: 'WRITE — dropCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Permanently drop a collection and its data. Requires MongoBuddy GUI approval and typing the exact collection name.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) => input.collection as string,
+  },
+  {
+    command: dropCollectionsCommand,
+    title: 'WRITE — dropCollections (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Permanently drop the named collections in one database. Requires MongoBuddy GUI approval and typing the exact database name. Returns dropped and failed collection names with errors; a partial failure does not undo successful drops.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) => input.db as string,
   },
 ];
