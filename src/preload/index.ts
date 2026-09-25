@@ -19,6 +19,7 @@ import type {
   OperationRecord,
   McpStatus,
   QueryMode,
+  McpWriteApprovalRequest,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
 
@@ -26,6 +27,7 @@ export type { ConnectionState, ConnectedSession };
 
 type IpcLike = {
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+  send: (channel: string, ...args: unknown[]) => void;
   on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
   off: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
 };
@@ -151,6 +153,22 @@ export function createApi(ipc: IpcLike) {
       const handler = (_event: unknown, s: McpStatus): void => cb(s);
       ipc.on('mcp:status:update', handler as (event: unknown, ...args: unknown[]) => void);
       return () => ipc.off('mcp:status:update', handler as (event: unknown, ...args: unknown[]) => void);
+    },
+    onMcpWriteApproval: (
+      cb: (request: McpWriteApprovalRequest | { id: string; cleared: true }) => void
+    ): (() => void) => {
+      const onRequest = (_event: unknown, request: McpWriteApprovalRequest): void => cb(request);
+      const onClear = (_event: unknown, id: string): void => cb({ id, cleared: true });
+      ipc.on('mcp:approval:request', onRequest as (event: unknown, ...args: unknown[]) => void);
+      ipc.on('mcp:approval:clear', onClear as (event: unknown, ...args: unknown[]) => void);
+      ipc.send('mcp:approval:ready');
+      return () => {
+        ipc.off('mcp:approval:request', onRequest as (event: unknown, ...args: unknown[]) => void);
+        ipc.off('mcp:approval:clear', onClear as (event: unknown, ...args: unknown[]) => void);
+      };
+    },
+    respondToMcpWrite: (id: string, approve: boolean): void => {
+      ipc.send('mcp:approval:respond', id, approve);
     },
   };
 }

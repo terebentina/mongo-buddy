@@ -33,7 +33,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout
 - 🌙 **Dark by default** — CodeMirror one-dark theme, easy on the eyes
 - 🖥 **Cross-platform native builds** — Windows, macOS (Apple Silicon), and Linux
-- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (mostly read tools; aggregation output stages can write)
+- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read tools plus `insertOne` with one-time GUI approval; aggregation output stages can still write without approval)
 
 ---
 
@@ -87,9 +87,11 @@ http://localhost:27099/mcp
 
 The MCP server uses the **active connection in the app** — open a connection in MongoBuddy and your MCP client will see the same databases and collections. Close the app and the server goes with it.
 
+The HTTP server binds `0.0.0.0:27099` by default and has **no authentication**. Anyone who can reach it can run read tools on the active connection, propose writes (including approval-flood attempts), and run aggregation output stages without approval. Restrict access at your firewall/network boundary; do not expose this port to untrusted networks. MCP annotations and tool descriptions do not authorize writes.
+
 ### Tools
 
-Most MCP tools read data. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
+Most MCP tools read data. `insertOne` is a standalone write and requires explicit local approval for each request in the MongoBuddy GUI. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write to a collection and replace existing data. These pipelines currently run without MongoBuddy GUI approval; confirmation for aggregation output is separate future work. There is no separate `aggregateWrite` tool.
 
 | Tool | Purpose |
 | --- | --- |
@@ -102,6 +104,7 @@ Most MCP tools read data. **Exception:** `aggregate` accepts pipelines with `$ou
 | `distinct` | Distinct values of a field |
 | `listIndexes` | List indexes on a collection |
 | `explain` | Return a query plan and execution stats |
+| `insertOne` | **WRITE — MongoBuddy confirmation required.** Insert one EJSON document; review command, connection, namespace and complete input in the GUI, then approve once or deny. Denial, lost GUI, timeout (60 seconds), client cancellation or connection switch prevents execution. |
 
 ### CLI flags
 

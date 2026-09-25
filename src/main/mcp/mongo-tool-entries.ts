@@ -8,6 +8,7 @@ import { distinctCommand } from '../commands/distinct';
 import { findCommand } from '../commands/find';
 import { aggregateCommand } from '../commands/aggregate';
 import { explainCommand } from '../commands/explain';
+import { insertOneCommand } from '../commands/insert-one';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -65,5 +66,12 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
   {
     command: explainCommand,
     description: `Run MongoDB explain (verbosity: executionStats) on a query and return the query plan plus execution stats (winning plan, index used, docs/keys examined, executionTimeMillis). Use for diagnosing slow queries or verifying index usage. ${EJSON_HINT}`,
+  },
+  {
+    command: insertOneCommand,
+    title: 'WRITE — insertOne (MongoBuddy confirmation required)',
+    description: `WRITE: Insert one document into a collection. MongoBuddy confirmation required: an explicit, one-time approval in the GUI before execution; MCP tool annotations do not grant permission. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
   },
 ];

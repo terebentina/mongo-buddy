@@ -10,6 +10,7 @@ vi.mock('./components/Sidebar', () => ({ Sidebar: () => null }));
 vi.mock('./components/QueryEditor', () => ({ QueryEditor: () => null }));
 vi.mock('./components/QueryHistory', () => ({ QueryHistory: () => null }));
 vi.mock('./components/ConnectionDialog', () => ({ ConnectionDialog: () => null }));
+vi.mock('./components/McpWriteApprovalDialog', () => ({ McpWriteApprovalDialog: () => null }));
 vi.mock('./components/ui/sonner', () => ({ Toaster: () => null }));
 vi.mock('./components/DocumentTable', () => ({
   DocumentTable: ({ onRowClick }: { onRowClick?: (doc: Record<string, unknown>) => void }) => (

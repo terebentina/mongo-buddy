@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file. See [commit
 ## Unreleased
 
 - Clarify in MCP discovery and documentation that `aggregate` can write via `$out` or `$merge` without MongoBuddy GUI approval (#62).
+- Add MCP `insertOne` with per-request MongoBuddy GUI approval and fail-closed connection/lifecycle handling; the aggregation output-stage exception remains (#63).
 
 ## [2.20.0](https://github.com/terebentina/mongo-buddy/compare/v2.19.3...v2.20.0) (2026-09-21)
 

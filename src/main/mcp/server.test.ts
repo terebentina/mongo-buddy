@@ -13,6 +13,7 @@ const EXPECTED_TOOL_NAMES = [
   'count',
   'distinct',
   'explain',
+  'insertOne',
   'find',
   'listCollections',
   'listDatabases',
@@ -76,6 +77,10 @@ describe('startMcpServer', () => {
     expect(aggregate?.description).toContain('$merge');
     expect(aggregate?.description).toContain('without MongoBuddy GUI approval');
     expect(aggregate?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    const insert = listed.tools.find((tool) => tool.name === 'insertOne');
+    expect(insert?.title).toContain('WRITE');
+    expect(insert?.description).toContain('confirmation required');
+    expect(insert?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
     expect(names).not.toContain('aggregateWrite');
   });
 

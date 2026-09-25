@@ -1,6 +1,6 @@
 # MongoBuddy
 
-A desktop MongoDB GUI client (Electron + React) that also exposes a built-in MCP server so AI assistants can read from the same connection the user has open in the GUI.
+A desktop MongoDB GUI client (Electron + React) that also exposes a built-in MCP server so AI assistants can use the same connection the user has open in the GUI.
 
 ## Language
 
@@ -75,13 +75,16 @@ A declarative one-shot MongoDB operation. Shape: `{ name, input: ZodSchema, run(
 _Avoid_: handler, action, operation. "Operation" is reserved for the long-running task tracked by `OperationRegistry` (export/import).
 
 **Dispatcher**:
-The single seam that runs a **MongoCommand**. Owns: `manager.getActive()` precondition, Zod input validation, whole-input `EJSON.deserialize`, calling `command.run`, whole-output `EJSON.serialize`, try/catch → `Result<T>`. Created once at app startup and shared by both transport adapters. After this seam exists, the Dispatcher is the single caller of `manager.getActive()` for MongoDB operations.
+The single seam that runs a **MongoCommand**. Owns: `manager.getActive()` precondition, Zod input validation, whole-input `EJSON.deserialize`, calling `command.run`, whole-output `EJSON.serialize`, try/catch → `Result<T>`. Created once at app startup and shared by both transport adapters. The **MCP write approval** gate separately checks the active client before prompting and again before dispatch.
 
 **MongoService**:
 Narrowed to operations that do not fit the **MongoCommand** shape. Holds: `exportCollection`, `importCollection`, `getExportableIndexes`, `applyImportedIndexes` — all owned by `OperationRegistry` because they take stream/`AbortSignal`/progress arguments — plus a thin `listCollections` wrapper around `listCollectionsImpl` (the latter is shared with the `listCollections` **MongoCommand**) so `OperationRegistry`'s `MongoServicePort` keeps a stable surface. Each method takes an **ActiveConnection** and returns a `Result<T>` with inline try/catch.
 
 **MCP tool**:
-A read-only operation exposed to external MCP clients (Claude, Cursor, etc.). The MCP allowlist is an explicit array (`MCP_TOOLS`) in the MCP adapter that pairs each exposed **MongoCommand** with its description and any transport-specific quirks (e.g. limit clamping, custom not-connected message).
+An explicitly allowlisted **MongoCommand** exposed to external MCP clients (Claude, Cursor, etc.). Read tools run directly; standalone write tools require **MCP write approval**. `aggregate` remains outside this approval gate even when its `$out` or `$merge` output stage writes.
+
+**MCP write approval**:
+A one-time, GUI-local decision for one validated standalone MCP write against the active connection and exact EJSON input. It does not persist or authorize a different command, input, or connection; denial, lost GUI, cancellation, or expiry ends the proposal without execution.
 
 **update document**:
 The object form of a bulk update. It uses MongoDB update operators with standard update semantics.
@@ -150,7 +153,7 @@ _Avoid_: namespace, breadcrumb.
 - A **SavedConnection** is the seed for a **ConnectedSession** when the user clicks Connect.
 - The `ConnectionManager` owns the live `MongoClient` and produces an **ActiveConnection** snapshot on demand.
 - An **ActiveConnection** carries a **ConnectionKey** for scoping per-connection storage.
-- The **Dispatcher** is the single caller of `manager.getActive()` for MongoDB operations; **MongoCommand** bodies never check the precondition — they consume the **ActiveConnection** they're given. Non-Mongo IPC handlers that need an **ActiveConnection.key** (history store) still call `manager.getActive()` directly.
+- The **Dispatcher** runs **MongoCommand** bodies on the active client; command bodies never check the precondition. **MCP write approval** also reads `manager.getActive()` before prompting and checks the same client before dispatch. Non-Mongo IPC handlers that need an **ActiveConnection.key** (history store) call `manager.getActive()` directly.
 
 ## Example dialogue
 

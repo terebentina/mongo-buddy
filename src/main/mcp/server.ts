@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { z } from 'zod';
 import { registerMongoMcpTools, type McpToolEntry } from './mongo-tools';
 import type { Dispatch } from '../commands/dispatch';
+import type { WriteApproval } from './write-approval';
 
 const HOST = '0.0.0.0';
 const MCP_PATH = '/mcp';
@@ -12,6 +13,7 @@ export interface StartMcpServerOptions {
   dispatch: Dispatch;
   mongoTools: McpToolEntry<z.ZodType, unknown>[];
   port: number;
+  approval?: WriteApproval;
 }
 
 export interface McpServerHandle {
@@ -47,7 +49,13 @@ async function listen(httpServer: Server, port: number): Promise<{ port: number;
 }
 
 export async function startMcpServer(options: StartMcpServerOptions): Promise<McpServerHandle | null> {
+  let shuttingDown = false;
   const httpServer = createHttpServer(async (req: IncomingMessage, res: ServerResponse) => {
+    if (shuttingDown) {
+      res.statusCode = 503;
+      res.end('MCP server is shutting down');
+      return;
+    }
     const url = req.url ?? '';
     const pathname = url.split('?')[0];
     if (pathname !== MCP_PATH) {
@@ -57,8 +65,19 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
       return;
     }
 
+    const request = new AbortController();
+    req.on('aborted', () => request.abort());
+    res.on('close', () => {
+      if (!res.writableFinished) request.abort();
+    });
     const mcpServer = new McpServer({ name: 'mongo-buddy', version: '1.0.0' }, { capabilities: { tools: {} } });
-    registerMongoMcpTools({ server: mcpServer, dispatch: options.dispatch, tools: options.mongoTools });
+    registerMongoMcpTools({
+      server: mcpServer,
+      dispatch: options.dispatch,
+      tools: options.mongoTools,
+      approval: options.approval,
+      signal: request.signal,
+    });
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
     const cleanup = (): void => {
@@ -92,6 +111,8 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
     actualPort: listening.port,
     address: listening.address,
     close: async () => {
+      shuttingDown = true;
+      options.approval?.cancel();
       await new Promise<void>((resolve) => {
         httpServer.close(() => resolve());
       });
