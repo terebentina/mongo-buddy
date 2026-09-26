@@ -2,6 +2,7 @@ import { createServer as createHttpServer, type Server, type IncomingMessage, ty
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { z } from 'zod';
+import { version } from '../../../package.json';
 import { registerMongoMcpTools, type McpToolEntry } from './mongo-tools';
 import type { Dispatch } from '../commands/dispatch';
 import type { WriteApproval } from './write-approval';
@@ -70,7 +71,14 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
     res.on('close', () => {
       if (!res.writableFinished) request.abort();
     });
-    const mcpServer = new McpServer({ name: 'mongo-buddy', version: '1.0.0' }, { capabilities: { tools: {} } });
+    const mcpServer = new McpServer(
+      { name: 'mongo-buddy', version },
+      {
+        capabilities: { tools: {} },
+        instructions:
+          'All MongoDB create, read, update, and delete interactions must be done exclusively through MongoBuddy MCP tools. Do not use direct database connections, drivers, shells, or other MCP servers for MongoDB CRUD. MongoBuddy MCP uses the active connection in the MongoBuddy app.',
+      }
+    );
     registerMongoMcpTools({
       server: mcpServer,
       dispatch: options.dispatch,
