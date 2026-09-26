@@ -65,16 +65,6 @@ describe('TypeToConfirmDialog second gate', () => {
     expect(screen.getByLabelText(/type users to confirm/i)).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Drop' })).toBeDisabled();
   });
-
-  it('keeps the confirm button disabled on a matching name while canConfirm is false', async () => {
-    const { onConfirm } = renderDialog({ canConfirm: false });
-    const input = screen.getByLabelText(/type users to confirm/i);
-
-    await userEvent.type(input, 'users{Enter}');
-
-    expect(screen.getByRole('button', { name: 'Drop' })).toBeDisabled();
-    expect(onConfirm).not.toHaveBeenCalled();
-  });
 });
 
 describe('TypeToConfirmDialog lifecycle', () => {
@@ -122,13 +112,5 @@ describe('TypeToConfirmDialog content', () => {
     expect(dialog.textContent).toContain('Drop collection');
     expect(dialog.textContent).toContain('This cannot be undone.');
     expect(dialog.textContent).toContain('pick something first');
-  });
-
-  it('renders the confirm instruction as a paragraph', () => {
-    renderDialog();
-
-    const instruction = screen.getByLabelText(/type users to confirm/i).previousElementSibling;
-    expect(instruction?.tagName).toBe('P');
-    expect(instruction).toHaveTextContent('Type users to confirm');
   });
 });

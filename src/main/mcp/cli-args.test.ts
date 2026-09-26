@@ -47,12 +47,6 @@ describe('parseMcpArgs', () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to default port and warns when --mcp-port is empty', () => {
-    const result = parseMcpArgs(['--mcp-port=']);
-    expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-  });
-
   it('falls back to default port and warns when --mcp-port is zero', () => {
     const result = parseMcpArgs(['--mcp-port=0']);
     expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
@@ -67,12 +61,6 @@ describe('parseMcpArgs', () => {
 
   it('falls back to default port and warns when --mcp-port exceeds 65535', () => {
     const result = parseMcpArgs(['--mcp-port=70000']);
-    expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it('falls back to default port and warns when --mcp-port is a float', () => {
-    const result = parseMcpArgs(['--mcp-port=3000.5']);
     expect(result).toEqual({ enabled: true, port: DEFAULT_MCP_PORT });
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });

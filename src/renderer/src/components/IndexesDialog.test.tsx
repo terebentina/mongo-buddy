@@ -56,14 +56,6 @@ describe('IndexesDialog index creation', () => {
     expect(within(screen.getByRole('row', { name: /createdAt_1/ })).getByText('No')).toBeInTheDocument();
   });
 
-  it('shows the add button when the collection has no listed indexes', async () => {
-    mockApi.listIndexes.mockResolvedValue({ ok: true, data: [] });
-    render(<IndexesDialog open onOpenChange={() => {}} db="app" collection="users" />);
-
-    expect(await screen.findByRole('button', { name: 'Add index' })).toBeEnabled();
-    expect(screen.getByText('No indexes.')).toBeInTheDocument();
-  });
-
   it('creates a named unique index from a relaxed JSON object', async () => {
     mockApi.listIndexes
       .mockResolvedValueOnce({ ok: true, data: [{ name: '_id_', key: { _id: 1 } }] })

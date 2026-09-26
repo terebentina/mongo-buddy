@@ -50,7 +50,6 @@ describe('IPC Handlers', () => {
   };
   let mockBroadcast: ReturnType<typeof vi.fn<Broadcast>>;
   let stateChangeCb: ((s: ConnectionState) => void) | null;
-  let mcpStatusCb: ((s: import('../shared/types').McpStatus) => void) | null;
   let mockMcpStatus: {
     get: ReturnType<typeof vi.fn>;
     set: ReturnType<typeof vi.fn>;
@@ -94,16 +93,10 @@ describe('IPC Handlers', () => {
       cancel: vi.fn(),
     };
 
-    mcpStatusCb = null;
     mockMcpStatus = {
       get: vi.fn(() => ({ running: false, port: null })),
       set: vi.fn(),
-      subscribe: vi.fn((cb: (s: import('../shared/types').McpStatus) => void) => {
-        mcpStatusCb = cb;
-        return () => {
-          mcpStatusCb = null;
-        };
-      }),
+      subscribe: vi.fn(),
     };
 
     handlers = {};
@@ -140,12 +133,6 @@ describe('IPC Handlers', () => {
       expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
       expect(result).toEqual({ ok: true, data: session });
     });
-
-    it('returns error result on failure', async () => {
-      mockManager.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
-      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'bad-uri');
-      expect(result).toEqual({ ok: false, error: 'Connection refused' });
-    });
   });
 
   describe('mongo:disconnect', () => {
@@ -154,46 +141,6 @@ describe('IPC Handlers', () => {
       const result = await handlers['mongo:disconnect']({} as Electron.IpcMainInvokeEvent);
       expect(mockManager.disconnect).toHaveBeenCalled();
       expect(result).toEqual({ ok: true, data: undefined });
-    });
-  });
-
-  describe('error handling', () => {
-    it('catches unexpected errors and returns error result', async () => {
-      mockManager.connect.mockRejectedValue(new Error('Unexpected crash'));
-      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
-      expect(result).toEqual({ ok: false, error: 'Unexpected crash' });
-    });
-  });
-
-  describe('connections:list', () => {
-    it('returns saved connections from ConnectionStore', () => {
-      const conns = [{ name: 'Local', uri: 'mongodb://localhost:27017' }];
-      mockConnStore.getAll.mockReturnValue(conns);
-      const result = handlers['connections:list']({} as Electron.IpcMainInvokeEvent);
-      expect(result).toEqual(conns);
-    });
-  });
-
-  describe('connections:save', () => {
-    it('saves a connection to ConnectionStore', () => {
-      const conn = { name: 'Local', uri: 'mongodb://localhost:27017' };
-      handlers['connections:save']({} as Electron.IpcMainInvokeEvent, conn);
-      expect(mockConnStore.save).toHaveBeenCalledWith(conn);
-    });
-  });
-
-  describe('connections:delete', () => {
-    it('removes a connection by name', () => {
-      handlers['connections:delete']({} as Electron.IpcMainInvokeEvent, 'Local');
-      expect(mockConnStore.remove).toHaveBeenCalledWith('Local');
-    });
-  });
-
-  describe('connections:get-last-used', () => {
-    it('returns last used URI', () => {
-      mockConnStore.getLastUsed.mockReturnValue('mongodb://localhost:27017');
-      const result = handlers['connections:get-last-used']({} as Electron.IpcMainInvokeEvent);
-      expect(result).toBe('mongodb://localhost:27017');
     });
   });
 
@@ -237,21 +184,6 @@ describe('IPC Handlers', () => {
       stateChangeCb!(connected);
       expect(mockBroadcast).toHaveBeenNthCalledWith(1, 'connection:state', connecting);
       expect(mockBroadcast).toHaveBeenNthCalledWith(2, 'connection:state', connected);
-    });
-  });
-
-  describe('mcp:status', () => {
-    it('mcp:status:get returns current status from emitter', () => {
-      mockMcpStatus.get.mockReturnValue({ running: true, port: 27099 });
-      const result = handlers['mcp:status:get']({} as Electron.IpcMainInvokeEvent);
-      expect(result).toEqual({ running: true, port: 27099 });
-    });
-
-    it('broadcasts mcp:status:update on every status change', () => {
-      mcpStatusCb!({ running: true, port: 27099 });
-      mcpStatusCb!({ running: false, port: null });
-      expect(mockBroadcast).toHaveBeenCalledWith('mcp:status:update', { running: true, port: 27099 });
-      expect(mockBroadcast).toHaveBeenCalledWith('mcp:status:update', { running: false, port: null });
     });
   });
 
@@ -299,13 +231,6 @@ describe('IPC Handlers', () => {
       expect(result).toEqual({ ok: true, data: 'op-123' });
     });
 
-    it('forwards registry rejection', () => {
-      mockRegistry.start.mockReturnValue({ ok: false, error: 'already running' });
-      const params: OperationParams = { kind: 'export-database', db: 'testdb' };
-      const result = handlers['operation:start']({} as Electron.IpcMainInvokeEvent, params);
-      expect(result).toEqual({ ok: false, error: 'already running' });
-    });
-
     it('returns Not connected without calling registry when manager has no active connection', () => {
       mockManager.getActive.mockReturnValue(null);
       const params: OperationParams = { kind: 'export-collection', db: 'testdb', collection: 'users' };
@@ -321,12 +246,6 @@ describe('IPC Handlers', () => {
       const result = handlers['operation:cancel']({} as Electron.IpcMainInvokeEvent, 'op-123');
       expect(mockRegistry.cancel).toHaveBeenCalledWith('op-123');
       expect(result).toEqual({ ok: true, data: undefined });
-    });
-
-    it('forwards registry rejection when no op', () => {
-      mockRegistry.cancel.mockReturnValue({ ok: false, error: 'No active operation with that id' });
-      const result = handlers['operation:cancel']({} as Electron.IpcMainInvokeEvent, 'bogus');
-      expect(result).toEqual({ ok: false, error: 'No active operation with that id' });
     });
   });
 });

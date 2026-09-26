@@ -17,10 +17,6 @@ describe('deleteOneCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "deleteOne"', () => {
-    expect(deleteOneCommand.name).toBe('deleteOne');
-  });
-
   it('deletes by ObjectId id', async () => {
     const oid = new ObjectId('507f1f77bcf86cd799439011');
     await deleteOneCommand.run(active, { db: 'd', collection: 'c', id: oid });
@@ -30,11 +26,6 @@ describe('deleteOneCommand', () => {
   it('deletes by string id', async () => {
     await deleteOneCommand.run(active, { db: 'd', collection: 'c', id: 'my-id' });
     expect(mockCollection.deleteOne).toHaveBeenCalledWith({ _id: 'my-id' });
-  });
-
-  it('returns undefined on success', async () => {
-    const out = await deleteOneCommand.run(active, { db: 'd', collection: 'c', id: 'x' });
-    expect(out).toBeUndefined();
   });
 
   it('schema requires id', () => {

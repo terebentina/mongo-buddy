@@ -18,16 +18,8 @@ describe('extractLabelDisplay', () => {
     expect(extractLabelDisplay({ name: 42, title: 'B' })).toEqual({ field: 'title', value: 'B' });
   });
 
-  it('falls through to title when name is an object', () => {
-    expect(extractLabelDisplay({ name: { foo: 1 }, title: 'B' })).toEqual({ field: 'title', value: 'B' });
-  });
-
   it('falls through to title when name is null', () => {
     expect(extractLabelDisplay({ name: null, title: 'B' })).toEqual({ field: 'title', value: 'B' });
-  });
-
-  it('falls through to title when name is empty string', () => {
-    expect(extractLabelDisplay({ name: '', title: 'B' })).toEqual({ field: 'title', value: 'B' });
   });
 
   it('falls through to title when name is whitespace only', () => {

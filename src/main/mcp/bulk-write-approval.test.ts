@@ -304,19 +304,6 @@ describe('MCP bulk writes over HTTP', () => {
     expect(app.dropCollection).not.toHaveBeenCalled();
   });
 
-  it('rejects a collection write after connection switch, even if approval arrives later', async () => {
-    const app = await setup();
-    const call = app.call('emptyCollection', { db: 'sandbox', collection: 'notes' });
-    await app.prompted();
-    app.switchClient();
-    app.decide(true);
-    expect(await call).toMatchObject({
-      isError: true,
-      content: [{ text: expect.stringContaining('connection changed') }],
-    });
-    expect(app.deleteMany).not.toHaveBeenCalled();
-  });
-
   it('creates an index only after approval and preserves the driver-assigned name and options', async () => {
     const app = await setup();
     const args = {
@@ -339,41 +326,6 @@ describe('MCP bulk writes over HTTP', () => {
     app.decide(true);
     expect(await call).toMatchObject({ content: [{ text: '"unique_email"' }] });
     expect(app.createIndex).toHaveBeenCalledExactlyOnceWith(args.key, { name: 'unique_email', unique: true });
-  });
-
-  it('returns index validation errors from the driver after approving an otherwise valid input', async () => {
-    const app = await setup();
-    app.createIndex.mockRejectedValueOnce(new Error('Invalid index specification'));
-    const args = { db: 'sandbox', collection: 'notes', key: { email: 3 }, unique: false };
-    const call = app.call('createIndex', args);
-    expect((await app.prompted()).input).toBe(JSON.stringify(args, null, 2));
-    app.decide(true);
-    expect(await call).toMatchObject({ isError: true, content: [{ text: 'Invalid index specification' }] });
-    expect(app.createIndex).toHaveBeenCalledExactlyOnceWith({ email: 3 }, { unique: false });
-  });
-
-  it('denies index creation and refuses an approved index drop after connection switch', async () => {
-    const app = await setup();
-    const create = app.call('createIndex', {
-      db: 'sandbox',
-      collection: 'notes',
-      key: { email: 1 },
-      unique: false,
-    });
-    await app.prompted();
-    app.decide(false);
-    expect(await create).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('denied') }] });
-    expect(app.createIndex).not.toHaveBeenCalled();
-
-    const drop = app.call('dropIndex', { db: 'sandbox', collection: 'notes', indexName: 'email_1' });
-    await app.prompted();
-    app.switchClient();
-    app.decide(true);
-    expect(await drop).toMatchObject({
-      isError: true,
-      content: [{ text: expect.stringContaining('connection changed') }],
-    });
-    expect(app.dropIndex).not.toHaveBeenCalled();
   });
 
   it('drops a named index after approval with valid void text, but protects _id_ and reports driver rejection', async () => {

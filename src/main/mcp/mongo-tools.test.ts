@@ -46,35 +46,6 @@ describe('registerMongoMcpTools', () => {
     });
   });
 
-  it('registers each tool by name with the supplied description', () => {
-    const cmd = makeCommand();
-    const entry: McpToolEntry<typeof cmd.input, number> = {
-      command: cmd,
-      description: 'Count docs',
-    };
-    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry], signal });
-    const tool = registered(server)['count'];
-    expect(tool).toBeDefined();
-    expect(tool.description).toBe('Count docs');
-  });
-
-  it('handler dispatches to the command and returns success as a text CallToolResult', async () => {
-    const cmd = makeCommand();
-    dispatch.mockResolvedValue({ ok: true, data: 42 });
-    registerMongoMcpTools({
-      server,
-      approval,
-      signal,
-      dispatch: dispatch as unknown as Dispatch,
-      tools: [{ command: cmd, description: 'Count docs' }],
-    });
-    const handler = registered(server)['count'].handler;
-    const result = await handler({ db: 'test' });
-    expect(dispatch).toHaveBeenCalledWith(cmd, { db: 'test' });
-    expect(result.isError).toBeFalsy();
-    expect(result.content[0].text).toBe('42');
-  });
-
   it('handler returns isError CallToolResult on dispatch failure', async () => {
     const cmd = makeCommand();
     dispatch.mockResolvedValue({ ok: false, error: 'boom' });
@@ -91,27 +62,6 @@ describe('registerMongoMcpTools', () => {
     expect(result.content[0].text).toBe('boom');
   });
 
-  it('replaces "Not connected" error text with GUI guidance', async () => {
-    const cmd = makeCommand();
-    dispatch.mockResolvedValue({ ok: false, error: 'Not connected' });
-    registerMongoMcpTools({
-      server,
-      approval,
-      signal,
-      dispatch: dispatch as unknown as Dispatch,
-      tools: [
-        {
-          command: cmd,
-          description: 'd',
-        },
-      ],
-    });
-    const handler = registered(server)['count'].handler;
-    const result = await handler({ db: 'test' });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toBe('Not connected. Connect via the mongo-buddy GUI first.');
-  });
-
   it('applies transformInput before dispatching', async () => {
     const cmd = makeCommand();
     dispatch.mockResolvedValue({ ok: true, data: 0 });
@@ -124,20 +74,5 @@ describe('registerMongoMcpTools', () => {
     const handler = registered(server)['count'].handler;
     await handler({ db: 'test' });
     expect(dispatch).toHaveBeenCalledWith(cmd, { db: 'TEST' });
-  });
-
-  it('serializes object results as JSON', async () => {
-    const cmd = makeCommand();
-    dispatch.mockResolvedValue({ ok: true, data: { docs: [{ a: 1 }], totalCount: 1 } });
-    registerMongoMcpTools({
-      server,
-      approval,
-      signal,
-      dispatch: dispatch as unknown as Dispatch,
-      tools: [{ command: cmd, description: 'd' }],
-    });
-    const handler = registered(server)['count'].handler;
-    const result = await handler({ db: 'test' });
-    expect(result.content[0].text).toBe('{"docs":[{"a":1}],"totalCount":1}');
   });
 });

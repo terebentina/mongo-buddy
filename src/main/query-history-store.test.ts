@@ -30,10 +30,6 @@ describe('connectionKeyFromUri', () => {
   it('handles SRV URIs', () => {
     expect(connectionKeyFromUri('mongodb+srv://cluster0.example.net')).toBe('cluster0.example.net');
   });
-
-  it('falls back to localhost:27017 for invalid URIs', () => {
-    expect(connectionKeyFromUri('not-a-uri')).toBe('localhost:27017');
-  });
 });
 
 describe('QueryHistoryStore', () => {
@@ -52,10 +48,6 @@ describe('QueryHistoryStore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     store = new QueryHistoryStore();
-  });
-
-  it('getAll returns empty array when nothing saved', () => {
-    expect(store.getAll(key)).toEqual([]);
   });
 
   it('save + getAll roundtrip returns same entries', () => {

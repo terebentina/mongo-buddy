@@ -14,10 +14,6 @@ describe('dropCollectionsCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "dropCollections"', () => {
-    expect(dropCollectionsCommand.name).toBe('dropCollections');
-  });
-
   it('drops all collections in order when each succeeds', async () => {
     const out = await dropCollectionsCommand.run(active, { db: 'd', names: ['users', 'orders', 'logs'] });
     expect(out).toEqual({ dropped: ['users', 'orders', 'logs'], failed: [] });

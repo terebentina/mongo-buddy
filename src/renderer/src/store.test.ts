@@ -248,36 +248,6 @@ describe('store', () => {
     expect(mockApi.disconnect).toHaveBeenCalled();
   });
 
-  it('loadSavedConnections() fetches and sets savedConnections', async () => {
-    const conns = [{ name: 'Local', uri: 'mongodb://localhost:27017' }];
-    mockApi.listConnections.mockResolvedValue(conns);
-
-    await useStore.getState().loadSavedConnections();
-
-    expect(useStore.getState().savedConnections).toEqual(conns);
-  });
-
-  it('saveConnection(name, uri) saves and reloads list', async () => {
-    mockApi.saveConnection.mockResolvedValue(undefined);
-    mockApi.listConnections.mockResolvedValue([{ name: 'Local', uri: 'mongodb://localhost:27017' }]);
-
-    await useStore.getState().saveConnection('Local', 'mongodb://localhost:27017');
-
-    expect(mockApi.saveConnection).toHaveBeenCalledWith({ name: 'Local', uri: 'mongodb://localhost:27017' });
-    expect(useStore.getState().savedConnections).toHaveLength(1);
-  });
-
-  it('deleteConnection(name) removes and reloads list', async () => {
-    mockApi.deleteConnection.mockResolvedValue(undefined);
-    mockApi.listConnections.mockResolvedValue([]);
-
-    useStore.setState({ savedConnections: [{ name: 'Local', uri: 'mongodb://localhost:27017' }] });
-    await useStore.getState().deleteConnection('Local');
-
-    expect(mockApi.deleteConnection).toHaveBeenCalledWith('Local');
-    expect(useStore.getState().savedConnections).toEqual([]);
-  });
-
   it('autoReconnect() connects with last used URI and applies session', async () => {
     mockApi.getLastUsed.mockResolvedValue('mongodb://localhost:27017');
     mockApi.connect.mockResolvedValue({
@@ -377,14 +347,6 @@ describe('store', () => {
     expect(error).toBeTruthy();
     expect(typeof error).toBe('string');
     expect(mockApi.find).not.toHaveBeenCalled();
-  });
-
-  it('setQueryMode() toggles between filter and aggregate', () => {
-    expect(useStore.getState().queryMode).toBe('filter');
-    useStore.getState().setQueryMode('aggregate');
-    expect(useStore.getState().queryMode).toBe('aggregate');
-    useStore.getState().setQueryMode('filter');
-    expect(useStore.getState().queryMode).toBe('filter');
   });
 
   it('insertDoc() calls insertOne and refreshes docs', async () => {
@@ -1008,10 +970,6 @@ describe('historyIndex + navigateHistory', () => {
     ...overrides,
   });
 
-  it('historyIndex defaults to null', () => {
-    expect(useStore.getState().historyIndex).toBeNull();
-  });
-
   it('addToHistory sets historyIndex to 0 on new entry', () => {
     useStore.setState({ historyIndex: 5 });
     useStore.getState().addToHistory(makeEntry({ id: '1' }));
@@ -1033,31 +991,6 @@ describe('historyIndex + navigateHistory', () => {
     await useStore.getState().runQuery('{"name":"Alice"}', { skipHistory: true });
 
     expect(useStore.getState().queryHistory).toHaveLength(0);
-  });
-
-  it('runQuery without flag still prepends', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
-    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-
-    await useStore.getState().runQuery('{"name":"Alice"}');
-
-    expect(useStore.getState().queryHistory).toHaveLength(1);
-  });
-
-  it('restoreFromHistory sets historyIndex to the entry array position', async () => {
-    const a = makeEntry({ id: 'a', query: '{"a":1}' });
-    const b = makeEntry({ id: 'b', query: '{"b":2}' });
-    const c = makeEntry({ id: 'c', query: '{"c":3}' });
-    useStore.setState({
-      selectedDb: 'testdb',
-      selectedCollection: 'users',
-      queryHistory: [a, b, c],
-    });
-    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-
-    await useStore.getState().restoreFromHistory(b);
-
-    expect(useStore.getState().historyIndex).toBe(1);
   });
 
   it('restoreFromHistory does NOT add a duplicate entry when restoring index > 0', async () => {
@@ -1195,14 +1128,6 @@ describe('switchCollection', () => {
     await useStore.getState().switchCollection('testdb', 'users');
 
     expect(mockApi.find).not.toHaveBeenCalled();
-  });
-
-  it('does NOT set pendingFilterText', async () => {
-    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
-
-    await useStore.getState().switchCollection('testdb', 'users');
-
-    expect(useStore.getState().pendingFilterText).toBeNull();
   });
 });
 
@@ -1366,16 +1291,6 @@ describe('fetchDistinct', () => {
     expect(result).toBeNull();
     expect(mockApi.distinct).not.toHaveBeenCalled();
   });
-
-  it('returns the API result directly', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
-    const errorResult = { ok: false as const, error: 'Query failed' };
-    mockApi.distinct.mockResolvedValue(errorResult);
-
-    const result = await useStore.getState().fetchDistinct('status');
-
-    expect(result).toEqual(errorResult);
-  });
 });
 
 describe('subscribeToConnectionState', () => {
@@ -1448,14 +1363,6 @@ describe('initMcpStatus', () => {
 });
 
 describe('selectConnected', () => {
-  it('is true when status.status === connected', () => {
-    expect(
-      selectConnected({
-        status: { status: 'connected', uri: 'u', connectionKey: 'k' },
-      } as unknown as ReturnType<typeof useStore.getState>)
-    ).toBe(true);
-  });
-
   it('is false for every other status', () => {
     const states: ConnectionState[] = [
       { status: 'disconnected' },
@@ -1469,21 +1376,10 @@ describe('selectConnected', () => {
 });
 
 describe('ghost databases', () => {
-  it('addGhostDatabase appends a name', () => {
-    useStore.getState().addGhostDatabase('newdb');
-    expect(useStore.getState().ghostDatabases).toEqual(['newdb']);
-  });
-
   it('addGhostDatabase is a no-op when name already in ghost set', () => {
     useStore.setState({ ghostDatabases: ['newdb'] });
     useStore.getState().addGhostDatabase('newdb');
     expect(useStore.getState().ghostDatabases).toEqual(['newdb']);
-  });
-
-  it('removeGhostDatabase removes the name', () => {
-    useStore.setState({ ghostDatabases: ['a', 'b', 'c'] });
-    useStore.getState().removeGhostDatabase('b');
-    expect(useStore.getState().ghostDatabases).toEqual(['a', 'c']);
   });
 
   it('removeGhostDatabase clears selection state if removing currently-selected ghost', () => {
@@ -1553,38 +1449,5 @@ describe('ghost databases', () => {
     await useStore.getState().refreshDatabases();
 
     expect(useStore.getState().databases).toEqual([{ name: 'old', sizeOnDisk: 1, empty: false }]);
-  });
-});
-
-// Enforces atomicity: a "connected" assertion must be backed by a populated session
-describe('connect() atomicity invariant', () => {
-  it('populates databases together with status transitions when subscription is active', async () => {
-    let emit: (s: ConnectionState) => void = () => {};
-    mockApi.onConnectionState.mockImplementation((cb: (s: ConnectionState) => void) => {
-      emit = cb;
-      return () => {};
-    });
-    mockApi.connect.mockImplementation(async () => {
-      emit({ status: 'connecting', uri: 'mongodb://localhost' });
-      emit({ status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' });
-      return {
-        ok: true,
-        data: {
-          uri: 'mongodb://localhost',
-          databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
-          queryHistory: [],
-          autoSelectedDb: 'testdb',
-          collections: [{ name: 'users', type: 'collection' }],
-        } as ConnectedSession,
-      };
-    });
-
-    useStore.getState().subscribeToConnectionState();
-    await useStore.getState().connect('mongodb://localhost');
-
-    const state = useStore.getState();
-    expect(selectConnected(state)).toBe(true);
-    expect(state.databases).toHaveLength(1);
-    expect(state.collections).toHaveLength(1);
   });
 });

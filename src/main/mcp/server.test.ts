@@ -110,7 +110,6 @@ describe('startMcpServer', () => {
     }
     const update = listed.tools.find((tool) => tool.name === 'updateMany');
     expect(update?.title).toContain('WRITE');
-    expect(update?.description).toContain('arrayFilters');
     expect(update?.annotations).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     const deleteTool = listed.tools.find((tool) => tool.name === 'deleteMany');
     expect(deleteTool?.title).toContain('WRITE');

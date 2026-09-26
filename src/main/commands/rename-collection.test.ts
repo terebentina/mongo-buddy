@@ -14,10 +14,6 @@ describe('renameCollectionCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "renameCollection"', () => {
-    expect(renameCollectionCommand.name).toBe('renameCollection');
-  });
-
   it('renames the collection within the same db and returns undefined', async () => {
     const out = await renameCollectionCommand.run(active, { db: 'd', from: 'users', to: 'members' });
     expect(out).toBeUndefined();

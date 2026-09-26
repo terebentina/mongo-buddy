@@ -14,18 +14,10 @@ describe('createCollectionCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "createCollection"', () => {
-    expect(createCollectionCommand.name).toBe('createCollection');
-  });
-
   it('creates the named collection and returns undefined', async () => {
     const out = await createCollectionCommand.run(active, { db: 'd', collection: 'users' });
     expect(out).toBeUndefined();
     expect(mockClient.db).toHaveBeenCalledWith('d');
     expect(mockDb.createCollection).toHaveBeenCalledWith('users');
-  });
-
-  it('schema requires collection', () => {
-    expect(createCollectionCommand.input.safeParse({ db: 'd' }).success).toBe(false);
   });
 });

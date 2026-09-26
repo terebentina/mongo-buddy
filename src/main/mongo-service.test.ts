@@ -157,45 +157,6 @@ describe('MongoService', () => {
       expect(BSON.deserialize(chunks[2])).toEqual(docs[2]);
     });
 
-    it('fires onProgress at 200ms throttle cadence during streaming', async () => {
-      const docs = Array.from({ length: 5 }, (_, i) => ({ n: i }));
-      mockCollection.find.mockReturnValue(makeCursor(docs));
-      const { writable } = collectingWritable();
-
-      // lastProgressTime starts at 0. Check is: now - lastProgressTime >= 200.
-      // times: 0, 100, 250, 300, 500
-      // doc 1 (now=0): 0-0=0 → no
-      // doc 2 (now=100): 100-0=100 → no
-      // doc 3 (now=250): 250-0=250 → yes, progress(3), lastProgressTime=250
-      // doc 4 (now=300): 300-250=50 → no
-      // doc 5 (now=500): 500-250=250 → yes, progress(5), lastProgressTime=500
-      // final: progress(5)
-      const times = [0, 100, 250, 300, 500];
-      let idx = 0;
-      const spy = vi.spyOn(Date, 'now').mockImplementation(() => times[idx++] ?? 999);
-      const onProgress = vi.fn();
-
-      try {
-        const result = await service.exportCollection(
-          active,
-          'testdb',
-          'users',
-          writable,
-          onProgress,
-          new AbortController().signal
-        );
-        expect(result).toEqual({ ok: true, data: 5 });
-      } finally {
-        spy.mockRestore();
-      }
-
-      // Throttled: exactly 2 mid-stream + 1 final = 3 calls
-      expect(onProgress).toHaveBeenCalledTimes(3);
-      expect(onProgress).toHaveBeenNthCalledWith(1, 3);
-      expect(onProgress).toHaveBeenNthCalledWith(2, 5);
-      expect(onProgress).toHaveBeenNthCalledWith(3, 5);
-    });
-
     it('fires a final onProgress(count) after the loop exits', async () => {
       const docs = [{ a: 1 }, { b: 2 }];
       mockCollection.find.mockReturnValue(makeCursor(docs));

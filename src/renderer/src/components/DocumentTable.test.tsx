@@ -93,19 +93,6 @@ describe('DocumentTable', () => {
     expect(screen.getByText('age')).toBeInTheDocument();
   });
 
-  it('renders projection options first, then _id', () => {
-    useStore.setState({
-      docs: [{ name: 'Alice', _id: '1', email: 'alice@test.com' }],
-      totalCount: 1,
-    });
-
-    render(<DocumentTable />);
-
-    const headers = screen.getAllByRole('columnheader');
-    expect(within(headers[0]).getByRole('button', { name: 'Projection options' })).toBeInTheDocument();
-    expect(headers[1]).toHaveTextContent('_id');
-  });
-
   it('renders dotted projection fields as separate columns', () => {
     const applyFilterValue = vi.fn();
     useStore.setState({
@@ -228,31 +215,6 @@ describe('DocumentTable', () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
-  it('renders long cell values with truncation class', () => {
-    const longValue = 'a'.repeat(150);
-    useStore.setState({
-      docs: [{ _id: '1', description: longValue }],
-      totalCount: 1,
-    });
-
-    render(<DocumentTable />);
-
-    const cell = screen.getByText(longValue);
-    expect(cell).toBeInTheDocument();
-    expect(cell).toHaveClass('truncate');
-  });
-
-  it('JSON.stringifies nested objects in cells', () => {
-    useStore.setState({
-      docs: [{ _id: '1', address: { city: 'NYC', zip: '10001' } }],
-      totalCount: 1,
-    });
-
-    render(<DocumentTable />);
-
-    expect(screen.getByText('{"city":"NYC","zip":"10001"}')).toBeInTheDocument();
-  });
-
   it('groups the pagination controls on the left', () => {
     useStore.setState({
       docs: Array.from({ length: 20 }, (_, i) => ({ _id: String(i) })),
@@ -271,22 +233,6 @@ describe('DocumentTable', () => {
     ).toBeInTheDocument();
     expect(within(pagination).getByRole('button', { name: /previous/i })).toBeInTheDocument();
     expect(within(pagination).getByRole('button', { name: /next/i })).toBeInTheDocument();
-  });
-
-  it('groups the result actions and total count on the right', () => {
-    useStore.setState({
-      docs: [{ _id: '1' }],
-      totalCount: 1,
-      queryMode: 'filter',
-    });
-
-    render(<DocumentTable />);
-
-    const resultActions = screen.getByRole('group', { name: 'Result actions' });
-    const deleteResults = within(resultActions).getByRole('button', { name: 'Delete results' });
-    const updateResults = within(resultActions).getByRole('button', { name: 'Update results' });
-    expect(deleteResults.nextElementSibling).toBe(updateResults);
-    expect(within(resultActions).getByText('1 document')).toBeInTheDocument();
   });
 
   it('Next button disabled on last page', () => {

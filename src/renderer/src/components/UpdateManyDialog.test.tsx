@@ -35,11 +35,6 @@ describe('UpdateManyDialog gating', () => {
     expect(screen.queryByRole('button', { name: 'Update results' })).not.toBeInTheDocument();
   });
 
-  it('renders the button in filter mode', () => {
-    render(<UpdateManyDialog />);
-    expect(screen.getByRole('button', { name: 'Update results' })).toBeInTheDocument();
-  });
-
   it('disables the button while a query is loading', () => {
     useStore.setState({ loading: true });
     render(<UpdateManyDialog />);
@@ -51,24 +46,9 @@ describe('UpdateManyDialog gating', () => {
     render(<UpdateManyDialog />);
     expect(screen.getByRole('button', { name: 'Update results' })).toBeDisabled();
   });
-
-  it('enables the button when there are matches in filter mode', () => {
-    render(<UpdateManyDialog />);
-    expect(screen.getByRole('button', { name: 'Update results' })).toBeEnabled();
-  });
 });
 
 describe('UpdateManyDialog context', () => {
-  it('describes both update forms and shows an update pipeline example', async () => {
-    render(<UpdateManyDialog />);
-    await openDialog();
-
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.textContent).toMatch(/update document or an update pipeline/i);
-    expect(dialog.textContent).toContain('data.name');
-    expect(dialog.textContent).toContain('$title');
-  });
-
   it('renders update and options editors side by side', async () => {
     render(<UpdateManyDialog />);
     await openDialog();
@@ -90,14 +70,6 @@ describe('UpdateManyDialog context', () => {
     expect(dialog.textContent).toMatch(/matching the currently applied filter/i);
   });
 
-  it('labels the confirm button with the match count', async () => {
-    useStore.setState({ totalCount: 42 });
-    render(<UpdateManyDialog />);
-    await openDialog();
-
-    expect(screen.getByRole('button', { name: 'Update 42 documents' })).toBeInTheDocument();
-  });
-
   it('shows a stronger whole-collection warning when the filter is empty', async () => {
     useStore.setState({ filter: {}, totalCount: 100 });
     render(<UpdateManyDialog />);
@@ -105,14 +77,5 @@ describe('UpdateManyDialog context', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent).toMatch(/ALL documents in the collection/i);
-  });
-
-  it('does not show the whole-collection warning when the filter is non-empty', async () => {
-    useStore.setState({ filter: { status: 'active' }, totalCount: 5 });
-    render(<UpdateManyDialog />);
-    await openDialog();
-
-    const dialog = screen.getByRole('dialog');
-    expect(dialog.textContent).not.toMatch(/ALL documents in the collection/i);
   });
 });

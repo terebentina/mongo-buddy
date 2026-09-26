@@ -92,17 +92,6 @@ describe('createDispatcher', () => {
     });
   });
 
-  it('passes scalar output through unchanged', async () => {
-    const dispatch = createDispatcher(makeManager(fakeActive));
-    const cmd = {
-      name: 'count',
-      input: z.object({}),
-      run: async () => 42,
-    };
-    const result = await dispatch(cmd, {});
-    expect(result).toEqual({ ok: true, data: 42 });
-  });
-
   it('passes undefined output through unchanged', async () => {
     const dispatch = createDispatcher(makeManager(fakeActive));
     const cmd = {

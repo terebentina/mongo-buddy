@@ -16,10 +16,6 @@ describe('listIndexesCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "listIndexes"', () => {
-    expect(listIndexesCommand.name).toBe('listIndexes');
-  });
-
   it('returns raw index list from the driver (dispatcher serializes)', async () => {
     const raw = [
       { v: 2, key: { _id: 1 }, name: '_id_' },

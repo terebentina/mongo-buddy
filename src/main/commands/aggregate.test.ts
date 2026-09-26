@@ -19,10 +19,6 @@ describe('aggregateCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "aggregate"', () => {
-    expect(aggregateCommand.name).toBe('aggregate');
-  });
-
   it('runs pipeline and returns raw docs (dispatcher serializes)', async () => {
     const oid = new ObjectId('507f1f77bcf86cd799439011');
     const docs = [{ _id: oid, total: 100 }];

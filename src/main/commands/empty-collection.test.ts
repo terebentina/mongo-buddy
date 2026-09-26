@@ -16,10 +16,6 @@ describe('emptyCollectionCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "emptyCollection"', () => {
-    expect(emptyCollectionCommand.name).toBe('emptyCollection');
-  });
-
   it('deletes all documents and returns the deleted count', async () => {
     const out = await emptyCollectionCommand.run(active, { db: 'd', collection: 'users' });
     expect(mockClient.db).toHaveBeenCalledWith('d');

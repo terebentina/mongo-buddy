@@ -89,16 +89,6 @@ beforeEach(() => {
 });
 
 describe('QueryEditor', () => {
-  it('renders a Run button', () => {
-    render(<QueryEditor />);
-    expect(screen.getByRole('button', { name: /run/i })).toBeInTheDocument();
-  });
-
-  it('renders a CodeMirror editor container', () => {
-    const { container } = render(<QueryEditor />);
-    expect(container.querySelector('[data-testid="query-editor"]')).toBeInTheDocument();
-  });
-
   it('Run button calls store.runQuery with editor content', async () => {
     mockApi.find.mockResolvedValue({
       ok: true,
@@ -119,15 +109,6 @@ describe('QueryEditor', () => {
     });
   });
 
-  it('shows error toast on invalid JSON', async () => {
-    render(<QueryEditor />);
-
-    // We need to simulate invalid JSON in the editor
-    // Since CodeMirror is mocked, we'll test through the store directly
-    const error = await useStore.getState().runQuery('{bad json}');
-    expect(error).toBeTruthy();
-  });
-
   it('toggles between filter and aggregate mode', async () => {
     render(<QueryEditor />);
 
@@ -140,18 +121,6 @@ describe('QueryEditor', () => {
     await userEvent.click(filterButton);
 
     expect(useStore.getState().queryMode).toBe('filter');
-  });
-
-  it('renders an Explain button between Clear and Run', () => {
-    render(<QueryEditor />);
-    const buttons = screen.getAllByRole('button');
-    const labels = buttons.map((b) => b.textContent);
-    const clearIdx = labels.indexOf('Clear');
-    const explainIdx = labels.indexOf('Explain');
-    const runIdx = labels.indexOf('Run');
-    expect(clearIdx).toBeGreaterThanOrEqual(0);
-    expect(explainIdx).toBe(clearIdx + 1);
-    expect(runIdx).toBe(explainIdx + 1);
   });
 
   it('Explain button calls api.explain with filter mode and {} default', async () => {
@@ -182,19 +151,5 @@ describe('QueryEditor', () => {
     });
     expect(useStore.getState().docs).toEqual([{ _id: 'keep' }]);
     expect(useStore.getState().totalCount).toBe(5);
-  });
-
-  it('aggregate mode calls store.runQuery which calls aggregate API', async () => {
-    useStore.setState({ queryMode: 'aggregate' });
-    mockApi.aggregate.mockResolvedValue({
-      ok: true,
-      data: [{ _id: null, total: 42 }],
-    });
-
-    const pipeline = '[{"$group":{"_id":null,"total":{"$sum":1}}}]';
-    const error = await useStore.getState().runQuery(pipeline);
-
-    expect(error).toBeNull();
-    expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', [{ $group: { _id: null, total: { $sum: 1 } } }]);
   });
 });

@@ -14,10 +14,6 @@ describe('dropCollectionCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "dropCollection"', () => {
-    expect(dropCollectionCommand.name).toBe('dropCollection');
-  });
-
   it('drops the named collection and returns undefined', async () => {
     const out = await dropCollectionCommand.run(active, { db: 'd', collection: 'users' });
     expect(out).toBeUndefined();

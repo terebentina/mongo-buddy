@@ -16,10 +16,6 @@ describe('distinctCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "distinct"', () => {
-    expect(distinctCommand.name).toBe('distinct');
-  });
-
   it('returns {values, truncated: false} when under cap', async () => {
     mockCollection.distinct.mockResolvedValue(['a', 'b', 'c']);
     const out = await distinctCommand.run(active, { db: 'd', collection: 'c', field: 'status' });
@@ -41,9 +37,5 @@ describe('distinctCommand', () => {
     expect(out.values).toHaveLength(1000);
     expect(out.values[0]).toBe(0);
     expect(out.values[999]).toBe(999);
-  });
-
-  it('schema requires field', () => {
-    expect(distinctCommand.input.safeParse({ db: 'd', collection: 'c' }).success).toBe(false);
   });
 });

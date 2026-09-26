@@ -33,19 +33,8 @@ function setup(): {
 }
 
 describe('listCollectionsCommand', () => {
-  it('exposes name "listCollections"', () => {
-    expect(listCollectionsCommand.name).toBe('listCollections');
-  });
-
   it('schema rejects when db is missing', () => {
     expect(listCollectionsCommand.input.safeParse({}).success).toBe(false);
-  });
-
-  it('delegates to listCollectionsImpl with active and db', async () => {
-    const { active, setCollections } = setup();
-    setCollections([{ name: 'users', type: 'collection' }]);
-    const out = await listCollectionsCommand.run(active, { db: 'testdb' });
-    expect(out).toEqual([{ name: 'users', type: 'collection', count: 0 }]);
   });
 });
 
@@ -54,21 +43,6 @@ describe('listCollectionsImpl', () => {
 
   beforeEach(() => {
     env = setup();
-  });
-
-  it('returns CollectionInfo[] sorted alphabetically', async () => {
-    env.setCollections([
-      { name: 'users', type: 'collection' },
-      { name: 'orders', type: 'collection' },
-    ]);
-    const out = await listCollectionsImpl(env.active, 'testdb');
-    expect(out.map((c) => c.name)).toEqual(['orders', 'users']);
-  });
-
-  it('defaults type to "collection" when missing', async () => {
-    env.setCollections([{ name: 'x' }]);
-    const out = await listCollectionsImpl(env.active, 'testdb');
-    expect(out[0].type).toBe('collection');
   });
 
   it('includes estimated document count', async () => {

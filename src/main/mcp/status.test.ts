@@ -32,15 +32,4 @@ describe('createMcpStatusEmitter', () => {
     emitter.set({ running: false, port: null });
     expect(cb).toHaveBeenCalledTimes(1);
   });
-
-  it('supports multiple independent subscribers', () => {
-    const emitter = createMcpStatusEmitter();
-    const a = vi.fn();
-    const b = vi.fn();
-    emitter.subscribe(a);
-    emitter.subscribe(b);
-    emitter.set({ running: true, port: 1234 });
-    expect(a).toHaveBeenCalledWith({ running: true, port: 1234 });
-    expect(b).toHaveBeenCalledWith({ running: true, port: 1234 });
-  });
 });

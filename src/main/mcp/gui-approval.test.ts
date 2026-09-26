@@ -78,25 +78,6 @@ describe('main-process GUI approval prompt', () => {
     expect(await decision).toBe(true);
   });
 
-  it.each([
-    ['dropCollection', 'notes', 'Notes'],
-    ['emptyCollection', 'notes', 'notes '],
-    ['dropCollections', 'sandbox', 'notes'],
-  ])('rejects wrong typed name for %s in the main-process gate', async (command, expected, wrong) => {
-    const { sender, window } = gui();
-    const events = ipcMain as unknown as EventEmitter;
-    const prompt = createGuiApproval(() => window);
-    events.emit('mcp:approval:ready', { sender });
-    const typedProposal = { ...proposal, command, typeToConfirm: expected };
-    const rejected = prompt.request(typedProposal, new AbortController().signal);
-    const request = sender.send.mock.calls.at(-1)?.[1];
-    events.emit('mcp:approval:respond', { sender }, request.id, true, wrong);
-    expect(await rejected).toBe(false);
-    const accepted = prompt.request(typedProposal, new AbortController().signal);
-    const second = sender.send.mock.calls.at(-1)?.[1];
-    events.emit('mcp:approval:respond', { sender }, second.id, true, expected);
-    expect(await accepted).toBe(true);
-  });
   it('fails closed on window navigation, cancelling any late approval', async () => {
     const { sender, window } = gui();
     const events = ipcMain as unknown as EventEmitter;

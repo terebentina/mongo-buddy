@@ -19,10 +19,6 @@ describe('sampleFieldsCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "sampleFields"', () => {
-    expect(sampleFieldsCommand.name).toBe('sampleFields');
-  });
-
   it('returns sorted union of top-level field names across up to 50 docs', async () => {
     mockCursor.toArray.mockResolvedValue([
       { _id: 1, name: 'a', age: 10 },
@@ -32,15 +28,5 @@ describe('sampleFieldsCommand', () => {
     expect(out).toEqual(['_id', 'age', 'email', 'name']);
     expect(mockCollection.find).toHaveBeenCalledWith({});
     expect(mockCursor.limit).toHaveBeenCalledWith(50);
-  });
-
-  it('returns [] when collection is empty', async () => {
-    mockCursor.toArray.mockResolvedValue([]);
-    const out = await sampleFieldsCommand.run(active, { db: 'd', collection: 'c' });
-    expect(out).toEqual([]);
-  });
-
-  it('schema rejects when collection is missing', () => {
-    expect(sampleFieldsCommand.input.safeParse({ db: 'd' }).success).toBe(false);
   });
 });

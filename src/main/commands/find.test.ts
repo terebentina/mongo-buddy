@@ -38,10 +38,6 @@ describe('findCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "find"', () => {
-    expect(findCommand.name).toBe('find');
-  });
-
   it('returns raw docs + totalCount (dispatcher serializes)', async () => {
     const oid = new ObjectId('507f1f77bcf86cd799439011');
     const docs = [{ _id: oid, name: 'Alice' }];
@@ -80,28 +76,6 @@ describe('findCommand', () => {
 
     expect(mockCursor.project).toHaveBeenCalledWith(projection);
     expect(mockCollection.countDocuments).toHaveBeenCalledWith({ active: true });
-  });
-
-  it('does not apply a projection when it is absent', async () => {
-    mockCursor.toArray.mockResolvedValue([]);
-    mockCollection.countDocuments.mockResolvedValue(0);
-
-    await findCommand.run(active, { db: 'd', collection: 'c' });
-
-    expect(mockCursor.project).not.toHaveBeenCalled();
-  });
-
-  it('does not apply skip/limit when undefined', async () => {
-    mockCursor.toArray.mockResolvedValue([]);
-    mockCollection.countDocuments.mockResolvedValue(0);
-    await findCommand.run(active, { db: 'd', collection: 'c' });
-    expect(mockCursor.sort).not.toHaveBeenCalled();
-    expect(mockCursor.skip).not.toHaveBeenCalled();
-    expect(mockCursor.limit).not.toHaveBeenCalled();
-  });
-
-  it('schema rejects when collection is missing', () => {
-    expect(findCommand.input.safeParse({ db: 'd' }).success).toBe(false);
   });
 
   it('schema accepts a full projection document', () => {

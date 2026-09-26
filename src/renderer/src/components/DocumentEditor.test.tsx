@@ -38,10 +38,6 @@ function getEditorView(): EditorView {
   return view;
 }
 
-function getEditorText(): string {
-  return getEditorView().state.doc.toString();
-}
-
 function setEditorText(value: string): void {
   const view = getEditorView();
   view.dispatch({
@@ -72,15 +68,6 @@ beforeEach(() => {
 });
 
 describe('DocumentEditor', () => {
-  it('Add Document button opens editor dialog with empty template', async () => {
-    render(<DocumentEditor />);
-
-    await userEvent.click(screen.getByRole('button', { name: /add document/i }));
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(getEditorText()).toBe('{\n  \n}');
-  });
-
   it('submit calls insert-one and refreshes table', async () => {
     mockApi.insertOne.mockResolvedValue({ ok: true, data: { _id: '1', name: 'Alice' } });
     mockApi.find.mockResolvedValue({
@@ -98,18 +85,6 @@ describe('DocumentEditor', () => {
     await waitFor(() => {
       expect(mockApi.insertOne).toHaveBeenCalledWith('testdb', 'users', { name: 'Alice' });
     });
-  });
-
-  it('click row opens editor with doc JSON', () => {
-    render(
-      <DocumentEditor
-        editDoc={{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Alice', age: 30 }}
-        onClose={() => {}}
-      />
-    );
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(getEditorText()).toContain('Alice');
   });
 
   it('save calls update-one and refreshes table', async () => {

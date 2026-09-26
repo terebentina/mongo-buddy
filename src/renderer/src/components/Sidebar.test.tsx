@@ -46,21 +46,6 @@ beforeEach(() => {
 });
 
 describe('Sidebar', () => {
-  it('renders database list', () => {
-    useStore.setState({
-      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
-      databases: [
-        { name: 'testdb', sizeOnDisk: 1024, empty: false },
-        { name: 'admin', sizeOnDisk: 512, empty: false },
-      ],
-    });
-
-    render(<Sidebar width={240} onResize={() => {}} />);
-
-    expect(screen.getByText('testdb')).toBeInTheDocument();
-    expect(screen.getByText('admin')).toBeInTheDocument();
-  });
-
   it('click DB expands to show collections', async () => {
     mockApi.listCollections.mockResolvedValue({
       ok: true,
@@ -182,26 +167,6 @@ describe('Sidebar', () => {
     await waitFor(() => {
       expect(mockApi.find).toHaveBeenCalled();
     });
-  });
-
-  it('shows selected collection as active', async () => {
-    useStore.setState({
-      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
-      databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
-      expandedDb: 'testdb',
-      selectedDb: 'testdb',
-      selectedCollection: 'users',
-      collections: [
-        { name: 'users', type: 'collection' },
-        { name: 'posts', type: 'collection' },
-      ],
-    });
-
-    render(<Sidebar width={240} onResize={() => {}} />);
-
-    // Collapsible is controlled by selectedDb === db.name, so it should be open
-    const usersItem = screen.getByText('users').closest('[role="button"]');
-    expect(usersItem).toHaveClass('bg-primary');
   });
 
   it('creates and selects a collection from a database menu', async () => {

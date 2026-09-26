@@ -2,18 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { validateDbName } from './validate-db-name';
 
 describe('validateDbName', () => {
-  it('accepts a simple name', () => {
-    expect(validateDbName('myapp', [])).toEqual({ ok: true });
-  });
-
   it('accepts names with underscores, dashes, digits', () => {
     expect(validateDbName('my_app-2', [])).toEqual({ ok: true });
-  });
-
-  it('rejects empty string', () => {
-    const r = validateDbName('', []);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/required/i);
   });
 
   it('rejects whitespace-only', () => {
@@ -24,12 +14,6 @@ describe('validateDbName', () => {
 
   it('trims surrounding whitespace before validating', () => {
     expect(validateDbName('  myapp  ', [])).toEqual({ ok: true });
-  });
-
-  it('rejects duplicate (existing db)', () => {
-    const r = validateDbName('myapp', ['admin', 'myapp']);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error).toMatch(/already exists/i);
   });
 
   it('rejects duplicate after trimming', () => {

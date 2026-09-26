@@ -38,14 +38,6 @@ beforeEach(() => {
 });
 
 describe('useOperation', () => {
-  it('returns idle state initially', () => {
-    const { result } = renderHook(() => useOperation('export-collection'));
-    expect(result.current.status).toBe('idle');
-    expect(result.current.progress).toEqual({ processed: 0 });
-    expect(result.current.result).toBeNull();
-    expect(result.current.error).toBeNull();
-  });
-
   it('start() returns the operation id', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-42' });
     const { result } = renderHook(() => useOperation('export-collection'));

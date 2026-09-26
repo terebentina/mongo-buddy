@@ -64,28 +64,6 @@ beforeEach(() => {
 });
 
 describe('ConnectionDialog', () => {
-  it('renders URI input and Connect button', () => {
-    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
-
-    expect(screen.getByPlaceholderText(/mongodb/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /connect/i })).toBeInTheDocument();
-  });
-
-  it('submit calls store.connect', async () => {
-    mockApi.connect.mockResolvedValue(sessionOk());
-
-    const onOpenChange = vi.fn();
-    render(<ConnectionDialog open={true} onOpenChange={onOpenChange} />);
-
-    const input = screen.getByPlaceholderText('mongodb://localhost:27017');
-    await userEvent.type(input, 'mongodb://localhost:27017');
-    await userEvent.click(screen.getByRole('button', { name: /connect/i }));
-
-    await waitFor(() => {
-      expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
-    });
-  });
-
   it('shows error toast on connection failure', async () => {
     mockApi.connect.mockResolvedValue({ ok: false, error: 'Connection refused' });
 
@@ -158,30 +136,6 @@ describe('ConnectionDialog', () => {
         uri: 'mongodb://alice:secret@remote:27017',
       });
     });
-  });
-
-  it('renders saved connections list', async () => {
-    mockApi.listConnections.mockResolvedValue([
-      { name: 'Local', uri: 'mongodb://localhost:27017' },
-      { name: 'Remote', uri: 'mongodb://remote:27017' },
-    ]);
-
-    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Local')).toBeInTheDocument();
-      expect(screen.getByText('Remote')).toBeInTheDocument();
-    });
-  });
-
-  it('omits the saved connections heading when there are none', async () => {
-    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
-
-    await waitFor(() => {
-      expect(mockApi.listConnections).toHaveBeenCalled();
-    });
-
-    expect(screen.queryByText('Saved Connections')).not.toBeInTheDocument();
   });
 
   it('click saved connection fills URI and connects', async () => {

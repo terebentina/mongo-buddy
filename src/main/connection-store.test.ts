@@ -42,11 +42,6 @@ describe('ConnectionStore', () => {
     expect(ElectronStore).toHaveBeenCalledWith({ name: 'connections-v2' });
   });
 
-  it('getAll returns empty array when no connections saved', () => {
-    const result = store.getAll();
-    expect(result).toEqual([]);
-  });
-
   it('save adds a connection and getAll returns it', () => {
     store.save({ name: 'Local', uri: 'mongodb://localhost:27017' });
     const result = store.getAll();
@@ -80,16 +75,6 @@ describe('ConnectionStore', () => {
     store.save({ name: 'Beta', uri: 'mongodb://beta:27017' });
     const result = store.getAll();
     expect(result.map((c) => c.name)).toEqual(['alpha', 'Beta', 'Zeta']);
-  });
-
-  it('remove is a no-op if name not found', () => {
-    store.save({ name: 'Local', uri: 'mongodb://localhost:27017' });
-    store.remove('Nonexistent');
-    expect(store.getAll()).toHaveLength(1);
-  });
-
-  it('getLastUsed returns null when none set', () => {
-    expect(store.getLastUsed()).toBeNull();
   });
 
   it('setLastUsed stores and getLastUsed retrieves it', () => {

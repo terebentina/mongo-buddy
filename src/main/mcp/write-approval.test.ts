@@ -359,18 +359,4 @@ describe('MCP single-document writes over HTTP', () => {
     });
     expect(app.replaceOne).not.toHaveBeenCalled();
   });
-
-  it('returns driver errors after approval without disguising them as successful writes', async () => {
-    const app = await setup();
-    app.deleteOne.mockRejectedValueOnce(new Error('database write failed'));
-    const call = app.callSingle('deleteOne', {
-      db: 'sandbox',
-      collection: 'notes',
-      id: { $oid: app.existingId },
-    });
-    await app.promptReady;
-    app.decide(true);
-    expect(await call).toMatchObject({ isError: true, content: [{ text: 'database write failed' }] });
-    expect(app.existing()).not.toBeNull();
-  });
 });

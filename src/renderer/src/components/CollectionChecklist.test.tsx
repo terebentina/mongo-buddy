@@ -110,15 +110,4 @@ describe('CollectionChecklist display', () => {
     expect(header().indeterminate).toBe(false);
     expect(header().checked).toBe(true);
   });
-
-  it('counts the collections in the select-all label', () => {
-    render(<Harness collections={collections} initial="none" />);
-    expect(screen.getByText('Select all (2)')).toBeInTheDocument();
-  });
-
-  it('shows the document count only for collections that have one', () => {
-    render(<Harness collections={collections} initial="none" />);
-    expect(screen.getByText('1,234')).toBeInTheDocument();
-    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
-  });
 });

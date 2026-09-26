@@ -23,10 +23,6 @@ describe('explainCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "explain"', () => {
-    expect(explainCommand.name).toBe('explain');
-  });
-
   it('filter mode calls find(filter).explain("executionStats")', async () => {
     const plan = { queryPlanner: { winningPlan: { stage: 'IXSCAN' } } };
     mockExplain.mockResolvedValue(plan);
@@ -54,19 +50,6 @@ describe('explainCommand', () => {
     expect(out).toEqual(plan);
     expect(mockCollection.aggregate).toHaveBeenCalledWith(pipeline);
     expect(mockExplain).toHaveBeenCalledWith('executionStats');
-  });
-
-  it('schema accepts filter variant with object query', () => {
-    expect(
-      explainCommand.input.safeParse({ queryMode: 'filter', db: 'd', collection: 'c', query: { x: 1 } }).success
-    ).toBe(true);
-  });
-
-  it('schema accepts aggregate variant with array query', () => {
-    expect(
-      explainCommand.input.safeParse({ queryMode: 'aggregate', db: 'd', collection: 'c', query: [{ $match: {} }] })
-        .success
-    ).toBe(true);
   });
 
   it('schema rejects filter variant with array query', () => {

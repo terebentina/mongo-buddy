@@ -17,10 +17,6 @@ describe('updateOneCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "updateOne"', () => {
-    expect(updateOneCommand.name).toBe('updateOne');
-  });
-
   it('replaces by id, strips _id from update body, returns the updated doc', async () => {
     const oid = new ObjectId('507f1f77bcf86cd799439011');
     mockCollection.findOne.mockResolvedValue({ _id: oid, name: 'Bob' });

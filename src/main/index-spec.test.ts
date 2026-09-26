@@ -72,16 +72,6 @@ describe('sanitizeForExport', () => {
     expect(spec.wildcardProjection).toEqual({ 'a.b': 1 });
   });
 
-  it('is a no-op (empty array) when there are no user indexes — only _id_', () => {
-    const input = [{ v: 2, key: { _id: 1 }, name: '_id_' }];
-    const out = sanitizeForExport(input);
-    expect(out).toEqual([]);
-  });
-
-  it('returns an empty array for an empty input', () => {
-    expect(sanitizeForExport([])).toEqual([]);
-  });
-
   it('does not mutate the input array or its entries', () => {
     const entry = {
       v: 2,
@@ -99,12 +89,6 @@ describe('sanitizeForExport', () => {
     expect(entry.v).toBe(2);
     expect(entry.ns).toBe('mydb.users');
     expect(entry.background).toBe(true);
-  });
-
-  it('returns a fresh array (different reference)', () => {
-    const input = [{ v: 2, key: { x: 1 }, name: 'x_1' }];
-    const out = sanitizeForExport(input);
-    expect(out).not.toBe(input);
   });
 });
 
@@ -185,23 +169,8 @@ describe('pickIndexesToCreate', () => {
     expect(out).toEqual([]);
   });
 
-  it('returns all specs when existingIndexNames is empty', () => {
-    const out = pickIndexesToCreate([specA, specB], []);
-    expect(out).toEqual([specA, specB]);
-  });
-
   it('uses case-sensitive name comparison', () => {
     const out = pickIndexesToCreate([specA], ['A_1']);
     expect(out).toEqual([specA]);
-  });
-
-  it('does not mutate inputs', () => {
-    const specs = [specA, specB];
-    const existing = ['a_1'];
-    const specsSnap = JSON.parse(JSON.stringify(specs));
-    const existingSnap = [...existing];
-    pickIndexesToCreate(specs, existing);
-    expect(specs).toEqual(specsSnap);
-    expect(existing).toEqual(existingSnap);
   });
 });

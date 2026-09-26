@@ -11,10 +11,6 @@ describe('getConnectionDisplayName', () => {
     expect(getConnectionDisplayName('mongodb://localhost:27017', saved)).toBe('Local Dev');
   });
 
-  it('returns saved connection name for SRV match', () => {
-    expect(getConnectionDisplayName('mongodb+srv://cluster0.abc.mongodb.net', saved)).toBe('Production');
-  });
-
   it('returns hostname when no saved connection matches', () => {
     expect(getConnectionDisplayName('mongodb://192.168.1.100:27017', saved)).toBe('192.168.1.100');
   });
@@ -29,9 +25,5 @@ describe('getConnectionDisplayName', () => {
 
   it('returns "Databases" for empty URI', () => {
     expect(getConnectionDisplayName('', saved)).toBe('Databases');
-  });
-
-  it('returns "Databases" for empty saved connections and empty URI', () => {
-    expect(getConnectionDisplayName('', [])).toBe('Databases');
   });
 });

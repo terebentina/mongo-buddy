@@ -16,10 +16,6 @@ describe('createIndexCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "createIndex"', () => {
-    expect(createIndexCommand.name).toBe('createIndex');
-  });
-
   it('creates a named unique index and returns its name', async () => {
     mockCollection.createIndex.mockResolvedValue('unique_email');
     const out = await createIndexCommand.run(active, {

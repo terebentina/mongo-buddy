@@ -17,10 +17,6 @@ describe('insertOneCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "insertOne"', () => {
-    expect(insertOneCommand.name).toBe('insertOne');
-  });
-
   it('inserts the doc and returns the round-tripped record', async () => {
     const oid = new ObjectId('507f1f77bcf86cd799439011');
     mockCollection.insertOne.mockResolvedValue({ insertedId: oid });

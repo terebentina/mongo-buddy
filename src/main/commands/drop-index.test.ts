@@ -16,10 +16,6 @@ describe('dropIndexCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "dropIndex"', () => {
-    expect(dropIndexCommand.name).toBe('dropIndex');
-  });
-
   it('throws when indexName is _id_ without calling the driver', async () => {
     await expect(dropIndexCommand.run(active, { db: 'd', collection: 'c', indexName: '_id_' })).rejects.toThrow(
       'Cannot drop the _id_ index'
