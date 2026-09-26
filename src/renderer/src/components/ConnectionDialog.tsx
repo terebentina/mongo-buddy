@@ -65,14 +65,14 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
     setPrevOpen(open);
   }
 
-  const handleConnect = async (connectUri: string, connectName?: string): Promise<void> => {
+  const handleConnect = async (connectUri: string, connectName: string): Promise<void> => {
     await connect(connectUri);
     const { error } = useStore.getState();
     if (error) {
       if (isAuthError(error)) {
         setShowCredentials(true);
         setPendingUri(connectUri);
-        setPendingName(connectName ?? name.trim());
+        setPendingName(connectName);
         setAuthError(error);
         setUsername('');
         setPassword('');
@@ -80,9 +80,8 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
         toast.error(error);
       }
     } else {
-      const saveName = connectName ?? pendingName;
-      if (saveName) {
-        await saveConnection(saveName, connectUri);
+      if (connectName) {
+        await saveConnection(connectName, connectUri);
       }
       onOpenChange(false);
     }
@@ -96,7 +95,6 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    setPendingName(name.trim());
     setEditing(false);
     await handleConnect(uri, name.trim());
   };

@@ -57,8 +57,6 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
               label: coll.name,
               stage: `${i + 1} of ${total}`,
             });
-          } else {
-            ctx.onProgress(patch);
           }
         },
       };

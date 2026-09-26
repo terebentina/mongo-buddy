@@ -70,7 +70,7 @@ export interface StoreState {
   setLimit: (newLimit: number) => void;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
   updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
-  updateManyDocs: (update: UpdateManyInput, options?: UpdateManyOptions) => Promise<Result<UpdateManyResult>>;
+  updateManyDocs: (update: UpdateManyInput, options: UpdateManyOptions) => Promise<Result<UpdateManyResult>>;
   deleteResults: () => Promise<Result<number>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
   refreshDocs: () => Promise<void>;
@@ -469,13 +469,10 @@ export const useStore = create<StoreState>()((set, get) => ({
     return null;
   },
 
-  updateManyDocs: async (update: UpdateManyInput, options?: UpdateManyOptions) => {
+  updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions) => {
     const { selectedDb, selectedCollection, filter } = get();
     if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-    const result =
-      options === undefined
-        ? await window.api.updateMany(selectedDb, selectedCollection, filter, update)
-        : await window.api.updateMany(selectedDb, selectedCollection, filter, update, options);
+    const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update, options);
     if (result.ok) await get().refreshDocs();
     return result;
   },
@@ -553,14 +550,13 @@ export const useStore = create<StoreState>()((set, get) => ({
   },
 
   switchCollection: async (db: string, collection: string) => {
-    const changed = db !== get().selectedDb || collection !== get().selectedCollection;
-    if (changed) resultRequests.invalidate();
+    resultRequests.invalidate();
     set({
       expandedDb: db,
       selectedDb: db,
       selectedCollection: collection,
       fieldNames: [],
-      ...(changed ? { projection: null } : {}),
+      projection: null,
     });
     const fieldsResult = await window.api.sampleFields(db, collection);
     set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });

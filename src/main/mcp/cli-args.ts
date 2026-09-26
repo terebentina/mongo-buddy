@@ -9,10 +9,8 @@ const DISABLE_MCP_FLAG = '--disable-mcp';
 const MCP_PORT_PREFIX = '--mcp-port=';
 
 function parsePort(raw: string): number | null {
-  if (raw.length === 0) return null;
   if (!/^-?\d+$/.test(raw)) return null;
   const n = Number(raw);
-  if (!Number.isInteger(n)) return null;
   if (n < 1 || n > 65535) return null;
   return n;
 }

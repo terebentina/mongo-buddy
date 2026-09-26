@@ -175,28 +175,23 @@ describe('pickIndexesToCreate', () => {
   const specB = { key: { b: 1 }, name: 'b_1' };
   const specC = { key: { c: 1 }, name: 'c_1' };
 
-  it('returns all specs when dropExisting is true', () => {
-    const out = pickIndexesToCreate([specA, specB], ['a_1', 'b_1', 'other'], true);
-    expect(out).toEqual([specA, specB]);
-  });
-
-  it('filters out specs whose name appears in existingIndexNames when dropExisting is false', () => {
-    const out = pickIndexesToCreate([specA, specB, specC], ['a_1'], false);
+  it('filters out specs whose name appears in existingIndexNames', () => {
+    const out = pickIndexesToCreate([specA, specB, specC], ['a_1']);
     expect(out).toEqual([specB, specC]);
   });
 
   it('returns empty array when every spec name is already present', () => {
-    const out = pickIndexesToCreate([specA, specB], ['a_1', 'b_1', '_id_'], false);
+    const out = pickIndexesToCreate([specA, specB], ['a_1', 'b_1', '_id_']);
     expect(out).toEqual([]);
   });
 
-  it('returns all specs when existingIndexNames is empty (dropExisting=false)', () => {
-    const out = pickIndexesToCreate([specA, specB], [], false);
+  it('returns all specs when existingIndexNames is empty', () => {
+    const out = pickIndexesToCreate([specA, specB], []);
     expect(out).toEqual([specA, specB]);
   });
 
   it('uses case-sensitive name comparison', () => {
-    const out = pickIndexesToCreate([specA], ['A_1'], false);
+    const out = pickIndexesToCreate([specA], ['A_1']);
     expect(out).toEqual([specA]);
   });
 
@@ -205,15 +200,8 @@ describe('pickIndexesToCreate', () => {
     const existing = ['a_1'];
     const specsSnap = JSON.parse(JSON.stringify(specs));
     const existingSnap = [...existing];
-    pickIndexesToCreate(specs, existing, false);
+    pickIndexesToCreate(specs, existing);
     expect(specs).toEqual(specsSnap);
     expect(existing).toEqual(existingSnap);
-  });
-
-  it('returns a fresh array (different reference) even when dropExisting is true', () => {
-    const specs = [specA, specB];
-    const out = pickIndexesToCreate(specs, [], true);
-    expect(out).not.toBe(specs);
-    expect(out).toEqual(specs);
   });
 });

@@ -113,6 +113,51 @@ describe('ConnectionDialog', () => {
     await waitFor(() => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
+    expect(mockApi.saveConnection).not.toHaveBeenCalled();
+  });
+
+  it('saves a named connection after an authentication retry', async () => {
+    mockApi.connect
+      .mockResolvedValueOnce({ ok: false, error: 'Authentication failed' })
+      .mockResolvedValueOnce(sessionOk('mongodb://alice:secret@localhost:27017'));
+    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
+
+    await userEvent.type(screen.getByPlaceholderText('Connection name (optional)'), 'Local');
+    await userEvent.type(screen.getByPlaceholderText('mongodb://localhost:27017'), 'mongodb://localhost:27017');
+    await userEvent.click(screen.getByRole('button', { name: /^connect$/i }));
+    await screen.findByText('Authentication required for Local');
+
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'alice');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'secret');
+    await userEvent.click(screen.getByRole('button', { name: /^connect$/i }));
+
+    await waitFor(() => {
+      expect(mockApi.saveConnection).toHaveBeenCalledWith({
+        name: 'Local',
+        uri: 'mongodb://alice:secret@localhost:27017',
+      });
+    });
+  });
+
+  it('preserves a saved connection name after an authentication retry', async () => {
+    mockApi.listConnections.mockResolvedValue([{ name: 'Remote', uri: 'mongodb://remote:27017' }]);
+    mockApi.connect
+      .mockResolvedValueOnce({ ok: false, error: 'Authentication failed' })
+      .mockResolvedValueOnce(sessionOk('mongodb://alice:secret@remote:27017'));
+    render(<ConnectionDialog open={true} onOpenChange={() => {}} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Remote' }));
+    await screen.findByText('Authentication required for Remote');
+    await userEvent.type(screen.getByPlaceholderText('Username'), 'alice');
+    await userEvent.type(screen.getByPlaceholderText('Password'), 'secret');
+    await userEvent.click(screen.getByRole('button', { name: /^connect$/i }));
+
+    await waitFor(() => {
+      expect(mockApi.saveConnection).toHaveBeenCalledWith({
+        name: 'Remote',
+        uri: 'mongodb://alice:secret@remote:27017',
+      });
+    });
   });
 
   it('renders saved connections list', async () => {

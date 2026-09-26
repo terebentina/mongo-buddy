@@ -35,6 +35,7 @@ describe('registerMongoMcpTools', () => {
   let server: McpServer;
   let dispatch: ReturnType<typeof vi.fn>;
   let approval: WriteApproval;
+  const signal = new AbortController().signal;
 
   beforeEach(() => {
     server = createServer();
@@ -51,7 +52,7 @@ describe('registerMongoMcpTools', () => {
       command: cmd,
       description: 'Count docs',
     };
-    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry] });
+    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry], signal });
     const tool = registered(server)['count'];
     expect(tool).toBeDefined();
     expect(tool.description).toBe('Count docs');
@@ -63,6 +64,7 @@ describe('registerMongoMcpTools', () => {
     registerMongoMcpTools({
       server,
       approval,
+      signal,
       dispatch: dispatch as unknown as Dispatch,
       tools: [{ command: cmd, description: 'Count docs' }],
     });
@@ -79,6 +81,7 @@ describe('registerMongoMcpTools', () => {
     registerMongoMcpTools({
       server,
       approval,
+      signal,
       dispatch: dispatch as unknown as Dispatch,
       tools: [{ command: cmd, description: 'Count docs' }],
     });
@@ -94,6 +97,7 @@ describe('registerMongoMcpTools', () => {
     registerMongoMcpTools({
       server,
       approval,
+      signal,
       dispatch: dispatch as unknown as Dispatch,
       tools: [
         {
@@ -116,7 +120,7 @@ describe('registerMongoMcpTools', () => {
       description: 'd',
       transformInput: (i) => ({ ...i, db: i.db.toUpperCase() }),
     };
-    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry] });
+    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry], signal });
     const handler = registered(server)['count'].handler;
     await handler({ db: 'test' });
     expect(dispatch).toHaveBeenCalledWith(cmd, { db: 'TEST' });
@@ -128,6 +132,7 @@ describe('registerMongoMcpTools', () => {
     registerMongoMcpTools({
       server,
       approval,
+      signal,
       dispatch: dispatch as unknown as Dispatch,
       tools: [{ command: cmd, description: 'd' }],
     });

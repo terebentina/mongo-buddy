@@ -206,13 +206,13 @@ export class MongoService {
       if (opts.dropExisting) {
         // dropIndexes() leaves the auto _id_ index alone.
         await collection.dropIndexes();
-        toCreate = pickIndexesToCreate(specs, [], true);
+        toCreate = specs;
       } else {
         const existing = await collection.indexes();
         const existingNames = existing
           .map((idx) => (idx as { name?: unknown }).name)
           .filter((n): n is string => typeof n === 'string');
-        toCreate = pickIndexesToCreate(specs, existingNames, false);
+        toCreate = pickIndexesToCreate(specs, existingNames);
       }
 
       if (toCreate.length > 0) {

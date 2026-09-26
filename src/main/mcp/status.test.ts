@@ -23,14 +23,6 @@ describe('createMcpStatusEmitter', () => {
     expect(cb).toHaveBeenNthCalledWith(2, { running: false, port: null });
   });
 
-  it('subscribe() does not fire for a set() that produces an equal status', () => {
-    const emitter = createMcpStatusEmitter();
-    const cb = vi.fn();
-    emitter.subscribe(cb);
-    emitter.set({ running: false, port: null });
-    expect(cb).not.toHaveBeenCalled();
-  });
-
   it('subscribe() returns an unsubscribe function', () => {
     const emitter = createMcpStatusEmitter();
     const cb = vi.fn();

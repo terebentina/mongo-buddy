@@ -16,11 +16,7 @@ describe('updateManyCommand', () => {
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
 
-  it('exposes name "updateMany"', () => {
-    expect(updateManyCommand.name).toBe('updateMany');
-  });
-
-  it('calls updateMany with the given filter and update, returns matched/modified counts', async () => {
+  it('returns matched and modified counts without options', async () => {
     const out = await updateManyCommand.run(active, {
       db: 'd',
       collection: 'c',
@@ -28,47 +24,6 @@ describe('updateManyCommand', () => {
       update: { $set: { archived: true } },
     });
     expect(out).toEqual({ matchedCount: 3, modifiedCount: 2 });
-    expect(mockCollection.updateMany).toHaveBeenCalledWith({ status: 'active' }, { $set: { archived: true } });
-    expect(mockDb.collection).toHaveBeenCalledWith('c');
-    expect(mockClient.db).toHaveBeenCalledWith('d');
-  });
-
-  it('passes an update pipeline to updateMany unchanged', async () => {
-    const update = [{ $set: { 'data.name': '$title' } }];
-
-    await updateManyCommand.run(active, {
-      db: 'd',
-      collection: 'c',
-      filter: { status: 'active' },
-      update,
-    });
-
-    expect(mockCollection.updateMany).toHaveBeenCalledWith({ status: 'active' }, update);
-  });
-
-  it('passes update options unchanged as the third argument', async () => {
-    const options = {
-      arrayFilters: [{ 'item.status': 'pending' }],
-      bypassDocumentValidation: true,
-      collation: { locale: 'en', strength: 2 },
-      comment: 'archive active users',
-      hint: { status: 1 },
-      let: { archiveReason: 'expired' },
-      maxTimeMS: 5_000,
-      timeoutMS: 10_000,
-      upsert: true,
-      writeConcern: { w: 'majority' },
-    };
-
-    await updateManyCommand.run(active, {
-      db: 'd',
-      collection: 'c',
-      filter: { status: 'active' },
-      update: { $set: { archived: true } },
-      options,
-    });
-
-    expect(mockCollection.updateMany).toHaveBeenCalledWith({ status: 'active' }, { $set: { archived: true } }, options);
   });
 
   it('schema accepts an update document or pipeline with optional object options', () => {

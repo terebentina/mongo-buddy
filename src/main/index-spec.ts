@@ -53,10 +53,8 @@ export function parseAndValidateSidecar(rawJsonString: string): IndexSpec[] {
 
 export function pickIndexesToCreate(
   specs: ReadonlyArray<IndexSpec>,
-  existingIndexNames: ReadonlyArray<string>,
-  dropExisting: boolean
+  existingIndexNames: ReadonlyArray<string>
 ): IndexSpec[] {
-  if (dropExisting) return specs.slice();
   const existing = new Set(existingIndexNames);
   return specs.filter((s) => !existing.has(s.name));
 }

@@ -475,4 +475,38 @@ describe('MongoService', () => {
       expect(mockCollection.insertMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('applyImportedIndexes', () => {
+    it('replaces existing indexes after clearing them', async () => {
+      const indexes = vi.fn();
+      const dropIndexes = vi.fn().mockResolvedValue(undefined);
+      const createIndexes = vi.fn().mockResolvedValue(undefined);
+      mockDb.collection.mockReturnValue({ indexes, dropIndexes, createIndexes });
+      const specs = [{ name: 'email_1', key: { email: 1 } }];
+
+      const result = await service.applyImportedIndexes(active, 'testdb', 'users', specs, { dropExisting: true });
+
+      expect(result).toEqual({ ok: true, data: undefined });
+      expect(dropIndexes).toHaveBeenCalledOnce();
+      expect(indexes).not.toHaveBeenCalled();
+      expect(createIndexes).toHaveBeenCalledWith(specs);
+    });
+
+    it('preserves existing indexes and creates only missing indexes', async () => {
+      const indexes = vi.fn().mockResolvedValue([{ name: '_id_' }, { name: 'email_1' }]);
+      const dropIndexes = vi.fn();
+      const createIndexes = vi.fn().mockResolvedValue(undefined);
+      mockDb.collection.mockReturnValue({ indexes, dropIndexes, createIndexes });
+      const specs = [
+        { name: 'email_1', key: { email: 1 } },
+        { name: 'createdAt_1', key: { createdAt: 1 } },
+      ];
+
+      const result = await service.applyImportedIndexes(active, 'testdb', 'users', specs, { dropExisting: false });
+
+      expect(result).toEqual({ ok: true, data: undefined });
+      expect(dropIndexes).not.toHaveBeenCalled();
+      expect(createIndexes).toHaveBeenCalledWith([specs[1]]);
+    });
+  });
 });

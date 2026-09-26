@@ -522,7 +522,7 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
           <TableBody>
             {docs.length === 0 && (
               <TableRow>
-                <TableCell colSpan={Math.max(columns.length + 1, 1)} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={columns.length + 1} className="h-24 text-center text-muted-foreground">
                   No documents found
                 </TableCell>
               </TableRow>

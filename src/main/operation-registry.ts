@@ -113,7 +113,6 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
     const next: OperationRecord = {
       ...current,
       ...patch,
-      progress: patch.progress ?? current.progress,
     };
     records.set(id, next);
     deps.emit(next);

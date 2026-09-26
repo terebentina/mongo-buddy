@@ -91,14 +91,14 @@ export function createApi(ipc: IpcLike) {
       collection: string,
       filter: Record<string, unknown>,
       update: UpdateManyInput,
-      options?: UpdateManyOptions
+      options: UpdateManyOptions
     ): Promise<Result<UpdateManyResult>> =>
       ipc.invoke('mongo:updateMany', {
         db,
         collection,
         filter,
         update,
-        ...(options === undefined ? {} : { options }),
+        options,
       }) as Promise<Result<UpdateManyResult>>,
     deleteMany: (db: string, collection: string, filter: Record<string, unknown>): Promise<Result<number>> =>
       ipc.invoke('mongo:deleteMany', { db, collection, filter }) as Promise<Result<number>>,

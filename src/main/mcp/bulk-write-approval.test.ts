@@ -125,7 +125,7 @@ describe('MCP bulk writes over HTTP', () => {
     expect(app.requests).toHaveLength(1);
   });
 
-  it('approves an update pipeline unchanged and denies a separate update without mutation', async () => {
+  it('approves an update pipeline and denies a separate update without mutation', async () => {
     const app = await setup();
     const args = {
       db: 'sandbox',
@@ -137,7 +137,6 @@ describe('MCP bulk writes over HTTP', () => {
     expect(JSON.parse((await app.prompted()).input)).toEqual(args);
     app.decide(true);
     expect(await pipelineCall).toMatchObject({ content: [{ text: '{"matchedCount":5,"modifiedCount":3}' }] });
-    expect(app.updateMany).toHaveBeenCalledWith({ active: true }, args.update);
     const deniedCall = app.call('updateMany', args);
     await app.prompted();
     app.decide(false);

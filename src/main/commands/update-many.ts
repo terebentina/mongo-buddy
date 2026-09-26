@@ -18,10 +18,11 @@ export const updateManyCommand: MongoCommand<typeof input, UpdateManyResult> = {
   input,
   async run(active, { db, collection, filter, update, options }) {
     const target = active.client.db(db).collection(collection);
-    const { matchedCount, modifiedCount } =
-      options === undefined
-        ? await target.updateMany(filter, update)
-        : await target.updateMany(filter, update, options as UpdateOptions);
+    const { matchedCount, modifiedCount } = await target.updateMany(
+      filter,
+      update,
+      options as UpdateOptions | undefined
+    );
     return { matchedCount, modifiedCount };
   },
 };

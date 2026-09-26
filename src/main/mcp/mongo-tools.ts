@@ -21,7 +21,7 @@ export interface RegisterMongoMcpToolsDeps {
   dispatch: Dispatch;
   tools: McpToolEntry<z.ZodType, unknown>[];
   approval: WriteApproval;
-  signal?: AbortSignal;
+  signal: AbortSignal;
 }
 
 export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
@@ -34,12 +34,7 @@ export function registerMongoMcpTools(deps: RegisterMongoMcpToolsDeps): void {
       async (rawInput: z.infer<typeof command.input>, extra): Promise<CallToolResult> => {
         const input = transformInput ? transformInput(rawInput) : rawInput;
         const result = requiresApproval
-          ? await deps.approval.execute(
-              command,
-              input,
-              deps.signal ? AbortSignal.any([extra.signal, deps.signal]) : extra.signal,
-              typeToConfirm
-            )
+          ? await deps.approval.execute(command, input, AbortSignal.any([extra.signal, deps.signal]), typeToConfirm)
           : await deps.dispatch(command, input);
         if (result.ok) {
           return { content: [{ type: 'text', text: JSON.stringify(result.data ?? null) }] };

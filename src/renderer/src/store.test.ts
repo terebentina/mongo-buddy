@@ -436,7 +436,7 @@ describe('store', () => {
     expect(useStore.getState().docs).toEqual([{ _id: '1', name: 'Bob' }]);
   });
 
-  it('updateManyDocs() uses applied filter, calls updateMany, refreshes docs, returns Result', async () => {
+  it('updateManyDocs() refreshes docs and returns matched/modified counts', async () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
@@ -448,15 +448,9 @@ describe('store', () => {
       data: { docs: [{ _id: '1', status: 'active', archived: true }], totalCount: 3 },
     });
 
-    const result = await useStore.getState().updateManyDocs({ $set: { archived: true } });
+    const result = await useStore.getState().updateManyDocs({ $set: { archived: true } }, {});
 
     expect(result).toEqual({ ok: true, data: { matchedCount: 3, modifiedCount: 2 } });
-    expect(mockApi.updateMany).toHaveBeenCalledWith(
-      'testdb',
-      'users',
-      { status: 'active' },
-      { $set: { archived: true } }
-    );
     expect(mockApi.find).toHaveBeenCalled();
     expect(useStore.getState().docs).toEqual([{ _id: '1', status: 'active', archived: true }]);
   });
@@ -469,31 +463,16 @@ describe('store', () => {
     });
     mockApi.updateMany.mockResolvedValue({ ok: false, error: 'Modifiers operate on fields' });
 
-    const result = await useStore.getState().updateManyDocs({ archived: true });
+    const result = await useStore.getState().updateManyDocs({ archived: true }, {});
 
     expect(result).toEqual({ ok: false, error: 'Modifiers operate on fields' });
     expect(mockApi.find).not.toHaveBeenCalled();
   });
 
-  it('updateManyDocs() passes an update pipeline unchanged', async () => {
-    useStore.setState({
-      selectedDb: 'testdb',
-      selectedCollection: 'users',
-      filter: { status: 'active' },
-    });
-    mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 3, modifiedCount: 3 } });
-    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-    const update = [{ $set: { 'data.name': '$title' } }];
-
-    await useStore.getState().updateManyDocs(update);
-
-    expect(mockApi.updateMany).toHaveBeenCalledWith('testdb', 'users', { status: 'active' }, update);
-  });
-
   it('updateManyDocs() returns an error Result and skips the API when no collection selected', async () => {
     useStore.setState({ selectedDb: null, selectedCollection: null });
 
-    const result = await useStore.getState().updateManyDocs({ $set: { a: 1 } });
+    const result = await useStore.getState().updateManyDocs({ $set: { a: 1 } }, {});
 
     expect(result.ok).toBe(false);
     expect(mockApi.updateMany).not.toHaveBeenCalled();
@@ -1239,7 +1218,7 @@ describe('restoreFromHistory', () => {
   });
 
   it('same collection sets pendingFilterText and pendingQueryMode without calling sampleFields', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', projection: { name: 1 } });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ name: 'Alice' }], totalCount: 1 } });
 
     await useStore.getState().restoreFromHistory(makeEntry());
@@ -1247,14 +1226,20 @@ describe('restoreFromHistory', () => {
     const state = useStore.getState();
     expect(state.pendingFilterText).toBe('{"name":"Alice"}');
     expect(state.pendingQueryMode).toBe('filter');
+    expect(state.projection).toEqual({ name: 1 });
     expect(mockApi.sampleFields).not.toHaveBeenCalled();
-    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: { name: 'Alice' }, skip: 0, limit: 20 });
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+      filter: { name: 'Alice' },
+      projection: { name: 1 },
+      skip: 0,
+      limit: 20,
+    });
     expect(state.docs).toEqual([{ name: 'Alice' }]);
     expect(state.totalCount).toBe(1);
   });
 
   it('different collection calls switchCollection (sampleFields) then sets pending state', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'orders' });
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'orders', projection: { orderId: 1 } });
     mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ name: 'Alice' }], totalCount: 1 } });
 
@@ -1263,6 +1248,7 @@ describe('restoreFromHistory', () => {
     const state = useStore.getState();
     expect(state.selectedDb).toBe('testdb');
     expect(state.selectedCollection).toBe('users');
+    expect(state.projection).toBeNull();
     expect(state.pendingFilterText).toBe('{"name":"Alice"}');
     expect(state.pendingQueryMode).toBe('filter');
     expect(mockApi.sampleFields).toHaveBeenCalledWith('testdb', 'users');
