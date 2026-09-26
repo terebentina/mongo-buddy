@@ -297,6 +297,14 @@ describe('MCP bulk writes over HTTP', () => {
     expect(app.dropCollection).toHaveBeenCalledTimes(2);
   });
 
+  it('rejects batch drops without an explicit database before requesting approval', async () => {
+    const app = await setup();
+    const result = await app.call('dropCollections', { db: '', names: ['events'] });
+    expect(result).toMatchObject({ isError: true, content: [{ text: expect.stringContaining('db') }] });
+    expect(app.requests).toEqual([]);
+    expect(app.dropCollection).not.toHaveBeenCalled();
+  });
+
   it('rejects a collection write after connection switch, even if approval arrives later', async () => {
     const app = await setup();
     const call = app.call('emptyCollection', { db: 'sandbox', collection: 'notes' });

@@ -3,7 +3,7 @@ import type { MongoCommand } from './dispatch';
 import type { DropCollectionsResult } from '../../shared/types';
 
 const input = z.object({
-  db: z.string(),
+  db: z.string().min(1),
   names: z.array(z.string()),
 });
 
