@@ -13,7 +13,7 @@ export interface StartMcpServerOptions {
   dispatch: Dispatch;
   mongoTools: McpToolEntry<z.ZodType, unknown>[];
   port: number;
-  approval?: WriteApproval;
+  approval: WriteApproval;
 }
 
 export interface McpServerHandle {
@@ -112,7 +112,7 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
     address: listening.address,
     close: async () => {
       shuttingDown = true;
-      options.approval?.cancel();
+      options.approval.cancel();
       await new Promise<void>((resolve) => {
         httpServer.close(() => resolve());
       });

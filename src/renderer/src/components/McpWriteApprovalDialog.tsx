@@ -64,9 +64,6 @@ export function McpWriteApprovalDialog() {
         </DialogHeader>
         <div className="space-y-2 text-sm">
           <p>
-            Command: <span className="font-mono">{request?.command}</span>
-          </p>
-          <p>
             Active connection key (host): <span className="font-mono">{request?.connectionKey}</span>
           </p>
           <p>

@@ -96,7 +96,7 @@ export function createWriteApproval(
           ...(confirmation !== undefined ? { typeToConfirm: confirmation } : {}),
         };
         const approved = await Promise.race([prompt.request(proposal, controller.signal), interrupted]);
-        if (controller.signal.aborted || signal.aborted) return { ok: false, error: failure };
+        if (controller.signal.aborted) return { ok: false, error: failure };
         if (!approved) return { ok: false, error: 'MCP write denied in MongoBuddy' };
         const current = manager.getActive();
         if (!sameConnection(current, active))

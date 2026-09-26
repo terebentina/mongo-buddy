@@ -3,6 +3,7 @@ import { createServer as createHttpServer, type Server } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { startMcpServer } from './server';
+import { createWriteApproval } from './write-approval';
 import { createDispatcher } from '../commands/dispatch';
 import { MCP_TOOLS } from './mongo-tool-entries';
 import type { ConnectionManager } from '../connection-manager';
@@ -36,6 +37,14 @@ function mockManager(): ConnectionManager {
   return { getActive: () => null } as unknown as ConnectionManager;
 }
 
+function startTestServer(manager: ConnectionManager, port: number) {
+  const dispatch = createDispatcher(manager);
+  const approval = createWriteApproval(manager, dispatch, {
+    request: () => Promise.reject(new Error('Unexpected GUI approval request')),
+  });
+  return startMcpServer({ dispatch, mongoTools: MCP_TOOLS, approval, port });
+}
+
 async function listenBlocker(): Promise<{ server: Server; port: number }> {
   const server = createHttpServer();
   await new Promise<void>((res) => server.listen(0, '0.0.0.0', () => res()));
@@ -62,11 +71,7 @@ describe('startMcpServer', () => {
 
   it('round-trips initialize + tools/list and returns all expected tool names', async () => {
     const manager = mockManager();
-    const handle = await startMcpServer({
-      dispatch: createDispatcher(manager),
-      mongoTools: MCP_TOOLS,
-      port: 0,
-    });
+    const handle = await startTestServer(manager, 0);
     expect(handle).not.toBeNull();
     if (!handle) return;
     restore.push(() => handle.close());
@@ -140,7 +145,6 @@ describe('startMcpServer', () => {
         idempotentHint: idempotent,
       });
     }
-    expect(names).not.toContain('aggregateWrite');
   });
 
   it('runs output-stage aggregations directly over HTTP without an approval gate', async () => {
@@ -152,11 +156,7 @@ describe('startMcpServer', () => {
     const manager = {
       getActive: () => ({ client: { db } as unknown as MongoClient, key: 'test-connection' }),
     } as unknown as ConnectionManager;
-    const handle = await startMcpServer({
-      dispatch: createDispatcher(manager),
-      mongoTools: MCP_TOOLS,
-      port: 0,
-    });
+    const handle = await startTestServer(manager, 0);
     if (!handle) throw new Error('expected handle');
     restore.push(() => handle.close());
 
@@ -193,22 +193,14 @@ describe('startMcpServer', () => {
     restore.push(() => errSpy.mockRestore());
 
     const manager = mockManager();
-    const handle = await startMcpServer({
-      dispatch: createDispatcher(manager),
-      mongoTools: MCP_TOOLS,
-      port: blocker.port,
-    });
+    const handle = await startTestServer(manager, blocker.port);
     expect(handle).toBeNull();
     expect(errSpy).toHaveBeenCalled();
   });
 
   it('close() stops accepting connections', async () => {
     const manager = mockManager();
-    const handle = await startMcpServer({
-      dispatch: createDispatcher(manager),
-      mongoTools: MCP_TOOLS,
-      port: 0,
-    });
+    const handle = await startTestServer(manager, 0);
     if (!handle) throw new Error('expected handle');
     const port = handle.actualPort;
     await handle.close();

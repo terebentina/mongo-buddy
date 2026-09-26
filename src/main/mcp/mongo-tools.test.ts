@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerMongoMcpTools, type McpToolEntry } from './mongo-tools';
-import type { Dispatch, MongoCommand } from '../commands/dispatch';
+import { createWriteApproval, type WriteApproval } from './write-approval';
+import { createDispatcher, type Dispatch, type MongoCommand } from '../commands/dispatch';
+import type { ConnectionManager } from '../connection-manager';
 
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: 'text'; text: string }[];
@@ -32,10 +34,15 @@ function makeCommand(): MongoCommand<z.ZodObject<{ db: z.ZodString }>, number> {
 describe('registerMongoMcpTools', () => {
   let server: McpServer;
   let dispatch: ReturnType<typeof vi.fn>;
+  let approval: WriteApproval;
 
   beforeEach(() => {
     server = createServer();
     dispatch = vi.fn();
+    const manager = { getActive: () => null } as unknown as ConnectionManager;
+    approval = createWriteApproval(manager, createDispatcher(manager), {
+      request: () => Promise.reject(new Error('Unexpected GUI approval request')),
+    });
   });
 
   it('registers each tool by name with the supplied description', () => {
@@ -44,7 +51,7 @@ describe('registerMongoMcpTools', () => {
       command: cmd,
       description: 'Count docs',
     };
-    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, tools: [entry] });
+    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry] });
     const tool = registered(server)['count'];
     expect(tool).toBeDefined();
     expect(tool.description).toBe('Count docs');
@@ -55,6 +62,7 @@ describe('registerMongoMcpTools', () => {
     dispatch.mockResolvedValue({ ok: true, data: 42 });
     registerMongoMcpTools({
       server,
+      approval,
       dispatch: dispatch as unknown as Dispatch,
       tools: [{ command: cmd, description: 'Count docs' }],
     });
@@ -70,6 +78,7 @@ describe('registerMongoMcpTools', () => {
     dispatch.mockResolvedValue({ ok: false, error: 'boom' });
     registerMongoMcpTools({
       server,
+      approval,
       dispatch: dispatch as unknown as Dispatch,
       tools: [{ command: cmd, description: 'Count docs' }],
     });
@@ -84,6 +93,7 @@ describe('registerMongoMcpTools', () => {
     dispatch.mockResolvedValue({ ok: false, error: 'Not connected' });
     registerMongoMcpTools({
       server,
+      approval,
       dispatch: dispatch as unknown as Dispatch,
       tools: [
         {
@@ -106,7 +116,7 @@ describe('registerMongoMcpTools', () => {
       description: 'd',
       transformInput: (i) => ({ ...i, db: i.db.toUpperCase() }),
     };
-    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, tools: [entry] });
+    registerMongoMcpTools({ server, dispatch: dispatch as unknown as Dispatch, approval, tools: [entry] });
     const handler = registered(server)['count'].handler;
     await handler({ db: 'test' });
     expect(dispatch).toHaveBeenCalledWith(cmd, { db: 'TEST' });
@@ -117,6 +127,7 @@ describe('registerMongoMcpTools', () => {
     dispatch.mockResolvedValue({ ok: true, data: { docs: [{ a: 1 }], totalCount: 1 } });
     registerMongoMcpTools({
       server,
+      approval,
       dispatch: dispatch as unknown as Dispatch,
       tools: [{ command: cmd, description: 'd' }],
     });
