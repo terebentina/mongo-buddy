@@ -27,7 +27,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 
 - 🔌 **Multi-connection manager** — save and switch between MongoDB connections, credentials stored locally via `electron-store`
 - ⌨️ **Powerful query editor** — CodeMirror 6 with JavaScript/JSON syntax highlighting, autocomplete, bracket matching, undo/redo, `Ctrl+F` search and `Ctrl+H` replace
-- 📊 **Results table** — row numbers, inline document editor, EJSON-aware filters for `find` / `count` / `aggregate` / `distinct`
+- 📊 **Results table** — row numbers, an always-expanded dialog for adding and editing documents, EJSON-aware filters for `find` / `count` / `aggregate` / `distinct`
 - 🕑 **Query history** — per-connection history so you can rerun anything you’ve touched before
 - 📥 **Import dialog** — drop in JSON / EJSON documents
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout

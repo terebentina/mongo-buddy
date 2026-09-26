@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from './ui/button';
 import { useStore } from '../store';
 import { toast } from 'sonner';
-import { Copy, Maximize2, Minimize2 } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import JSON5 from 'json5';
@@ -31,7 +31,6 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
   const [open, setOpen] = useState(!!editDoc);
   const viewRef = useRef<EditorView | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [maximized, setMaximized] = useState(() => localStorage.getItem('editor-maximized') === 'true');
   const insertDoc = useStore((s) => s.insertDoc);
   const updateDoc = useStore((s) => s.updateDoc);
   const deleteDoc = useStore((s) => s.deleteDoc);
@@ -130,22 +129,9 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
       )}
       <Dialog open={isEditing ? true : open} onOpenChange={handleClose}>
         <DialogContent
-          className={maximized ? 'max-w-[90vw] w-[90vw] h-[90vh] flex flex-col' : ''}
+          className="max-w-[90vw] w-[90vw] h-[90vh] flex flex-col"
           initialFocus={() => viewRef.current?.contentDOM ?? null}
         >
-          <button
-            className="absolute right-10 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            onClick={() =>
-              setMaximized((m) => {
-                const next = !m;
-                localStorage.setItem('editor-maximized', String(next));
-                return next;
-              })
-            }
-          >
-            {maximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-            <span className="sr-only">{maximized ? 'Minimize' : 'Maximize'}</span>
-          </button>
           <DialogHeader>
             <DialogTitle>
               {isEditing ? 'Edit Document' : 'Add Document'}
@@ -181,10 +167,7 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
               })()}
             </div>
           )}
-          <div
-            ref={editorRefCallback}
-            className={`w-full border rounded overflow-hidden ${maximized ? 'flex-1 min-h-0' : 'h-64'}`}
-          />
+          <div ref={editorRefCallback} className="w-full border rounded overflow-hidden flex-1 min-h-0" />
           <div className="flex justify-between">
             <div>
               {isEditing && (
