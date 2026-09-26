@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.21.0](https://github.com/terebentina/mongo-buddy/compare/v2.20.2...v2.21.0) (2026-09-26)
+
+
+### Features
+
+* advertise MCP guidance and add pre-commit linting ([2253c2c](https://github.com/terebentina/mongo-buddy/commit/2253c2c4f67088829c1b6a8cd0194c228a236acb))
+* **editor:** always expand document dialog ([d844560](https://github.com/terebentina/mongo-buddy/commit/d844560de3d192d55f82016225b8b0664bb52caf))
+
 ## [2.20.2](https://github.com/terebentina/mongo-buddy/compare/v2.20.1...v2.20.2) (2026-09-26)
 
 ## [2.20.1](https://github.com/terebentina/mongo-buddy/compare/v2.20.0...v2.20.1) (2026-09-26)
