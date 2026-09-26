@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from 'react';
 import { useStore, selectConnected } from './store';
 import { ConnectionDialog } from './components/ConnectionDialog';
+import { McpWriteApprovalDialog } from './components/McpWriteApprovalDialog';
 import { Sidebar } from './components/Sidebar';
 import { DocumentTable } from './components/DocumentTable';
 import { QueryEditor } from './components/QueryEditor';
@@ -92,6 +93,7 @@ function App() {
         )}
       </div>
       <ConnectionDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <McpWriteApprovalDialog />
       <Toaster />
     </div>
   );

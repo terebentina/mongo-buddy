@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+- Clarify in MCP discovery and documentation that `aggregate` can write via `$out` or `$merge` without MongoBuddy GUI approval (#62).
+- Add MCP `insertOne` with per-request MongoBuddy GUI approval and fail-closed connection/lifecycle handling; the aggregation output-stage exception remains (#63).
+- Expose replacement-style `updateOne` and identifier-based `deleteOne` as MCP writes gated by the existing per-request GUI approval, preserving read-back and void-success behavior (#64).
+- Add gated MCP `updateMany` (document or pipeline with options) and `deleteMany`; empty-filter deletion requires exact collection-name typing in the GUI (#65).
+- Add gated MCP `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, and `dropCollections`; destructive collection writes require exact collection-name typing, while batch drop requires the exact nonempty database name and reports partial failures (#66).
+- Add gated MCP `createIndex` and `dropIndex` with index details visible in the GUI approval dialog; preserve the driver-assigned index name, `_id_` protection and void-success response (#67).
+- Correct MCP discovery's destructive hints for replacement, bulk update, and collection rename; label approval proposals with the active connection key (host) instead of an ambiguous connection (#61).
+
 ## [2.20.0](https://github.com/terebentina/mongo-buddy/compare/v2.19.3...v2.20.0) (2026-09-21)
 
 

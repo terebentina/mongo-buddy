@@ -8,6 +8,18 @@ import { distinctCommand } from '../commands/distinct';
 import { findCommand } from '../commands/find';
 import { aggregateCommand } from '../commands/aggregate';
 import { explainCommand } from '../commands/explain';
+import { insertOneCommand } from '../commands/insert-one';
+import { updateOneCommand } from '../commands/update-one';
+import { updateManyCommand } from '../commands/update-many';
+import { deleteManyCommand } from '../commands/delete-many';
+import { deleteOneCommand } from '../commands/delete-one';
+import { createCollectionCommand } from '../commands/create-collection';
+import { renameCollectionCommand } from '../commands/rename-collection';
+import { emptyCollectionCommand } from '../commands/empty-collection';
+import { dropCollectionCommand } from '../commands/drop-collection';
+import { dropCollectionsCommand } from '../commands/drop-collections';
+import { createIndexCommand } from '../commands/create-index';
+import { dropIndexCommand } from '../commands/drop-index';
 
 const DEFAULT_FIND_LIMIT = 50;
 const MAX_FIND_LIMIT = 200;
@@ -51,7 +63,8 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
   },
   {
     command: aggregateCommand,
-    description: `Run an aggregation pipeline against a collection. Returns the resulting documents. ${EJSON_HINT}`,
+    description: `Run an aggregation pipeline against a collection. Pipelines with $out or $merge write to a collection and can replace existing data; they run without MongoBuddy GUI approval. Other pipelines return the resulting documents. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true },
   },
   {
     command: findCommand,
@@ -64,5 +77,101 @@ export const MCP_TOOLS: McpToolEntry<z.ZodType, unknown>[] = [
   {
     command: explainCommand,
     description: `Run MongoDB explain (verbosity: executionStats) on a query and return the query plan plus execution stats (winning plan, index used, docs/keys examined, executionTimeMillis). Use for diagnosing slow queries or verifying index usage. ${EJSON_HINT}`,
+  },
+  {
+    command: insertOneCommand,
+    title: 'WRITE — insertOne (MongoBuddy confirmation required)',
+    description: `WRITE: Insert one document into a collection. MongoBuddy confirmation required: an explicit, one-time approval in the GUI before execution; MCP tool annotations do not grant permission. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: updateOneCommand,
+    title: 'WRITE — updateOne (MongoBuddy confirmation required)',
+    description: `WRITE: Replace one document by its EJSON identifier, excluding _id from the replacement, and return the stored document (or null when none matches). Requires one-time MongoBuddy GUI approval after reviewing the identifier and complete replacement. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+    requiresApproval: true,
+  },
+  {
+    command: deleteOneCommand,
+    title: 'WRITE — deleteOne (MongoBuddy confirmation required)',
+    description: `WRITE: Delete one document by its EJSON identifier. Requires one-time MongoBuddy GUI approval after reviewing the identifier and complete input. Returns null on success (including when no document matches). ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+    requiresApproval: true,
+  },
+  {
+    command: updateManyCommand,
+    title: 'WRITE — updateMany (MongoBuddy confirmation required)',
+    description: `WRITE: Update every matching document with an update document or pipeline. Optional driver options include arrayFilters. Review the entire filter, update and options in the GUI before one-time approval. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: deleteManyCommand,
+    title: 'WRITE — deleteMany (MongoBuddy confirmation required)',
+    description: `WRITE: Delete every document matching the filter. MongoBuddy GUI approval required per request; an empty filter ({}) may delete every document in the collection and additionally requires typing the exact collection name. ${EJSON_HINT}`,
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) =>
+      Object.keys(input.filter as Record<string, unknown>).length === 0 ? (input.collection as string) : undefined,
+  },
+  {
+    command: createCollectionCommand,
+    title: 'WRITE — createCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Create an empty collection in the given database. Requires one-time MongoBuddy GUI approval after reviewing the connection, database, collection name and complete input.',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: renameCollectionCommand,
+    title: 'WRITE — renameCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Rename a collection within the same database, from the exact old name to the exact new name. Requires one-time MongoBuddy GUI approval; no type-to-confirm.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+  },
+  {
+    command: emptyCollectionCommand,
+    title: 'WRITE — emptyCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Permanently delete all documents in a collection without dropping it. Returns the deleted count. Requires MongoBuddy GUI approval and typing the exact collection name.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) => input.collection as string,
+  },
+  {
+    command: dropCollectionCommand,
+    title: 'WRITE — dropCollection (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Permanently drop a collection and its data. Requires MongoBuddy GUI approval and typing the exact collection name.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) => input.collection as string,
+  },
+  {
+    command: dropCollectionsCommand,
+    title: 'WRITE — dropCollections (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Permanently drop the named collections in one database. Requires MongoBuddy GUI approval and typing the exact database name. Returns dropped and failed collection names with errors; a partial failure does not undo successful drops.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
+    typeToConfirm: (input) => input.db as string,
+  },
+  {
+    command: createIndexCommand,
+    title: 'WRITE — createIndex (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Create an index on a collection using the given key directions, optional indexName and unique setting. Returns the index name assigned by MongoDB. Requires one-time MongoBuddy GUI approval after reviewing the keys, options and complete input.',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    requiresApproval: true,
+  },
+  {
+    command: dropIndexCommand,
+    title: 'WRITE — dropIndex (MongoBuddy confirmation required)',
+    description:
+      'WRITE: Drop the named collection index (the _id_ index cannot be dropped). Requires one-time MongoBuddy GUI approval after reviewing the index name and complete input. Returns null on success; a missing or protected index is an error.',
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    requiresApproval: true,
   },
 ];

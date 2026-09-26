@@ -42,6 +42,8 @@ import { createDialogProviderAdapter } from './adapters/dialog-provider';
 import { parseMcpArgs } from './mcp/cli-args';
 import { startMcpServer, type McpServerHandle } from './mcp/server';
 import { createMcpStatusEmitter } from './mcp/status';
+import { createWriteApproval } from './mcp/write-approval';
+import { createGuiApproval } from './mcp/gui-approval';
 import { formatWindowTitle } from './window-title';
 
 // Without fractional-scale-v1, Chromium renders at integer scale on Wayland and
@@ -63,6 +65,7 @@ const mongoService = new MongoService();
 const mcpArgs = parseMcpArgs(process.argv);
 const mcpStatusEmitter = createMcpStatusEmitter();
 let mcpHandle: McpServerHandle | null = null;
+let mainWindow: BrowserWindow | null = null;
 const broadcast = (channel: string, payload: unknown): void => {
   for (const w of BrowserWindow.getAllWindows()) {
     w.webContents.send(channel, payload);
@@ -113,9 +116,14 @@ const mongoCommands = [
   dropCollectionsCommand,
 ];
 registerMongoIpcCommands({ ipcMain, dispatch, commands: mongoCommands });
+const approval = createWriteApproval(
+  connectionManager,
+  dispatch,
+  createGuiApproval(() => mainWindow)
+);
 
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+  const window = new BrowserWindow({
     width: 1200,
     height: 800,
     show: false,
@@ -126,24 +134,25 @@ function createWindow(): void {
       sandbox: false,
     },
   });
+  mainWindow = window;
 
-  mainWindow.on('page-title-updated', (e) => {
+  window.on('page-title-updated', (e) => {
     e.preventDefault();
   });
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
+  window.on('ready-to-show', () => {
+    window.show();
   });
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  window.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url);
     return { action: 'deny' };
   });
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+    window.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+    window.loadFile(join(__dirname, '../renderer/index.html'));
   }
 }
 
@@ -166,6 +175,7 @@ app.whenReady().then(async () => {
     mcpHandle = await startMcpServer({
       dispatch,
       mongoTools: MCP_TOOLS,
+      approval,
       port: mcpArgs.port,
     });
     if (mcpHandle) {
@@ -180,6 +190,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('before-quit', () => {
+  approval.cancel();
   const handle = mcpHandle;
   mcpHandle = null;
   if (handle) {

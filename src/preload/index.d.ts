@@ -21,6 +21,7 @@ import type {
   OperationRecord,
   OperationProgress,
   McpStatus,
+  McpWriteApprovalRequest,
   QueryMode,
 } from '../shared/types';
 import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
@@ -104,6 +105,8 @@ interface MongoApi {
   onOperationUpdate(cb: (rec: OperationRecord) => void): () => void;
   getMcpStatus(): Promise<McpStatus>;
   onMcpStatusUpdate(cb: (status: McpStatus) => void): () => void;
+  onMcpWriteApproval(cb: (request: McpWriteApprovalRequest | { id: string; cleared: true }) => void): () => void;
+  respondToMcpWrite(id: string, approve: boolean, typedName?: string): void;
   setWindowTitle(arg: { location: string | null }): Promise<void>;
 }
 

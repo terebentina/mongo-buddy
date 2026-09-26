@@ -9,7 +9,7 @@ describe('dropCollectionCommand', () => {
   let active: ActiveConnection;
 
   beforeEach(() => {
-    mockDb = { dropCollection: vi.fn().mockResolvedValue(undefined) };
+    mockDb = { dropCollection: vi.fn().mockResolvedValue(true) };
     mockClient = { db: vi.fn().mockReturnValue(mockDb) };
     active = { client: mockClient as unknown as MongoClient, key: 'localhost:27017' };
   });
@@ -23,6 +23,13 @@ describe('dropCollectionCommand', () => {
     expect(out).toBeUndefined();
     expect(mockClient.db).toHaveBeenCalledWith('d');
     expect(mockDb.dropCollection).toHaveBeenCalledWith('users');
+  });
+
+  it('reports an unsuccessful drop instead of claiming that the collection disappeared', async () => {
+    mockDb.dropCollection.mockResolvedValue(false);
+    await expect(dropCollectionCommand.run(active, { db: 'd', collection: 'missing' })).rejects.toThrow(
+      'Collection was not dropped'
+    );
   });
 
   it('schema requires collection', () => {

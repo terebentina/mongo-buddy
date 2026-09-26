@@ -33,7 +33,7 @@ MongoBuddy is an open-source desktop MongoDB client built for developers who wan
 - 🎯 **Keyboard-first UX** — thoughtful focus management (Base UI Dialogs) and shortcuts throughout
 - 🌙 **Dark by default** — CodeMirror one-dark theme, easy on the eyes
 - 🖥 **Cross-platform native builds** — Windows, macOS (Apple Silicon), and Linux
-- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read-only tools)
+- 🤖 **Built-in MCP server** — point Claude, Cursor, or any MCP client at your live MongoDB connection (read tools plus gated document and collection writes; aggregation output stages can still write without approval)
 
 ---
 
@@ -87,20 +87,35 @@ http://localhost:27099/mcp
 
 The MCP server uses the **active connection in the app** — open a connection in MongoBuddy and your MCP client will see the same databases and collections. Close the app and the server goes with it.
 
+The HTTP server binds `0.0.0.0:27099` by default and has **no authentication**. Anyone who can reach it can run read tools on the active connection, propose writes (including approval-flood attempts), and run aggregation output stages without approval. Restrict access at your firewall/network boundary; do not expose this port to untrusted networks. MCP annotations and tool descriptions do not authorize writes.
+
 ### Tools
 
-All tools are **read-only**. Writes still go through the GUI.
+Most MCP tools read data. `insertOne`, `updateOne`, `deleteOne`, `updateMany`, `deleteMany`, `createCollection`, `renameCollection`, `emptyCollection`, `dropCollection`, `dropCollections`, `createIndex`, and `dropIndex` are standalone writes requiring explicit local approval for each request in the MongoBuddy GUI. Each proposal displays the exact command, active connection key (host, not a credential-bearing URI), database, collection target(s), and complete EJSON input (including a document identifier and replacement for `updateOne`, or index keys/name and options for `createIndex`); denial, timeout (60 seconds), lost GUI, client cancellation, or connection switch prevents execution. Empty-filter `deleteMany`, `emptyCollection`, and `dropCollection` additionally require typing the exact collection name; `dropCollections` requires the exact database name. Other writes require only an approval click. `updateOne`, `updateMany`, and `renameCollection` advertise destructive MCP annotations because replacing a document, removing fields, or removing an old namespace is not additive; this does not change their existing GUI approval requirements. **Exception:** `aggregate` accepts pipelines with `$out` or `$merge`, which can write without this approval gate.
 
 | Tool | Purpose |
 | --- | --- |
-| `list_databases` | List databases on the connected server |
-| `list_collections` | List collections in a database |
-| `sample_fields` | Sample a collection and return its top-level field names |
+| `listDatabases` | List databases on the connected server |
+| `listCollections` | List collections in a database |
+| `sampleFields` | Sample a collection and return its top-level field names |
 | `find` | Query documents (supports `filter`, `sort`, `skip`, `limit`, EJSON) |
 | `count` | Count documents matching a filter |
-| `aggregate` | Run an aggregation pipeline |
+| `aggregate` | Run an aggregation pipeline; `$out` and `$merge` can write to collections without GUI approval |
 | `distinct` | Distinct values of a field |
-| `list_indexes` | List indexes on a collection |
+| `listIndexes` | List indexes on a collection |
+| `explain` | Return a query plan and execution stats |
+| `insertOne` | **WRITE — MongoBuddy confirmation required.** Insert one EJSON document; review command, active connection key (host), namespace and complete input in the GUI, then approve once or deny. Denial, lost GUI, timeout (60 seconds), client cancellation or connection switch prevents execution. |
+| `updateOne` | **WRITE — MongoBuddy confirmation required.** Replace one document selected by an EJSON `id`; the replacement excludes `_id`, and the returned record is read back from the collection (or `null` if none matches). Review the identifier and full replacement in the GUI before approving once. |
+| `deleteOne` | **WRITE — MongoBuddy confirmation required.** Delete one document selected by an EJSON `id`; review the identifier and full input in the GUI before approving once. Returns `null` as valid MCP success text, including when no document matches. |
+| `updateMany` | **WRITE — MongoBuddy confirmation required.** Update matching documents using an EJSON update document or pipeline; optional update options include `arrayFilters`. The dialog shows the full filter, update, and options; approval applies once to that input and returns matched/modified counts. |
+| `deleteMany` | **WRITE — MongoBuddy confirmation required.** Delete matching documents and return the deleted count. A non-empty filter needs an approval click; `{}` also requires typing the exact collection name to approve deletion of all documents. Denial, lost GUI, timeout, cancellation, or connection switch prevents either write. |
+| `createCollection` | **WRITE — MongoBuddy confirmation required.** Create an empty collection; review the target and complete input, then approve once. |
+| `renameCollection` | **WRITE — MongoBuddy confirmation required.** Rename a collection within a database; review the exact source and destination names, then approve once. |
+| `emptyCollection` | **WRITE — MongoBuddy confirmation required.** Delete all documents without dropping the collection and return the deleted count; type its exact collection name to approve. |
+| `dropCollection` | **WRITE — MongoBuddy confirmation required.** Drop a collection and its data; type its exact collection name to approve. |
+| `dropCollections` | **WRITE — MongoBuddy confirmation required.** Drop named collections in a database; type the exact database name to approve. Returns separate `dropped` names and `failed` entries with error messages when only some drops succeed. |
+| `createIndex` | **WRITE — MongoBuddy confirmation required.** Create an index from key directions, an optional name and a uniqueness flag; review the keys, name (or MongoDB-generated name), options, and complete input before approving once. Returns the index name from MongoDB; invalid index specifications return the driver error. |
+| `dropIndex` | **WRITE — MongoBuddy confirmation required.** Drop the named index after reviewing the name and complete input; the `_id_` index is protected. Returns `null` as valid MCP success text, or an error if MongoDB rejects the drop. |
 
 ### CLI flags
 

@@ -1,4 +1,13 @@
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+export interface McpWriteApprovalRequest {
+  id: string;
+  command: string;
+  connectionKey: string;
+  db: string;
+  collection: string;
+  input: string;
+  typeToConfirm?: string;
+}
 
 export interface DbInfo {
   name: string;
