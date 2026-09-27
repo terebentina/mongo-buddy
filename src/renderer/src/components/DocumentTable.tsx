@@ -2,24 +2,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useStore } from '../store';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { Button } from './ui/button';
+import { Loader } from './Loader';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Popover as BasePopover } from '@base-ui/react/popover';
-import { Loader } from './Loader';
-import {
-  Maximize2,
-  Copy,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
-  ListFilter,
-  EllipsisVertical,
-  SlidersHorizontal,
-} from 'lucide-react';
+import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import type { DistinctResult } from '../../../shared/types';
 import { canEditProjectedDocument, formatCell, getDocumentFieldValue, isScalarCell } from './DocumentTable.helpers';
-import { UpdateManyDialog } from './UpdateManyDialog';
-import { DeleteResultsDialog } from './DeleteResultsDialog';
 import {
   buildColumnCopyText,
   buildValuesCopyText,
@@ -29,98 +18,6 @@ import {
 } from '../lib/clipboard';
 
 const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
-
-function ProjectionPopover() {
-  const projection = useStore((s) => s.projection);
-  const queryMode = useStore((s) => s.queryMode);
-  const applyProjection = useStore((s) => s.applyProjection);
-  const clearProjection = useStore((s) => s.clearProjection);
-  const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState('{}');
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const active = projection !== null;
-  const paused = active && queryMode === 'aggregate';
-
-  const handleOpenChange = (nextOpen: boolean): void => {
-    setOpen(nextOpen);
-    if (nextOpen) {
-      setDraft(projection ? JSON.stringify(projection, null, 2) : '{}');
-      setError(null);
-    }
-  };
-
-  return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger
-        render={
-          <button
-            aria-label="Projection options"
-            title={paused ? 'Projection paused' : active ? 'Projection active' : 'Projection options'}
-            className={`relative inline-flex rounded p-1 hover:bg-muted ${active ? 'text-primary' : 'text-muted-foreground'}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            {active && <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-primary" />}
-          </button>
-        }
-      />
-      <PopoverContent className="w-96" align="start" onClick={(event) => event.stopPropagation()}>
-        <div className="mb-2 text-xs font-medium text-muted-foreground">
-          {paused ? 'Projection paused in Aggregate mode' : active ? 'Projection active' : 'No projection'}
-        </div>
-        <textarea
-          aria-label="Projection JSON5"
-          className="h-36 w-full resize-y rounded border bg-background p-2 font-mono text-xs outline-hidden focus:ring-1 focus:ring-ring"
-          spellCheck={false}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
-        <div className="mt-3 flex justify-end gap-2">
-          <Button
-            aria-label="Clear projection"
-            variant="outline"
-            size="sm"
-            disabled={!active || submitting}
-            onClick={async () => {
-              setSubmitting(true);
-              const nextError = await clearProjection();
-              setSubmitting(false);
-              if (nextError) {
-                setError(nextError);
-                return;
-              }
-              setDraft('{}');
-              setError(null);
-              setOpen(false);
-            }}
-          >
-            Clear
-          </Button>
-          <Button
-            aria-label="Apply projection"
-            size="sm"
-            disabled={queryMode === 'aggregate' || submitting}
-            onClick={async () => {
-              setSubmitting(true);
-              const nextError = await applyProjection(draft);
-              setSubmitting(false);
-              if (nextError) {
-                setError(nextError);
-                return;
-              }
-              setError(null);
-              setOpen(false);
-            }}
-          >
-            Apply
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 function ExpandPopover({ cellValue }: { cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -340,34 +237,25 @@ function snapshotColumnWidths(
 }
 
 interface DocumentTableProps {
-  className?: string;
-  onRowClick?: (doc: Record<string, unknown>) => void;
+  onRowClick: (doc: Record<string, unknown>) => void;
 }
 
-export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
+export function DocumentTable({ onRowClick }: DocumentTableProps) {
   const docs = useStore((s) => s.docs);
-  const totalCount = useStore((s) => s.totalCount);
-  const skip = useStore((s) => s.skip);
-  const limit = useStore((s) => s.limit);
-  const loading = useStore((s) => s.loading);
-  const fetchPage = useStore((s) => s.fetchPage);
   const sort = useStore((s) => s.sort);
   const setSort = useStore((s) => s.setSort);
   const queryMode = useStore((s) => s.queryMode);
   const resultQueryMode = useStore((s) => s.resultQueryMode);
   const projection = useStore((s) => s.projection);
-  const setLimit = useStore((s) => s.setLimit);
   const applyFilterValue = useStore((s) => s.applyFilterValue);
   const storeFilter = useStore((s) => s.filter);
   const hasFilter = Object.keys(storeFilter).length > 0;
+  const isAggregate = queryMode === 'aggregate';
+  const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);
 
   const columns = useMemo(() => getColumns(docs, projection, resultQueryMode), [docs, projection, resultQueryMode]);
-  const currentPage = Math.floor(skip / limit) + 1;
-  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
   const tableRef = useRef<HTMLTableElement>(null);
 
-  const [pageInput, setPageInput] = useState(String(currentPage));
-  const [lastCurrentPage, setLastCurrentPage] = useState(currentPage);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [distinctState, setDistinctState] = useState<{
     column: string;
@@ -376,11 +264,6 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
   } | null>(null);
   const columnsKey = columns.join(',');
   const prevColumnsKey = useRef(columnsKey);
-
-  if (currentPage !== lastCurrentPage) {
-    setLastCurrentPage(currentPage);
-    setPageInput(String(currentPage));
-  }
 
   useEffect(() => {
     if (prevColumnsKey.current !== columnsKey) {
@@ -442,222 +325,154 @@ export function DocumentTable({ className, onRowClick }: DocumentTableProps) {
     [columns]
   );
 
-  if (loading) {
-    return <Loader className="flex-1" />;
-  }
-
   return (
-    <div className={`flex flex-col ${className ?? ''}`}>
-      <div className="flex-1 overflow-auto">
-        <Table ref={tableRef} style={{ tableLayout: 'fixed', minWidth: columns.length * 150 + 48 }}>
-          <TableHeader className="sticky top-0 z-10 bg-background">
-            <TableRow>
-              <TableHead className="w-12 px-2 text-right text-muted-foreground select-none border-r border-border">
-                <ProjectionPopover />
-              </TableHead>
-              {columns.map((col) => {
-                const isAggregate = queryMode === 'aggregate';
-                const sortDir = sort && col in sort ? sort[col] : null;
-                const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown;
-                const canShowDistinct = !isAggregate && col !== '_id';
-                return (
-                  <TableHead
-                    key={col}
-                    className={`group/header px-4 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
-                    style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
-                    onClick={isAggregate ? undefined : () => setSort(col)}
-                  >
-                    <span className="flex items-center gap-1 min-w-0 w-full">
-                      <span className="truncate">{col}</span>
-                      <span className="ml-auto shrink-0 flex items-center gap-1">
-                        {!isAggregate && (
-                          <SortIcon
-                            className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
-                          />
-                        )}
-                        <ColumnMenu
-                          onCopyValues={() => {
-                            void copyText(buildColumnCopyText(docs, col), `Copied ${docs.length} values`);
-                          }}
-                          onShowDistinct={
-                            canShowDistinct
-                              ? () => {
-                                  const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
-                                  const th = tableRef.current?.querySelector(selector);
-                                  if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
-                                }
-                              : undefined
-                          }
-                          onShowDistinctFiltered={
-                            canShowDistinct && hasFilter
-                              ? () => {
-                                  const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
-                                  const th = tableRef.current?.querySelector(selector);
-                                  if (th)
-                                    setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
-                                }
-                              : undefined
-                          }
-                        />
-                      </span>
-                    </span>
-                    <div
-                      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        const th = e.currentTarget.parentElement!;
-                        handleResizeStart(col, e.clientX, th.offsetWidth);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        handleAutoResize(col);
-                      }}
-                    />
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {docs.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={columns.length + 1} className="h-24 text-center text-muted-foreground">
-                  No documents found
-                </TableCell>
-              </TableRow>
-            )}
-            {docs.map((doc, i) => {
-              const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);
+    <div className="flex-1 min-h-0 overflow-auto">
+      <Table ref={tableRef} style={{ tableLayout: 'fixed', minWidth: columns.length * 150 + 48 }}>
+        <TableHeader className="sticky top-0 z-10 bg-background">
+          <TableRow>
+            <TableHead className="w-12 px-2 border-r border-border" />
+            {columns.map((col) => {
+              const sortDir = sort && col in sort ? sort[col] : null;
+              const SortIcon = sortDir === 1 ? ArrowUp : sortDir === -1 ? ArrowDown : ArrowUpDown;
+              const canShowDistinct = !isAggregate && col !== '_id';
               return (
-                <TableRow
-                  key={doc._id != null ? formatCell(doc._id) || i : i}
-                  className={`group/row even:bg-muted-row ${onRowClick && canEdit ? 'cursor-pointer hover:bg-muted/50' : ''}`}
-                  onClick={onRowClick && canEdit ? () => onRowClick(doc) : undefined}
+                <TableHead
+                  key={col}
+                  className={`group/header px-4 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
+                  style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
+                  onClick={isAggregate ? undefined : () => setSort(col)}
                 >
-                  <TableCell className="w-12 px-2 text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
-                  {columns.map((col) => {
-                    const cellValue = getDocumentFieldValue(doc, col);
-                    const raw = formatCell(cellValue);
-                    const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
-                    // A missing field has no value for the filter value action.
-                    // JSON.stringify removes a property that has an undefined value.
-                    const showFilter = isPrimitive && cellValue !== undefined && queryMode === 'filter';
-                    const showCopy = isCopyableCell(cellValue);
-                    const showExpand = !isScalarCell(cellValue);
-                    return (
-                      <TableCell key={col} className="overflow-visible relative group">
-                        <span className="block truncate">{raw}</span>
-                        {(showFilter || showCopy || showExpand) && (
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
-                            {showFilter && (
-                              <button
-                                aria-label={FILTER_VALUE_ACTION_LABEL}
-                                title={FILTER_VALUE_ACTION_LABEL}
-                                className="p-0.5 rounded hover:bg-muted"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  applyFilterValue(
-                                    col,
-                                    cellValue as string | number | boolean | null,
-                                    e.shiftKey ? 'exclude' : 'include'
-                                  );
-                                }}
-                              >
-                                <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                            )}
-                            {showCopy && (
-                              <button
-                                aria-label="Copy value"
-                                title="Copy value"
-                                className="p-0.5 rounded hover:bg-muted"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void copyText(formatValueForCellCopy(cellValue));
-                                }}
-                              >
-                                <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                            )}
-                            {showExpand && <ExpandPopover cellValue={cellValue} />}
-                          </div>
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
+                  <span className="flex items-center gap-1 min-w-0 w-full">
+                    <span className="truncate">{col}</span>
+                    <span className="ml-auto shrink-0 flex items-center gap-1">
+                      {!isAggregate && (
+                        <SortIcon
+                          className={`h-3.5 w-3.5 shrink-0 ${sortDir ? 'text-foreground' : 'text-muted-foreground/50'}`}
+                        />
+                      )}
+                      <ColumnMenu
+                        onCopyValues={() => {
+                          void copyText(buildColumnCopyText(docs, col), `Copied ${docs.length} values`);
+                        }}
+                        onShowDistinct={
+                          canShowDistinct
+                            ? () => {
+                                const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
+                                const th = tableRef.current?.querySelector(selector);
+                                if (th) setDistinctState({ column: col, anchor: th as HTMLElement });
+                              }
+                            : undefined
+                        }
+                        onShowDistinctFiltered={
+                          canShowDistinct && hasFilter
+                            ? () => {
+                                const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
+                                const th = tableRef.current?.querySelector(selector);
+                                if (th)
+                                  setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
+                              }
+                            : undefined
+                        }
+                      />
+                    </span>
+                  </span>
+                  <div
+                    className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      const th = e.currentTarget.parentElement!;
+                      handleResizeStart(col, e.clientX, th.offsetWidth);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      handleAutoResize(col);
+                    }}
+                  />
+                </TableHead>
               );
             })}
-          </TableBody>
-        </Table>
-        {distinctState && (
-          <DistinctPopover
-            column={distinctState.column}
-            anchorEl={distinctState.anchor}
-            filter={distinctState.filter}
-            onClose={() => setDistinctState(null)}
-          />
-        )}
-      </div>
-      <div className="flex items-center justify-between gap-4 px-4 py-2 border-t">
-        <nav aria-label="Pagination" className="flex items-center gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={skip === 0}
-            onClick={() => fetchPage(Math.max(0, skip - limit))}
-          >
-            Previous
-          </Button>
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            Page
-            <input
-              type="number"
-              className="w-14 h-7 px-1.5 text-center text-sm border rounded bg-background"
-              value={pageInput}
-              min={1}
-              max={totalPages}
-              onChange={(e) => setPageInput(e.target.value)}
-              onBlur={() => {
-                const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1));
-                setPageInput(String(page));
-                fetchPage((page - 1) * limit);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-              }}
-            />
-            of {totalPages}
-          </span>
-          <select
-            className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
-            value={limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
-          >
-            {[10, 20, 50, 100].map((n) => (
-              <option key={n} value={n}>
-                {n} / page
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={skip + limit >= totalCount}
-            onClick={() => fetchPage(skip + limit)}
-          >
-            Next
-          </Button>
-        </nav>
-        <div role="group" aria-label="Result actions" className="flex items-center gap-4">
-          <DeleteResultsDialog />
-          <UpdateManyDialog />
-          <span className="text-sm text-muted-foreground">
-            {totalCount.toLocaleString()} {totalCount === 1 ? 'document' : 'documents'}
-          </span>
-        </div>
-      </div>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {docs.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={columns.length + 1} className="h-24 text-center text-muted-foreground">
+                No documents found
+              </TableCell>
+            </TableRow>
+          )}
+          {docs.map((doc, i) => {
+            return (
+              <TableRow
+                key={doc._id != null ? formatCell(doc._id) || i : i}
+                className={`group/row even:bg-muted-row ${canEdit ? 'cursor-pointer hover:bg-muted/50' : ''}`}
+                onClick={canEdit ? () => onRowClick(doc) : undefined}
+              >
+                <TableCell className="w-12 px-2 text-right text-muted-foreground tabular-nums">{i + 1}</TableCell>
+                {columns.map((col) => {
+                  const cellValue = getDocumentFieldValue(doc, col);
+                  const raw = formatCell(cellValue);
+                  const isPrimitive = typeof cellValue !== 'object' || cellValue === null;
+                  // A missing field has no value for the filter value action.
+                  // JSON.stringify removes a property that has an undefined value.
+                  const showFilter = isPrimitive && cellValue !== undefined && queryMode === 'filter';
+                  const showCopy = isCopyableCell(cellValue);
+                  const showExpand = !isScalarCell(cellValue);
+                  return (
+                    <TableCell key={col} className="overflow-visible relative group">
+                      <span className="block truncate">{raw}</span>
+                      {(showFilter || showCopy || showExpand) && (
+                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 rounded px-1 bg-background group-even/row:bg-muted-row">
+                          {showFilter && (
+                            <button
+                              aria-label={FILTER_VALUE_ACTION_LABEL}
+                              title={FILTER_VALUE_ACTION_LABEL}
+                              className="p-0.5 rounded hover:bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                applyFilterValue(
+                                  col,
+                                  cellValue as string | number | boolean | null,
+                                  e.shiftKey ? 'exclude' : 'include'
+                                );
+                              }}
+                            >
+                              <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                          {showCopy && (
+                            <button
+                              aria-label="Copy value"
+                              title="Copy value"
+                              className="p-0.5 rounded hover:bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void copyText(formatValueForCellCopy(cellValue));
+                              }}
+                            >
+                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                          )}
+                          {showExpand && <ExpandPopover cellValue={cellValue} />}
+                        </div>
+                      )}
+                    </TableCell>
+                  );
+                })}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {distinctState && (
+        <DistinctPopover
+          column={distinctState.column}
+          anchorEl={distinctState.anchor}
+          filter={distinctState.filter}
+          onClose={() => setDistinctState(null)}
+        />
+      )}
     </div>
   );
 }

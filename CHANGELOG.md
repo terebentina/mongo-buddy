@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Features
+
+* **results:** add Table/JSON view switcher and move projection and bulk actions above the results
+
+### Bug Fixes
+
+* **results:** align the horizontal padding of the document, query, and result action strips
+
 ## [2.21.0](https://github.com/terebentina/mongo-buddy/compare/v2.20.2...v2.21.0) (2026-09-26)
 
 

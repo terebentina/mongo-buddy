@@ -3,7 +3,7 @@ import { useStore, selectConnected } from './store';
 import { ConnectionDialog } from './components/ConnectionDialog';
 import { McpWriteApprovalDialog } from './components/McpWriteApprovalDialog';
 import { Sidebar } from './components/Sidebar';
-import { DocumentTable } from './components/DocumentTable';
+import { ResultsPanel, type ResultViewMode } from './components/ResultsPanel';
 import { QueryEditor } from './components/QueryEditor';
 import { DocumentEditor } from './components/DocumentEditor';
 import { QueryHistory } from './components/QueryHistory';
@@ -20,6 +20,7 @@ function App() {
   const [dialogOpen, setDialogOpen] = useState(!connected);
   const [editDoc, setEditDoc] = useState<Record<string, unknown> | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(240);
+  const [resultViewMode, setResultViewMode] = useState<ResultViewMode>('table');
 
   const handleRowClick = useCallback(
     async (doc: Record<string, unknown>) => {
@@ -81,13 +82,17 @@ function App() {
         )}
         {connected && selectedCollection && (
           <>
-            <div className="flex items-center gap-2 px-4 py-2 border-b">
+            <div className="flex items-center gap-2 px-2 py-2 border-b">
               <DocumentEditor />
               <div className="flex-1" />
               <QueryHistory />
             </div>
             <QueryEditor />
-            <DocumentTable className="flex-1 min-h-0" onRowClick={(doc) => void handleRowClick(doc)} />
+            <ResultsPanel
+              viewMode={resultViewMode}
+              onViewModeChange={setResultViewMode}
+              onRowClick={(doc) => void handleRowClick(doc)}
+            />
             {editDoc && <DocumentEditor editDoc={editDoc} onClose={() => setEditDoc(null)} />}
           </>
         )}

@@ -13,10 +13,10 @@ vi.mock('./components/ConnectionDialog', () => ({ ConnectionDialog: () => null }
 vi.mock('./components/McpWriteApprovalDialog', () => ({ McpWriteApprovalDialog: () => null }));
 vi.mock('./components/ui/sonner', () => ({ Toaster: () => null }));
 vi.mock('./components/DocumentTable', () => ({
-  DocumentTable: ({ onRowClick }: { onRowClick?: (doc: Record<string, unknown>) => void }) => (
+  DocumentTable: ({ onRowClick }: { onRowClick: (doc: Record<string, unknown>) => void }) => (
     <>
-      <button onClick={() => onRowClick?.({ _id: 'original', name: 'Projected' })}>Open row</button>
-      <button onClick={() => onRowClick?.({ _id: 'newer', name: 'Newer projected' })}>Open newer row</button>
+      <button onClick={() => onRowClick({ _id: 'original', name: 'Projected' })}>Open row</button>
+      <button onClick={() => onRowClick({ _id: 'newer', name: 'Newer projected' })}>Open newer row</button>
     </>
   ),
 }));
@@ -44,6 +44,15 @@ beforeEach(() => {
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'key' },
     selectedDb: 'testdb',
     selectedCollection: 'users',
+  });
+  useStore.setState({
+    docs: [],
+    totalCount: 0,
+    skip: 0,
+    limit: 20,
+    loading: false,
+    queryMode: 'filter',
+    projection: null,
   });
 });
 
@@ -110,5 +119,26 @@ describe('App document editing', () => {
     });
 
     expect(screen.queryByText(/^Editor:/)).not.toBeInTheDocument();
+  });
+});
+
+describe('App result view preference', () => {
+  it('keeps JSON selected when the query result and collection change', async () => {
+    useStore.setState({ docs: [{ name: 'Before' }], totalCount: 1 });
+    render(<App />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
+    expect(screen.getByLabelText('JSON results')).toHaveTextContent('"name": "Before"');
+
+    await act(async () => {
+      useStore.setState({ docs: [{ name: 'After query' }], totalCount: 1 });
+    });
+    expect(screen.getByLabelText('JSON results')).toHaveTextContent('"name": "After query"');
+
+    await act(async () => {
+      useStore.setState({ selectedCollection: 'orders', docs: [{ name: 'After collection' }] });
+    });
+    expect(screen.getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('JSON results')).toHaveTextContent('"name": "After collection"');
   });
 });

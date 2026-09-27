@@ -43,7 +43,7 @@ function fieldCompletion(fieldNames: string[]) {
 }
 
 const MIN_EDITOR_HEIGHT = 80;
-const MIN_RESULTS_HEIGHT = 200;
+const MIN_RESULTS_HEIGHT = 250; // Includes the results action strip above the result content.
 
 export function QueryEditor() {
   const editorRef = useRef<HTMLDivElement>(null);

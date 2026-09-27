@@ -5,12 +5,6 @@ import { DocumentTable } from './DocumentTable';
 import { useStore } from '../store';
 
 const mockApi = {
-  connect: vi.fn(),
-  disconnect: vi.fn(),
-  listDatabases: vi.fn(),
-  listCollections: vi.fn(),
-  find: vi.fn(),
-  count: vi.fn(),
   distinct: vi.fn(),
 };
 
@@ -26,9 +20,6 @@ beforeEach(() => {
     selectedDb: 'testdb',
     selectedCollection: 'users',
     docs: [],
-    totalCount: 0,
-    skip: 0,
-    limit: 20,
     filter: {},
     projection: null,
     queryMode: 'filter',
@@ -46,7 +37,6 @@ describe('DocumentTable', () => {
       const column = 'a_header_longer_than_its_values';
       useStore.setState({
         docs: [{ [column]: 'x', next: 'y' }],
-        totalCount: 1,
         queryMode,
         resultQueryMode: queryMode,
       });
@@ -61,7 +51,7 @@ describe('DocumentTable', () => {
         .mockReturnValue(context as unknown as CanvasRenderingContext2D);
 
       try {
-        render(<DocumentTable />);
+        render(<DocumentTable onRowClick={() => {}} />);
         const header = screen.getByRole('columnheader', { name: column });
         fireEvent.doubleClick(header.querySelector('.cursor-col-resize')!);
 
@@ -82,10 +72,9 @@ describe('DocumentTable', () => {
         { _id: '1', name: 'Alice', email: 'alice@test.com' },
         { _id: '2', name: 'Bob', age: 30 },
       ],
-      totalCount: 2,
     });
 
-    render(<DocumentTable />);
+    render(<DocumentTable onRowClick={() => {}} />);
 
     expect(screen.getByText('_id')).toBeInTheDocument();
     expect(screen.getByText('name')).toBeInTheDocument();
@@ -97,12 +86,11 @@ describe('DocumentTable', () => {
     const applyFilterValue = vi.fn();
     useStore.setState({
       docs: [{ data: { id: 42, name: 'some name' } }],
-      totalCount: 1,
       projection: { 'data.id': 1, 'data.name': 1, _id: 0 },
       applyFilterValue,
     });
 
-    render(<DocumentTable />);
+    render(<DocumentTable onRowClick={() => {}} />);
 
     const headers = screen.getAllByRole('columnheader');
     expect(headers).toHaveLength(3);
@@ -124,13 +112,12 @@ describe('DocumentTable', () => {
   ])('keeps the parent document column for %s', (_name, projection, resultQueryMode) => {
     useStore.setState({
       docs: [{ data: { id: 42, name: 'some name' } }],
-      totalCount: 1,
       projection,
       queryMode: resultQueryMode,
       resultQueryMode,
     });
 
-    render(<DocumentTable />);
+    render(<DocumentTable onRowClick={() => {}} />);
 
     const headers = screen.getAllByRole('columnheader');
     expect(headers).toHaveLength(2);
@@ -138,60 +125,9 @@ describe('DocumentTable', () => {
     expect(screen.getByText('{"id":42,"name":"some name"}')).toBeInTheDocument();
   });
 
-  it('keeps the projection header and empty body state when no documents match', () => {
-    render(<DocumentTable />);
-
-    expect(screen.getByRole('columnheader')).toContainElement(
-      screen.getByRole('button', { name: 'Projection options' })
-    );
-    expect(screen.getByText('No documents found')).toBeInTheDocument();
-  });
-
-  it('shows the active projection and clears it from the popover', async () => {
-    const clearProjection = vi.fn().mockResolvedValue(null);
-    useStore.setState({ projection: { name: 1 }, clearProjection });
-
-    render(<DocumentTable />);
-
-    const trigger = screen.getByRole('button', { name: 'Projection options' });
-    expect(trigger).toHaveAttribute('title', 'Projection active');
-    await userEvent.click(trigger);
-    expect(screen.getByText('Projection active')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Clear projection' }));
-    expect(clearProjection).toHaveBeenCalledOnce();
-  });
-
-  it('shows a paused projection in Aggregate mode and disables Apply', async () => {
-    useStore.setState({ projection: { name: 1 }, queryMode: 'aggregate' });
-
-    render(<DocumentTable />);
-
-    const trigger = screen.getByRole('button', { name: 'Projection options' });
-    expect(trigger).toHaveAttribute('title', 'Projection paused');
-    await userEvent.click(trigger);
-    expect(screen.getByText('Projection paused in Aggregate mode')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Apply projection' })).toBeDisabled();
-  });
-
-  it('keeps the projection content and shows the Apply error', async () => {
-    const applyProjection = vi.fn().mockResolvedValue('Cannot mix inclusion and exclusion');
-    useStore.setState({ applyProjection });
-
-    render(<DocumentTable />);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Projection options' }));
-    const editor = screen.getByRole('textbox', { name: 'Projection JSON5' });
-    fireEvent.change(editor, { target: { value: '{ name: 1, secret: 0 }' } });
-    await userEvent.click(screen.getByRole('button', { name: 'Apply projection' }));
-
-    expect(applyProjection).toHaveBeenCalledWith('{ name: 1, secret: 0 }');
-    expect(screen.getByText('Cannot mix inclusion and exclusion')).toBeInTheDocument();
-    expect(editor).toHaveValue('{ name: 1, secret: 0 }');
-  });
-
   it('does not open a row when the projection gives _id an unsupported value', async () => {
     const onRowClick = vi.fn();
-    useStore.setState({ docs: [{ _id: 'computed', name: 'Alice' }], totalCount: 1, projection: { _id: 0 } });
+    useStore.setState({ docs: [{ _id: 'computed', name: 'Alice' }], projection: { _id: 0 } });
 
     render(<DocumentTable onRowClick={onRowClick} />);
     await userEvent.click(screen.getByText('Alice'));
@@ -203,7 +139,6 @@ describe('DocumentTable', () => {
     const onRowClick = vi.fn();
     useStore.setState({
       docs: [{ _id: 'computed', name: 'Alice' }],
-      totalCount: 1,
       projection: { _id: '$otherId' },
       resultQueryMode: 'filter',
     });
@@ -215,89 +150,15 @@ describe('DocumentTable', () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
-  it('groups the pagination controls on the left', () => {
-    useStore.setState({
-      docs: Array.from({ length: 20 }, (_, i) => ({ _id: String(i) })),
-      totalCount: 50,
-      skip: 0,
-      limit: 20,
-    });
-
-    render(<DocumentTable />);
-
-    const pagination = screen.getByRole('navigation', { name: 'Pagination' });
-    const pageInput = within(pagination).getByRole('spinbutton');
-    expect(pageInput).toHaveValue(1);
-    expect(
-      within(pagination).getByText((_, el) => el?.tagName === 'SPAN' && el.textContent?.includes('of 3') === true)
-    ).toBeInTheDocument();
-    expect(within(pagination).getByRole('button', { name: /previous/i })).toBeInTheDocument();
-    expect(within(pagination).getByRole('button', { name: /next/i })).toBeInTheDocument();
-  });
-
-  it('Next button disabled on last page', () => {
-    useStore.setState({
-      docs: [{ _id: '1' }],
-      totalCount: 5,
-      skip: 4,
-      limit: 20,
-    });
-
-    render(<DocumentTable />);
-
-    expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
-  });
-
-  it('Prev button disabled on first page', () => {
-    useStore.setState({
-      docs: Array.from({ length: 20 }, (_, i) => ({ _id: String(i) })),
-      totalCount: 50,
-      skip: 0,
-      limit: 20,
-    });
-
-    render(<DocumentTable />);
-
-    expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
-  });
-
-  it('calls store with updated skip on page change', async () => {
-    mockApi.find.mockResolvedValue({
-      ok: true,
-      data: {
-        docs: Array.from({ length: 20 }, (_, i) => ({ _id: String(i + 20) })),
-        totalCount: 50,
-      },
-    });
-
-    useStore.setState({
-      docs: Array.from({ length: 20 }, (_, i) => ({ _id: String(i) })),
-      totalCount: 50,
-      skip: 0,
-      limit: 20,
-    });
-
-    render(<DocumentTable />);
-
-    await userEvent.click(screen.getByRole('button', { name: /next/i }));
-
-    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
-      filter: {},
-      skip: 20,
-      limit: 20,
-    });
-  });
-
   it('applies both results-table cell actions and explains Shift+click', () => {
     const applyFilterValue = vi.fn();
     useStore.setState({
       docs: [{ _id: '1', status: 'active' }],
-      totalCount: 1,
       queryMode: 'filter',
       applyFilterValue,
     });
 
-    render(<DocumentTable />);
+    render(<DocumentTable onRowClick={() => {}} />);
 
     const actions = screen.getAllByRole('button', { name: FILTER_VALUE_ACTION_LABEL });
     const statusAction = actions.at(-1)!;
@@ -321,12 +182,11 @@ describe('DocumentTable', () => {
     });
     useStore.setState({
       docs: [{ _id: '1', status: 'active' }],
-      totalCount: 1,
       queryMode: 'filter',
       applyFilterValue,
     });
 
-    render(<DocumentTable />);
+    render(<DocumentTable onRowClick={() => {}} />);
 
     const statusHeader = screen.getByText('status').closest('th')!;
     await userEvent.click(within(statusHeader).getByRole('button'));
