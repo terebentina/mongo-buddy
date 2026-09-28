@@ -27,8 +27,6 @@ export interface WriteApproval {
   cancel(): void;
 }
 
-const TIMEOUT_MS = 60_000;
-
 export function createWriteApproval(
   manager: ConnectionManager,
   dispatch: Dispatch,
@@ -75,7 +73,6 @@ export function createWriteApproval(
       const onConnectionChange = (): void => abort('Active MongoDB connection changed during approval');
       signal.addEventListener('abort', onRequestAbort, { once: true });
       const unsubscribe = manager.onStateChange(onConnectionChange);
-      const timer = setTimeout(() => abort('MCP write approval timed out'), TIMEOUT_MS);
       if (signal.aborted) abort('MCP write request cancelled');
       const interrupted = new Promise<never>((_resolve, reject) => {
         controller.signal.addEventListener('abort', () => reject(new Error(failure)), { once: true });
@@ -110,7 +107,6 @@ export function createWriteApproval(
           error: controller.signal.aborted ? failure : `MCP write approval unavailable: ${(err as Error).message}`,
         };
       } finally {
-        clearTimeout(timer);
         unsubscribe();
         signal.removeEventListener('abort', onRequestAbort);
         pending = null;

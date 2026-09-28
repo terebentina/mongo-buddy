@@ -252,24 +252,37 @@ describe('MCP insertOne approval over HTTP', () => {
     expect(app.inserted).toEqual([]);
   });
 
-  it('expires a pending request even if the GUI does not resolve or honor abort', async () => {
+  it('keeps a pending approval available past the former deadline until the user decides', async () => {
     vi.useFakeTimers();
     try {
-      const client = { db: vi.fn() } as unknown as MongoClient;
+      const inserted: Record<string, unknown>[] = [];
+      const client = {
+        db: () => ({
+          collection: () => ({
+            insertOne: async (doc: Record<string, unknown>) => {
+              inserted.push({ ...doc, _id: 'inserted' });
+              return { insertedId: 'inserted' };
+            },
+            findOne: async () => inserted.at(-1),
+          }),
+        }),
+      } as unknown as MongoClient;
       const manager = {
         getActive: () => ({ client, key: 'localhost:27161' }),
         onStateChange: () => () => undefined,
       } as unknown as ConnectionManager;
-      const dispatch = vi.fn();
-      const approval = createWriteApproval(manager, dispatch, { request: () => new Promise<boolean>(() => undefined) });
+      const decision = deferred<boolean>();
+      const approval = createWriteApproval(manager, createDispatcher(manager), { request: () => decision.promise });
       const result = approval.execute(
         insertOneCommand,
-        { db: 'sandbox', collection: 'notes', doc: { name: 'expired' } },
+        { db: 'sandbox', collection: 'notes', doc: { name: 'late approval' } },
         new AbortController().signal
       );
-      await vi.advanceTimersByTimeAsync(60_000);
-      expect(await result).toEqual({ ok: false, error: 'MCP write approval timed out' });
-      expect(dispatch).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(inserted).toEqual([]);
+      decision.resolve(true);
+      expect(await result).toEqual({ ok: true, data: { name: 'late approval', _id: 'inserted' } });
+      expect(inserted).toEqual([{ name: 'late approval', _id: 'inserted' }]);
     } finally {
       vi.useRealTimers();
     }
