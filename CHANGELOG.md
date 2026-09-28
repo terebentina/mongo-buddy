@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [2.22.1](https://github.com/terebentina/mongo-buddy/compare/v2.22.0...v2.22.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* **mcp:** keep write approval pending until decision ([4ab6b5e](https://github.com/terebentina/mongo-buddy/commit/4ab6b5eb6efa003d713275bdd3c7e37d081bc978))
+
 ## [2.22.0](https://github.com/terebentina/mongo-buddy/compare/v2.21.0...v2.22.0) (2026-09-27)
 
 
