@@ -6,6 +6,7 @@ import { useStore } from '../store';
 
 const mockApi = {
   distinct: vi.fn(),
+  saveColumnWidth: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
 };
 
 const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
@@ -20,6 +21,7 @@ beforeEach(() => {
     selectedDb: 'testdb',
     selectedCollection: 'users',
     docs: [],
+    collectionColumnWidths: {},
     filter: {},
     projection: null,
     queryMode: 'filter',

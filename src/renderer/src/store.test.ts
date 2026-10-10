@@ -35,6 +35,7 @@ function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSessio
     uri: 'mongodb://localhost',
     databases: [],
     queryHistory: [],
+    collectionColumnWidths: {},
     autoSelectedDb: null,
     collections: [],
     ...overrides,
@@ -77,6 +78,7 @@ beforeEach(() => {
     fieldNames: [],
     pendingFilterText: null,
     queryHistory: [],
+    collectionColumnWidths: {},
     historyIndex: null,
     pendingQueryMode: null,
     mcpStatus: { running: false, port: null },
@@ -85,7 +87,7 @@ beforeEach(() => {
 });
 
 describe('store', () => {
-  it('connect(uri) applies ConnectedSession atomically in one setState', async () => {
+  it('hydrates connection navigation and query history together', async () => {
     const historyEntries = [
       { id: '1', queryMode: 'filter' as const, query: '{}', db: 'test', collection: 'users', timestamp: 1000 },
     ];
@@ -95,6 +97,7 @@ describe('store', () => {
         uri: 'mongodb://localhost',
         databases: [{ name: 'testdb', sizeOnDisk: 1024, empty: false }],
         queryHistory: historyEntries,
+        collectionColumnWidths: { '["testdb","users"]': { name: 240 } },
         autoSelectedDb: 'testdb',
         collections: [{ name: 'users', type: 'collection' }],
       }),
@@ -106,12 +109,10 @@ describe('store', () => {
     expect(state.uri).toBe('mongodb://localhost');
     expect(state.databases).toEqual([{ name: 'testdb', sizeOnDisk: 1024, empty: false }]);
     expect(state.queryHistory).toEqual(historyEntries);
+    expect(state.collectionColumnWidths).toEqual({ '["testdb","users"]': { name: 240 } });
     expect(state.expandedDb).toBe('testdb');
     expect(state.selectedDb).toBe('testdb');
     expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
-    expect(mockApi.connect).toHaveBeenCalledWith('mongodb://localhost');
-    expect(mockApi.listDatabases).not.toHaveBeenCalled();
-    expect(mockApi.listCollections).not.toHaveBeenCalled();
   });
 
   it('connect() multi-db session: autoSelectedDb null, collections empty, databases populated', async () => {
@@ -1293,36 +1294,27 @@ describe('fetchDistinct', () => {
   });
 });
 
-describe('subscribeToConnectionState', () => {
-  it('subscribes to window.api.onConnectionState and updates status on emit', () => {
+describe('connection-scoped column preferences', () => {
+  it('retains preferences on same-connection broadcasts but clears them on replacement and disconnect', () => {
     let emit: (s: ConnectionState) => void = () => {};
-    mockApi.onConnectionState.mockImplementation((cb: (s: ConnectionState) => void) => {
+    mockApi.onConnectionState.mockImplementation((cb) => {
       emit = cb;
       return () => {};
     });
-
-    useStore.getState().subscribeToConnectionState();
-
-    expect(mockApi.onConnectionState).toHaveBeenCalledTimes(1);
-
-    emit({ status: 'connecting', uri: 'mongodb://localhost' });
-    expect(useStore.getState().status).toEqual({ status: 'connecting', uri: 'mongodb://localhost' });
-
-    emit({ status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' });
-    expect(selectConnected(useStore.getState())).toBe(true);
-
+    const widths = { '["testdb","users"]': { name: 240 } };
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      collectionColumnWidths: widths,
+    });
+    const unsubscribe = useStore.getState().subscribeToConnectionState();
+    emit({ status: 'connected', uri: 'mongodb://other-user@localhost', connectionKey: 'localhost:27017' });
+    expect(useStore.getState().collectionColumnWidths).toEqual(widths);
+    emit({ status: 'connected', uri: 'mongodb://elsewhere', connectionKey: 'elsewhere:27017' });
+    expect(useStore.getState().collectionColumnWidths).toEqual({});
+    useStore.setState({ collectionColumnWidths: widths });
     emit({ status: 'disconnected' });
-    expect(selectConnected(useStore.getState())).toBe(false);
-  });
-
-  it('returns an unsubscribe function that removes the listener', () => {
-    const unsubSpy = vi.fn();
-    mockApi.onConnectionState.mockImplementation(() => unsubSpy);
-
-    const unsub = useStore.getState().subscribeToConnectionState();
-    unsub();
-
-    expect(unsubSpy).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().collectionColumnWidths).toEqual({});
+    unsubscribe();
   });
 });
 

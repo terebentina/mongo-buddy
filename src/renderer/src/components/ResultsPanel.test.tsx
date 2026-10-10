@@ -1,11 +1,24 @@
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ResultsPanel, type ResultViewMode } from './ResultsPanel';
 import { useStore } from '../store';
+import { Toaster, toast } from 'sonner';
+import type { SaveColumnWidthInput } from '../../../shared/types';
 
-const mockApi = { find: vi.fn() };
+const mockApi = {
+  find: vi.fn(),
+  aggregate: vi.fn(),
+  sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  listCollections: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  saveHistory: vi.fn().mockResolvedValue(undefined),
+  setWindowTitle: vi.fn(),
+  saveColumnWidth: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+  connect: vi.fn(),
+  disconnect: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+  onConnectionState: vi.fn(() => () => {}),
+};
 
 function ResultsHarness() {
   const [viewMode, setViewMode] = useState<ResultViewMode>('table');
@@ -15,11 +28,16 @@ function ResultsHarness() {
 beforeEach(() => {
   vi.clearAllMocks();
   (window as unknown as Record<string, unknown>).api = mockApi;
+  toast.dismiss();
+  mockApi.saveColumnWidth.mockResolvedValue({ ok: true, data: undefined });
   useStore.setState({
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'key' },
     selectedDb: 'testdb',
     selectedCollection: 'users',
     docs: [],
+    collectionColumnWidths: {},
+    queryHistory: [],
+    historyIndex: null,
     totalCount: 0,
     skip: 0,
     limit: 20,
@@ -147,5 +165,192 @@ describe('ResultsPanel', () => {
     expect(screen.queryByLabelText('JSON results')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Projection options' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
+  });
+
+  it('remembers independent completed resizes through sort cycles and loading remounts without freezing untouched columns', async () => {
+    const docs = [{ _id: '1', name: 'Alice', email: 'alice@example.test' }];
+    useStore.setState({ docs, totalCount: 21 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 21 } });
+    render(<ResultsHarness />);
+    const resize = (column: string, from: number, to: number) => {
+      const header = screen.getByRole('columnheader', { name: column });
+      Object.defineProperty(header, 'offsetWidth', { configurable: true, value: from });
+      fireEvent.mouseDown(screen.getByRole('separator', { name: `Resize ${column}` }), { clientX: 100 });
+      fireEvent.mouseMove(document, { clientX: 100 + to - from });
+      fireEvent.mouseUp(document);
+    };
+    resize('name', 150, 220);
+    resize('email', 150, 10);
+    expect(screen.getByRole('columnheader', { name: 'email' })).toHaveStyle({ width: '40px' });
+    resize('email', 40, 310);
+    expect(useStore.getState().collectionColumnWidths).toEqual({ '["testdb","users"]': { name: 220, email: 310 } });
+    expect(screen.getByRole('columnheader', { name: '_id' }).style.width).toBe('');
+
+    const { promise, resolve: finish } = Promise.withResolvers<unknown>();
+    mockApi.find.mockReturnValueOnce(promise);
+    fireEvent.click(screen.getByRole('columnheader', { name: 'name' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    await act(async () => finish({ ok: true, data: { docs, totalCount: 21 } }));
+    expect(useStore.getState().sort).toEqual({ name: 1 });
+    for (const [field, sort] of [
+      ['name', { name: -1 }],
+      ['name', null],
+      ['email', { email: 1 }],
+    ] as const) {
+      await userEvent.click(screen.getByRole('columnheader', { name: field }));
+      expect(useStore.getState().sort).toEqual(sort);
+      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '220px' });
+      expect(screen.getByRole('columnheader', { name: 'email' })).toHaveStyle({ width: '310px' });
+      expect(screen.getByRole('columnheader', { name: '_id' }).style.width).toBe('');
+    }
+  });
+
+  it('recovers absent fields and collection-name preferences through navigation, queries, pagination, history and view changes', async () => {
+    const docs = [{ name: 'Alice', email: 'a@example.test' }];
+    useStore.setState({ docs, totalCount: 41 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 41 } });
+    mockApi.aggregate.mockResolvedValue({ ok: true, data: docs });
+    render(<ResultsHarness />);
+    const header = screen.getByRole('columnheader', { name: 'name' });
+    Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 150 });
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
+    fireEvent.mouseMove(document, { clientX: 200 });
+    fireEvent.mouseUp(document);
+
+    await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '50' } });
+    await waitFor(() => expect(useStore.getState().loading).toBe(false));
+    await act(async () => {
+      await useStore.getState().runQuery('{ name: "Alice" }');
+    });
+    await act(async () => {
+      await useStore.getState().refreshDocs();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ email: 'only' }], totalCount: 1 } });
+    await act(async () => {
+      await useStore.getState().applyProjection('{ email: 1, _id: 0 }');
+    });
+    expect(screen.queryByRole('columnheader', { name: 'name' })).not.toBeInTheDocument();
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [], totalCount: 0 } });
+    await act(async () => {
+      await useStore.getState().clearProjection();
+    });
+    expect(screen.getByText('No documents found')).toBeInTheDocument();
+    await act(async () => {
+      await useStore.getState().refreshDocs();
+    });
+    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+
+    await act(async () => {
+      await useStore.getState().selectCollection('testdb', 'renamed');
+    });
+    expect(screen.getByRole('columnheader', { name: 'name' }).style.width).toBe('');
+    await act(async () => {
+      await useStore.getState().restoreFromHistory({
+        id: 'users',
+        db: 'testdb',
+        collection: 'users',
+        queryMode: 'aggregate',
+        query: '[]',
+        timestamp: 1,
+      });
+    });
+    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+    expect(screen.getByRole('columnheader', { name: 'email' }).style.width).toBe('');
+    await act(async () => {
+      await useStore.getState().selectCollection('otherdb', 'users');
+    });
+    expect(screen.getByRole('columnheader', { name: 'name' }).style.width).toBe('');
+    await act(async () => {
+      await useStore.getState().selectCollection('testdb', 'users');
+    });
+    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+  });
+
+  it('cancels an interrupted drag and restores selection without leaking the preview into another collection', async () => {
+    const docs = [{ name: 'Alice', email: 'a@example.test' }];
+    useStore.setState({ docs, totalCount: 1 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
+    render(<ResultsHarness />);
+    document.body.style.userSelect = 'text';
+    const header = screen.getByRole('columnheader', { name: 'name' });
+    Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 150 });
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
+    fireEvent.mouseMove(document, { clientX: 300 });
+    expect(header).toHaveStyle({ width: '350px' });
+    expect(useStore.getState().collectionColumnWidths).toEqual({});
+    await act(async () => {
+      await useStore.getState().selectCollection('testdb', 'orders');
+    });
+    fireEvent.mouseMove(document, { clientX: 500 });
+    fireEvent.mouseUp(document);
+    expect(document.body.style.userSelect).toBe('text');
+    expect(useStore.getState().collectionColumnWidths).toEqual({});
+    expect(screen.getByRole('columnheader', { name: 'name' }).style.width).toBe('');
+    document.body.style.userSelect = '';
+  });
+
+  it('fits a numeric width once and retains a newer in-memory choice with a visible save failure until reconnect', async () => {
+    const docs = [{ name: 'Alice', email: 'a@example.test' }];
+    useStore.setState({ docs, totalCount: 1 });
+    const context = { font: '', measureText: () => ({ width: 100 }) };
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    let storedWidth = 0;
+    mockApi.saveColumnWidth.mockImplementation(async (chosen: SaveColumnWidthInput) => {
+      if (chosen.width === 300) return { ok: false, error: 'Disk full' };
+      storedWidth = chosen.width;
+      return { ok: true, data: undefined };
+    });
+    try {
+      render(
+        <>
+          <ResultsHarness />
+          <Toaster />
+        </>
+      );
+      fireEvent.doubleClick(screen.getByRole('separator', { name: 'Resize name' }));
+      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '174px' });
+      expect(storedWidth).toBe(174);
+      const header = screen.getByRole('columnheader', { name: 'name' });
+      Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 174 });
+      fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
+      fireEvent.mouseMove(document, { clientX: 226 });
+      fireEvent.mouseUp(document);
+      expect(await screen.findByText(/Column width was not saved: Disk full/)).toBeInTheDocument();
+      expect(header).toHaveStyle({ width: '300px' });
+      expect(storedWidth).toBe(174);
+      await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Table' }));
+      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '300px' });
+      await act(async () => {
+        await useStore.getState().disconnect();
+      });
+      expect(useStore.getState().collectionColumnWidths).toEqual({});
+      mockApi.connect.mockResolvedValue({
+        ok: true,
+        data: {
+          uri: 'mongodb://localhost',
+          databases: [],
+          queryHistory: [],
+          autoSelectedDb: 'testdb',
+          collections: [],
+          collectionColumnWidths: { '["testdb","users"]': { name: storedWidth } },
+        },
+      });
+      mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
+      await act(async () => {
+        await useStore.getState().connect('mongodb://localhost');
+        await useStore.getState().selectCollection('testdb', 'users');
+      });
+      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '174px' });
+    } finally {
+      getContext.mockRestore();
+    }
   });
 });

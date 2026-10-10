@@ -7,7 +7,8 @@ import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Popover as BasePopover } from '@base-ui/react/popover';
 import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
-import type { DistinctResult } from '../../../shared/types';
+import type { CollectionColumnWidths, DistinctResult } from '../../../shared/types';
+import { collectionColumnWidthsKey } from '../../../shared/collection-column-widths';
 import { canEditProjectedDocument, formatCell, getDocumentFieldValue, isScalarCell } from './DocumentTable.helpers';
 import {
   buildColumnCopyText,
@@ -18,6 +19,7 @@ import {
 } from '../lib/clipboard';
 
 const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
+const EMPTY_WIDTHS: CollectionColumnWidths = {};
 
 function ExpandPopover({ cellValue }: { cellValue: unknown }) {
   const [open, setOpen] = useState(false);
@@ -229,7 +231,7 @@ function snapshotColumnWidths(
   const table = tableRef.current;
   if (!table) return {};
   const ths = table.querySelectorAll('thead th');
-  const widths: Record<string, number> = {};
+  const widths: Record<string, number> = Object.create(null);
   columns.forEach((col, i) => {
     if (ths[i + 1]) widths[col] = Math.max(40, (ths[i + 1] as HTMLElement).offsetWidth);
   });
@@ -249,6 +251,14 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
   const projection = useStore((s) => s.projection);
   const applyFilterValue = useStore((s) => s.applyFilterValue);
   const storeFilter = useStore((s) => s.filter);
+  const status = useStore((s) => s.status);
+  const db = useStore((s) => s.selectedDb);
+  const collection = useStore((s) => s.selectedCollection);
+  const preferences = useStore((s) => s.collectionColumnWidths);
+  const saveColumnWidth = useStore((s) => s.saveColumnWidth);
+  const connectionKey = status.status === 'connected' ? status.connectionKey : null;
+  const committedWidths =
+    db && collection ? (preferences[collectionColumnWidthsKey(db, collection)] ?? EMPTY_WIDTHS) : EMPTY_WIDTHS;
   const hasFilter = Object.keys(storeFilter).length > 0;
   const isAggregate = queryMode === 'aggregate';
   const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);
@@ -256,21 +266,29 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
   const columns = useMemo(() => getColumns(docs, projection, resultQueryMode), [docs, projection, resultQueryMode]);
   const tableRef = useRef<HTMLTableElement>(null);
 
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [previewWidths, setPreviewWidths] = useState<CollectionColumnWidths | null>(null);
+  const cancelDrag = useRef<(() => void) | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [viewportWidth, setViewportWidth] = useState(0);
+  const columnWidths = previewWidths ?? committedWidths;
+  const automaticColumns = columns.filter((col) => !Object.hasOwn(columnWidths, col)).length;
+  const savedWidth = columns.reduce((sum, col) => sum + (Object.hasOwn(columnWidths, col) ? columnWidths[col] : 0), 0);
+  const automaticWidth = automaticColumns ? Math.max(150, (viewportWidth - 48 - savedWidth) / automaticColumns) : 0;
+  const tableWidth = 48 + savedWidth + automaticColumns * automaticWidth;
   const [distinctState, setDistinctState] = useState<{
     column: string;
     anchor: HTMLElement;
     filter?: Record<string, unknown>;
   } | null>(null);
-  const columnsKey = columns.join(',');
-  const prevColumnsKey = useRef(columnsKey);
-
   useEffect(() => {
-    if (prevColumnsKey.current !== columnsKey) {
-      setColumnWidths({});
-      prevColumnsKey.current = columnsKey;
-    }
-  }, [columnsKey]);
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => () => cancelDrag.current?.(), [connectionKey, db, collection, columns]);
 
   const handleAutoResize = useCallback(
     (col: string) => {
@@ -297,37 +315,66 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
         maxWidth = Math.max(maxWidth, textWidth + cellPadding);
       }
 
-      const snapshot = snapshotColumnWidths(tableRef, columns);
-      setColumnWidths({ ...snapshot, [col]: Math.max(40, Math.ceil(maxWidth) + 2) });
+      cancelDrag.current?.();
+      if (connectionKey && db && collection) {
+        void saveColumnWidth({
+          connectionKey,
+          db,
+          collection,
+          column: col,
+          width: Math.max(40, Math.ceil(maxWidth) + 2),
+        });
+      }
     },
-    [docs, queryMode, columns]
+    [docs, queryMode, connectionKey, db, collection, saveColumnWidth]
   );
 
   const handleResizeStart = useCallback(
     (col: string, startX: number, startWidth: number) => {
+      cancelDrag.current?.();
+      if (!connectionKey || !db || !collection) return;
+      const identity = { connectionKey, db, collection, column: col };
       const snapshot = snapshotColumnWidths(tableRef, columns);
+      const previousUserSelect = document.body.style.userSelect;
+      let width = startWidth;
+      let moved = false;
       document.body.style.userSelect = 'none';
 
       const onMouseMove = (e: MouseEvent): void => {
-        const newWidth = Math.max(40, startWidth + e.clientX - startX);
-        setColumnWidths({ ...snapshot, [col]: newWidth });
+        moved = true;
+        width = Math.max(40, startWidth + e.clientX - startX);
+        setPreviewWidths({ ...snapshot, [col]: width });
+      };
+
+      const cancel = (): void => {
+        document.body.style.userSelect = previousUserSelect;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        cancelDrag.current = null;
+        setPreviewWidths(null);
       };
 
       const onMouseUp = (): void => {
-        document.body.style.userSelect = '';
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
+        cancel();
+        if (moved) void saveColumnWidth({ ...identity, width });
       };
 
+      cancelDrag.current = cancel;
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
     },
-    [columns]
+    [columns, connectionKey, db, collection, saveColumnWidth]
   );
 
   return (
-    <div className="flex-1 min-h-0 overflow-auto">
-      <Table ref={tableRef} style={{ tableLayout: 'fixed', minWidth: columns.length * 150 + 48 }}>
+    <div ref={viewportRef} className="flex-1 min-h-0 min-w-0 overflow-auto">
+      <Table ref={tableRef} style={{ tableLayout: 'fixed', width: tableWidth, minWidth: tableWidth }}>
+        <colgroup>
+          <col style={{ width: 48 }} />
+          {columns.map((col) => (
+            <col key={col} style={{ width: Object.hasOwn(columnWidths, col) ? columnWidths[col] : automaticWidth }} />
+          ))}
+        </colgroup>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
             <TableHead className="w-12 px-2 border-r border-border" />
@@ -338,8 +385,9 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
               return (
                 <TableHead
                   key={col}
+                  aria-label={col}
                   className={`group/header px-4 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
-                  style={columnWidths[col] > 0 ? { width: columnWidths[col] } : undefined}
+                  style={Object.hasOwn(columnWidths, col) ? { width: columnWidths[col] } : undefined}
                   onClick={isAggregate ? undefined : () => setSort(col)}
                 >
                   <span className="flex items-center gap-1 min-w-0 w-full">
@@ -378,6 +426,9 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
                   </span>
                   <div
                     className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-border"
+                    role="separator"
+                    aria-label={`Resize ${col}`}
+                    aria-orientation="vertical"
                     onMouseDown={(e) => {
                       e.stopPropagation();
                       const th = e.currentTarget.parentElement!;
