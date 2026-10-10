@@ -13,13 +13,9 @@ import type {
   UpdateManyInput,
   UpdateManyOptions,
   UpdateManyResult,
-  ConnectionColumnWidths,
-  SaveColumnWidthInput,
 } from '../../shared/types';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 import { createRequestFreshness } from './lib/request-freshness';
-import { collectionColumnWidthsKey } from '../../shared/collection-column-widths';
-import { toast } from 'sonner';
 
 const resultRequests = createRequestFreshness();
 
@@ -52,13 +48,11 @@ export interface StoreState {
   sort: Record<string, 1 | -1> | null;
   pendingFilterText: string | null;
   queryHistory: QueryHistoryEntry[];
-  collectionColumnWidths: ConnectionColumnWidths;
   historyIndex: number | null;
   pendingQueryMode: QueryMode | null;
   mcpStatus: McpStatus;
 
   connect: (uri: string) => Promise<void>;
-  saveColumnWidth: (input: SaveColumnWidthInput) => Promise<void>;
   disconnect: () => Promise<void>;
   subscribeToConnectionState: () => () => void;
   initMcpStatus: () => () => void;
@@ -122,7 +116,6 @@ export const useStore = create<StoreState>()((set, get) => ({
   sort: null,
   pendingFilterText: null,
   queryHistory: [],
-  collectionColumnWidths: {},
   historyIndex: null,
   pendingQueryMode: null,
   mcpStatus: { running: false, port: null },
@@ -130,20 +123,19 @@ export const useStore = create<StoreState>()((set, get) => ({
   connect: async (uri: string) => {
     resultRequests.invalidate();
     if (selectConnected(get())) await get().disconnect();
-    set({ loading: true, error: null, collectionColumnWidths: {} });
+    set({ loading: true, error: null });
     const result = await window.api.connect(uri);
     if (!result.ok) {
       set({ loading: false, error: result.error });
       return;
     }
-    const { databases, queryHistory, collectionColumnWidths, autoSelectedDb, collections } = result.data;
+    const { databases, queryHistory, autoSelectedDb, collections } = result.data;
     set({
       loading: false,
       uri: result.data.uri,
       databases,
       ghostDatabases: [],
       queryHistory,
-      collectionColumnWidths,
       expandedDb: autoSelectedDb,
       selectedDb: autoSelectedDb,
       collections,
@@ -169,40 +161,11 @@ export const useStore = create<StoreState>()((set, get) => ({
       projection: null,
       error: null,
       fieldNames: [],
-      collectionColumnWidths: {},
     });
     pushWindowTitle(null, null);
   },
 
-  subscribeToConnectionState: () =>
-    window.api.onConnectionState((status) =>
-      set((state) => ({
-        status,
-        ...(status.status !== 'connected' ||
-        state.status.status !== 'connected' ||
-        state.status.connectionKey !== status.connectionKey
-          ? { collectionColumnWidths: {} }
-          : {}),
-      }))
-    ),
-
-  saveColumnWidth: async (input) => {
-    const { status } = get();
-    if (status.status !== 'connected' || status.connectionKey !== input.connectionKey) return;
-    const namespace = collectionColumnWidthsKey(input.db, input.collection);
-    set((state) => ({
-      collectionColumnWidths: {
-        ...state.collectionColumnWidths,
-        [namespace]: { ...state.collectionColumnWidths[namespace], [input.column]: input.width },
-      },
-    }));
-    try {
-      const result = await window.api.saveColumnWidth(input);
-      if (!result.ok) toast.error(`Column width was not saved: ${result.error}`);
-    } catch (err) {
-      toast.error(`Column width was not saved: ${(err as Error).message}`);
-    }
-  },
+  subscribeToConnectionState: () => window.api.onConnectionState((status) => set({ status })),
 
   initMcpStatus: () => {
     const unsubscribe = window.api.onMcpStatusUpdate((mcpStatus) => set({ mcpStatus }));

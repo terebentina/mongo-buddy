@@ -10,7 +10,6 @@ import type {
   UpdateManyResult,
   SavedConnection,
   QueryHistoryEntry,
-  SaveColumnWidthInput,
   PickedFile,
   DistinctResult,
   IndexInfo,
@@ -100,7 +99,6 @@ interface MongoApi {
   getLastUsed(): Promise<string | null>;
   saveHistory(entries: QueryHistoryEntry[]): Promise<void>;
   clearHistory(): Promise<void>;
-  saveColumnWidth(input: SaveColumnWidthInput): Promise<Result<undefined>>;
   pickImportFile(): Promise<Result<PickedFile[] | null>>;
   operationStart(params: OperationParams): Promise<Result<OperationId>>;
   operationCancel(id: OperationId): Promise<Result<undefined>>;

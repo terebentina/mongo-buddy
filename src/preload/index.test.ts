@@ -6,7 +6,7 @@ vi.mock('electron', () => ({
 }));
 
 import { createApi } from './index';
-import type { ConnectionState } from '../main/connection-manager';
+import type { ConnectionState, ConnectedSession } from '../main/connection-manager';
 import type { McpStatus } from '../shared/types';
 
 describe('preload createApi', () => {
@@ -21,6 +21,25 @@ describe('preload createApi', () => {
     on = vi.fn();
     off = vi.fn();
     ipcRenderer = { invoke, on, off };
+  });
+
+  describe('connect', () => {
+    it('invokes mongo:connect with uri and forwards the ConnectedSession result', async () => {
+      const session: ConnectedSession = {
+        uri: 'mongodb://localhost:27017',
+        databases: [{ name: 'db1', sizeOnDisk: 100, empty: false }],
+        queryHistory: [],
+        autoSelectedDb: 'db1',
+        collections: [],
+      };
+      invoke.mockResolvedValue({ ok: true, data: session });
+      const api = createApi(ipcRenderer);
+
+      const result = await api.connect('mongodb://localhost:27017');
+
+      expect(invoke).toHaveBeenCalledWith('mongo:connect', 'mongodb://localhost:27017');
+      expect(result).toEqual({ ok: true, data: session });
+    });
   });
 
   describe('mongo command channels', () => {

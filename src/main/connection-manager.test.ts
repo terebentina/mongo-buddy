@@ -67,7 +67,6 @@ function makeDeps(
       clientFactory,
       connectionStore: { setLastUsed },
       historyStore: { getAll },
-      columnWidthsStore: { getAll: () => ({}) },
       connectionKeyFromUri: overrides.connectionKeyFromUri ?? ((uri: string) => `key:${uri}`),
     },
     client,
@@ -114,7 +113,6 @@ describe('ConnectionManager', () => {
         uri: 'mongodb://localhost/',
         databases: [{ name: 'mydb', sizeOnDisk: 1024, empty: false }],
         queryHistory: [{ id: 'h1', queryMode: 'filter', query: '{}', db: 'mydb', collection: 'users', timestamp: 1 }],
-        collectionColumnWidths: {},
         autoSelectedDb: 'mydb',
         collections: [
           { name: 'orders', type: 'collection', count: 20 },

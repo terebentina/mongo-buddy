@@ -3,7 +3,6 @@ import path from 'path';
 import type { ConnectionStore } from './connection-store';
 import type { ActiveConnection, ConnectionManager } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
-import type { CollectionColumnWidthsStore } from './collection-column-widths-store';
 import type { OperationRegistry } from './operation-registry';
 import type { McpStatusEmitter } from './mcp/status';
 import type {
@@ -14,7 +13,6 @@ import type {
   OperationParams,
   OperationId,
   McpStatus,
-  SaveColumnWidthInput,
 } from '../shared/types';
 import { formatWindowTitle } from './window-title';
 
@@ -23,7 +21,6 @@ export type Broadcast = (channel: string, payload: unknown) => void;
 export interface IpcDeps {
   connStore: ConnectionStore;
   historyStore: QueryHistoryStore;
-  columnWidthsStore: CollectionColumnWidthsStore;
   manager: ConnectionManager;
   registry: OperationRegistry;
   mcpStatus: McpStatusEmitter;
@@ -31,7 +28,7 @@ export interface IpcDeps {
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const { connStore, historyStore, columnWidthsStore, manager, registry, mcpStatus, broadcast } = deps;
+  const { connStore, historyStore, manager, registry, mcpStatus, broadcast } = deps;
 
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
@@ -107,17 +104,6 @@ export function registerIpcHandlers(deps: IpcDeps): void {
   ipcMain.handle(
     'history:clear',
     wrapSync(() => historyStore.clear(requireActive().key))
-  );
-
-  ipcMain.handle(
-    'column-widths:save',
-    wrap(async (input: unknown) => {
-      const chosen = input as SaveColumnWidthInput;
-      const active = requireActive();
-      if (active.key !== chosen.connectionKey) throw new Error('Connection changed; column width was not saved');
-      columnWidthsStore.save(chosen);
-      return { ok: true, data: undefined };
-    })
   );
 
   ipcMain.handle('mongo:pick-import-file', async (): Promise<Result<PickedFile[] | null>> => {

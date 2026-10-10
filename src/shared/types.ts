@@ -93,22 +93,10 @@ export type ConnectionState =
   | { status: 'connected'; uri: string; connectionKey: string }
   | { status: 'error'; uri: string; error: string };
 
-export type CollectionColumnWidths = Record<string, number>;
-export type ConnectionColumnWidths = Record<string, CollectionColumnWidths>;
-
-export interface SaveColumnWidthInput {
-  connectionKey: string;
-  db: string;
-  collection: string;
-  column: string;
-  width: number;
-}
-
 export interface ConnectedSession {
   uri: string;
   databases: DbInfo[];
   queryHistory: QueryHistoryEntry[];
-  collectionColumnWidths: ConnectionColumnWidths;
   autoSelectedDb: string | null;
   collections: CollectionInfo[];
 }

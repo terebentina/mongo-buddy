@@ -2,12 +2,6 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## Unreleased
-
-### Features
-
-* **results:** remember explicitly resized collection column widths per connection, database, and collection across queries, navigation, reconnects, and application restarts.
-
 ## [2.22.2](https://github.com/terebentina/mongo-buddy/compare/v2.22.1...v2.22.2) (2026-10-10)
 
 

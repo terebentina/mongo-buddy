@@ -13,7 +13,6 @@ function sessionOk(uri = 'mongodb://localhost:27017'): { ok: true; data: Connect
       uri,
       databases: [],
       queryHistory: [],
-      collectionColumnWidths: {},
       autoSelectedDb: null,
       collections: [],
     },
