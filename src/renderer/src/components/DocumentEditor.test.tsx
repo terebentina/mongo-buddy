@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -152,21 +153,39 @@ describe('DocumentEditor', () => {
     getEditorView().focus();
     await userEvent.keyboard('{Control>}h{/Control}');
 
-    const panel = document.querySelector('.cm-search.cm-panel');
-    expect(panel).toBeTruthy();
-    expect(panel!.querySelectorAll('input').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole('textbox', { name: 'Find' })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: 'Replace' })).toBeVisible();
   });
 
-  it('Esc closes the search panel without closing the Dialog', async () => {
-    render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={() => {}} />);
+  it.each(['search', 'editor', 'dialog button'])(
+    'Escape closes search before the edit dialog when focus is on the %s',
+    async (focusTarget) => {
+      function EditDialog(): React.JSX.Element | null {
+        const [editing, setEditing] = useState(true);
+        return editing ? (
+          <DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={() => setEditing(false)} />
+        ) : null;
+      }
 
-    getEditorView().focus();
-    await userEvent.keyboard('{Control>}f{/Control}');
-    expect(document.querySelector('.cm-search.cm-panel')).toBeTruthy();
+      render(<EditDialog />);
+      const draft = '{"name":"Alice","unsaved":true}';
+      setEditorText(draft);
+      getEditorView().focus();
+      await userEvent.keyboard('{Control>}f{/Control}');
+      await userEvent.type(screen.getByRole('textbox', { name: 'Find' }), 'Alice');
 
-    await userEvent.keyboard('{Escape}');
+      if (focusTarget === 'editor') getEditorView().focus();
+      if (focusTarget === 'dialog button') screen.getByRole('button', { name: /^save$/i }).focus();
 
-    expect(document.querySelector('.cm-search.cm-panel')).toBeNull();
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-  });
+      await userEvent.keyboard('{Escape}');
+
+      expect(screen.queryByRole('textbox', { name: 'Find' })).not.toBeInTheDocument();
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(getEditorView().state.doc.toString()).toBe(draft);
+
+      await userEvent.keyboard('{Escape}');
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    }
+  );
 });

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Copy } from 'lucide-react';
 import { EditorView } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
+import { closeSearchPanel } from '@codemirror/search';
 import JSON5 from 'json5';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { baseExtensions } from '../lib/editor';
@@ -131,6 +132,12 @@ export function DocumentEditor({ editDoc, onClose }: DocumentEditorProps) {
         <DialogContent
           className="max-w-[90vw] w-[90vw] h-[90vh] flex flex-col"
           initialFocus={() => viewRef.current?.contentDOM ?? null}
+          onKeyDownCapture={(event) => {
+            if (event.key === 'Escape' && viewRef.current && closeSearchPanel(viewRef.current)) {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
         >
           <DialogHeader>
             <DialogTitle>

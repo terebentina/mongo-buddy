@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Bug Fixes
+
+* **editor:** close document search on Escape before dismissing the document modal, preserving unsaved edits.
+
 ## [2.22.1](https://github.com/terebentina/mongo-buddy/compare/v2.22.0...v2.22.1) (2026-09-28)
 
 
