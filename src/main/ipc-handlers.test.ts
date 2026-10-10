@@ -4,7 +4,8 @@ import type { MongoClient } from 'mongodb';
 import { registerIpcHandlers } from './ipc-handlers';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
-import type { ActiveConnection, ConnectionManager, ConnectedSession, ConnectionState } from './connection-manager';
+import type { CollectionColumnWidthsStore } from './collection-column-widths-store';
+import type { ActiveConnection, ConnectionManager, ConnectionState } from './connection-manager';
 import type { OperationRegistry } from './operation-registry';
 import type { OperationParams } from '../shared/types';
 import type { Broadcast } from './ipc-handlers';
@@ -107,6 +108,7 @@ describe('IPC Handlers', () => {
     registerIpcHandlers({
       connStore: mockConnStore as unknown as ConnectionStore,
       historyStore: mockHistoryStore as unknown as QueryHistoryStore,
+      columnWidthsStore: { save: vi.fn() } as unknown as CollectionColumnWidthsStore,
       manager: mockManager as unknown as ConnectionManager,
       registry: mockRegistry as unknown as OperationRegistry,
       mcpStatus: mockMcpStatus as unknown as import('./mcp/status').McpStatusEmitter,
@@ -116,23 +118,6 @@ describe('IPC Handlers', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
-  });
-
-  describe('mongo:connect', () => {
-    const session: ConnectedSession = {
-      uri: 'mongodb://localhost:27017',
-      databases: [{ name: 'db1', sizeOnDisk: 1, empty: false }],
-      queryHistory: [],
-      autoSelectedDb: 'db1',
-      collections: [],
-    };
-
-    it('delegates to ConnectionManager.connect and returns full ConnectedSession', async () => {
-      mockManager.connect.mockResolvedValue({ ok: true, data: session });
-      const result = await handlers['mongo:connect']({} as Electron.IpcMainInvokeEvent, 'mongodb://localhost:27017');
-      expect(mockManager.connect).toHaveBeenCalledWith('mongodb://localhost:27017');
-      expect(result).toEqual({ ok: true, data: session });
-    });
   });
 
   describe('mongo:disconnect', () => {

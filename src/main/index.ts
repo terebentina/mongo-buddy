@@ -9,6 +9,7 @@ import { MongoClient } from 'mongodb';
 import { MongoService } from './mongo-service';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore, connectionKeyFromUri } from './query-history-store';
+import { CollectionColumnWidthsStore } from './collection-column-widths-store';
 import { createConnectionManager } from './connection-manager';
 import { registerIpcHandlers } from './ipc-handlers';
 import { createDispatcher } from './commands/dispatch';
@@ -55,10 +56,12 @@ if (process.platform === 'linux') {
 
 const connectionStore = new ConnectionStore();
 const queryHistoryStore = new QueryHistoryStore();
+const columnWidthsStore = new CollectionColumnWidthsStore();
 const connectionManager = createConnectionManager({
   clientFactory: { create: (uri: string) => new MongoClient(uri) },
   connectionStore,
   historyStore: queryHistoryStore,
+  columnWidthsStore,
   connectionKeyFromUri,
 });
 const mongoService = new MongoService();
@@ -85,6 +88,7 @@ const operationRegistry = createOperationRegistry({
 registerIpcHandlers({
   connStore: connectionStore,
   historyStore: queryHistoryStore,
+  columnWidthsStore,
   manager: connectionManager,
   registry: operationRegistry,
   mcpStatus: mcpStatusEmitter,
