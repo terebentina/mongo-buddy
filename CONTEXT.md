@@ -25,7 +25,7 @@ The runtime capability used inside main-process code: `{ client: MongoClient, ke
 _Avoid_: live connection, mongo session, client wrapper.
 
 **ConnectionKey**:
-The opaque per-connection identity string, derived from the URI. Used to scope per-connection storage (query history today; possibly favorites or saved queries later). Currently typed as `string`.
+The opaque per-connection identity string, derived from the URI's host and port. Connections with different saved names or credentials share a **ConnectionKey** when their host and port match; it scopes query history and **CollectionColumnWidths**.
 _Avoid_: connection id, uri hash.
 
 ### Verbs
@@ -62,6 +62,9 @@ _Avoid_: `mode`, `type` (as a field name on a query/history entry), `kind`. The 
 
 **ResultViewMode**:
 The presentation of query results as a table or formatted JSON. It is independent of **QueryMode**: changing the presentation does not change which documents the query returns.
+
+**CollectionColumnWidths**:
+The user-set widths of named results-table columns for one database and collection name, scoped to a **ConnectionKey**. They are independent of query, sort, and **ResultViewMode**, and remain associated with the collection name when it is renamed.
 
 **projection**:
 A temporary selection of fields that a filter query returns. It stays with the selected collection and is not part of query history.
