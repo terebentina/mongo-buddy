@@ -110,6 +110,7 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
   const skip = useStore((s) => s.skip);
   const limit = useStore((s) => s.limit);
   const loading = useStore((s) => s.loading);
+  const error = useStore((s) => s.error);
   const fetchPage = useStore((s) => s.fetchPage);
   const setLimit = useStore((s) => s.setLimit);
   const currentPage = Math.floor(skip / limit) + 1;
@@ -148,6 +149,11 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
         <DeleteResultsDialog />
         <UpdateManyDialog />
       </div>
+      {!loading && error && (
+        <div role="alert" className="px-4 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       {loading ? (
         <Loader className="flex-1" />
       ) : viewMode === 'table' ? (

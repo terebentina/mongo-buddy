@@ -47,11 +47,50 @@ beforeEach(() => {
     queryMode: 'filter',
     resultQueryMode: 'filter',
     sort: null,
+    error: null,
     loading: false,
   });
 });
 
 describe('ResultsPanel', () => {
+  it.each(['Table', 'JSON'] as const)(
+    'clears old rows and shows the failed new collection error in %s view',
+    async (view) => {
+      useStore.setState({ docs: [{ name: 'USERS_BEFORE' }], totalCount: 1, projection: { name: 1 } });
+      render(<ResultsHarness />);
+      await userEvent.click(screen.getByRole('button', { name: view }));
+      const { promise, resolve: finish } = Promise.withResolvers<unknown>();
+      mockApi.find.mockReturnValueOnce(promise);
+      let selecting = Promise.resolve();
+      act(() => {
+        selecting = useStore.getState().selectCollection('testdb', 'orders');
+      });
+
+      expect(useStore.getState().selectedCollection).toBe('orders');
+      expect(useStore.getState().projection).toBeNull();
+      expect(useStore.getState().totalCount).toBe(0);
+      expect(screen.getByRole('region', { name: 'Results' })).not.toHaveTextContent('USERS_BEFORE');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      await act(async () => {
+        finish({ ok: false, error: 'Orders load rejected' });
+        await selecting;
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent('Orders load rejected');
+      expect(screen.getByRole('region', { name: 'Results' })).not.toHaveTextContent('USERS_BEFORE');
+      expect(useStore.getState().selectedCollection).toBe('orders');
+      expect(useStore.getState().docs).toEqual([]);
+      if (view === 'JSON') expect(screen.getByLabelText('JSON results')).toHaveTextContent('[]');
+
+      mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'INVOICES_AFTER' }], totalCount: 1 } });
+      await act(async () => {
+        await useStore.getState().selectCollection('testdb', 'invoices');
+      });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Results' })).toHaveTextContent('INVOICES_AFTER');
+    }
+  );
+
   it('switches the loaded page to read-only EJSON without another request and keeps actions above the result', async () => {
     const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Alice' }];
     useStore.setState({ docs, totalCount: 21 });

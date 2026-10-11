@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStore, selectConnected } from './store';
-import type { ConnectionState, ConnectedSession, McpStatus } from '../../shared/types';
+import type { ConnectionState, ConnectedSession, McpStatus, QueryHistoryEntry, Result } from '../../shared/types';
 
 const mockApi = {
   connect: vi.fn(),
@@ -50,10 +50,11 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   mockApi.onConnectionState.mockImplementation(() => () => {});
   mockApi.onMcpStatusUpdate.mockImplementation(() => () => {});
   mockApi.getMcpStatus.mockResolvedValue({ running: false, port: null });
+  mockApi.saveHistory.mockResolvedValue(undefined);
   useStore.setState({
     status: { status: 'disconnected' } as ConnectionState,
     uri: '',
@@ -75,6 +76,7 @@ beforeEach(() => {
     savedConnections: [],
     queryMode: 'filter' as const,
     fieldNames: [],
+    sort: null,
     pendingFilterText: null,
     queryHistory: [],
     collectionColumnWidths: {},
@@ -911,42 +913,45 @@ describe('projection', () => {
   });
 });
 
-describe('addToHistory', () => {
-  const makeEntry = (overrides = {}) => ({
-    id: 'test-id',
-    queryMode: 'filter' as const,
-    query: '{"name":"Alice"}',
-    db: 'testdb',
-    collection: 'users',
-    timestamp: 1000,
-    ...overrides,
+describe('query attempt history', () => {
+  beforeEach(() => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
+    mockApi.find.mockResolvedValue({ ok: false, error: 'Controlled query failure' });
   });
 
-  it('prepends entry to queryHistory', () => {
-    useStore.getState().addToHistory(makeEntry({ id: '1' }));
-    useStore.getState().addToHistory(makeEntry({ id: '2', query: '{"age":30}' }));
+  it('records attempted queries before replies, including failed attempts', async () => {
+    const response = deferred<{ ok: false; error: string }>();
+    mockApi.find.mockReturnValueOnce(response.promise);
+    const attempt = useStore.getState().runQuery('{ name: "Alice" }');
+    expect(useStore.getState().queryHistory).toMatchObject([
+      { db: 'testdb', collection: 'users', queryMode: 'filter', query: '{ name: "Alice" }' },
+    ]);
+    expect(useStore.getState().historyIndex).toBe(0);
 
-    const history = useStore.getState().queryHistory;
-    expect(history).toHaveLength(2);
-    expect(history[0].id).toBe('2');
-    expect(history[1].id).toBe('1');
+    response.resolve({ ok: false, error: 'Controlled query failure' });
+    await attempt;
+    await useStore.getState().runQuery('{ age: 30 }');
+    expect(useStore.getState().queryHistory.map((entry) => entry.query)).toEqual(['{ age: 30 }', '{ name: "Alice" }']);
   });
 
-  it('deduplicates when top entry has same query+db+collection+type', () => {
-    useStore.getState().addToHistory(makeEntry({ id: '1' }));
-    useStore.getState().addToHistory(makeEntry({ id: '2' }));
+  it('deduplicates only the top matching attempt and returns the cursor to it', async () => {
+    await useStore.getState().runQuery('{}');
+    const first = useStore.getState().queryHistory[0];
+    useStore.setState({ historyIndex: 3 });
+    await useStore.getState().runQuery('{}');
+    expect(useStore.getState().queryHistory).toEqual([first]);
+    expect(useStore.getState().historyIndex).toBe(0);
 
-    const history = useStore.getState().queryHistory;
-    expect(history).toHaveLength(1);
-    expect(history[0].id).toBe('1');
+    await useStore.getState().runQuery('{ age: 30 }');
+    await useStore.getState().runQuery('{}');
+    expect(useStore.getState().queryHistory.map((entry) => entry.query)).toEqual(['{}', '{ age: 30 }', '{}']);
   });
 
-  it('caps queryHistory at 50 entries', () => {
-    for (let i = 0; i < 55; i++) {
-      useStore.getState().addToHistory(makeEntry({ id: `id-${i}`, query: `{"i":${i}}` }));
-    }
-
+  it('retains the latest 50 attempts', async () => {
+    for (let i = 0; i < 55; i++) await useStore.getState().runQuery(`{ i: ${i} }`);
     expect(useStore.getState().queryHistory).toHaveLength(50);
+    expect(useStore.getState().queryHistory[0].query).toBe('{ i: 54 }');
+    expect(useStore.getState().queryHistory[49].query).toBe('{ i: 5 }');
   });
 });
 
@@ -968,29 +973,6 @@ describe('historyIndex + navigateHistory', () => {
     collection: 'users',
     timestamp: 1000,
     ...overrides,
-  });
-
-  it('addToHistory sets historyIndex to 0 on new entry', () => {
-    useStore.setState({ historyIndex: 5 });
-    useStore.getState().addToHistory(makeEntry({ id: '1' }));
-    expect(useStore.getState().historyIndex).toBe(0);
-  });
-
-  it('addToHistory sets historyIndex to 0 on dedup early-return', () => {
-    useStore.getState().addToHistory(makeEntry({ id: '1' }));
-    useStore.setState({ historyIndex: 3 });
-    useStore.getState().addToHistory(makeEntry({ id: '2' }));
-    expect(useStore.getState().historyIndex).toBe(0);
-    expect(useStore.getState().queryHistory).toHaveLength(1);
-  });
-
-  it('runQuery with { skipHistory: true } does NOT prepend to history', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
-    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
-
-    await useStore.getState().runQuery('{"name":"Alice"}', { skipHistory: true });
-
-    expect(useStore.getState().queryHistory).toHaveLength(0);
   });
 
   it('restoreFromHistory does NOT add a duplicate entry when restoring index > 0', async () => {
@@ -1109,28 +1091,6 @@ describe('historyIndex + navigateHistory', () => {
   });
 });
 
-describe('switchCollection', () => {
-  it('sets selectedDb and selectedCollection and fetches fields', async () => {
-    mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
-
-    await useStore.getState().switchCollection('testdb', 'users');
-
-    const state = useStore.getState();
-    expect(state.selectedDb).toBe('testdb');
-    expect(state.selectedCollection).toBe('users');
-    expect(state.fieldNames).toEqual(['_id', 'name']);
-    expect(mockApi.sampleFields).toHaveBeenCalledWith('testdb', 'users');
-  });
-
-  it('does NOT call find', async () => {
-    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
-
-    await useStore.getState().switchCollection('testdb', 'users');
-
-    expect(mockApi.find).not.toHaveBeenCalled();
-  });
-});
-
 describe('restoreFromHistory', () => {
   const makeEntry = (overrides = {}) => ({
     id: 'test-id',
@@ -1163,7 +1123,7 @@ describe('restoreFromHistory', () => {
     expect(state.totalCount).toBe(1);
   });
 
-  it('different collection calls switchCollection (sampleFields) then sets pending state', async () => {
+  it('different collection clears projection and restores its query and fields', async () => {
     useStore.setState({ selectedDb: 'testdb', selectedCollection: 'orders', projection: { orderId: 1 } });
     mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ name: 'Alice' }], totalCount: 1 } });
@@ -1440,5 +1400,514 @@ describe('ghost databases', () => {
     await useStore.getState().refreshDatabases();
 
     expect(useStore.getState().databases).toEqual([{ name: 'old', sizeOnDisk: 1, empty: false }]);
+  });
+});
+
+describe('collection selection ownership', () => {
+  const rows = (label: string) => ({ ok: true as const, data: { docs: [{ label }], totalCount: 1 } });
+  const fields = (label: string) => ({ ok: true as const, data: [label] });
+  const historyEntry = (id: string, overrides: Partial<QueryHistoryEntry> = {}): QueryHistoryEntry => ({
+    id,
+    db: 'testdb',
+    collection: 'users',
+    queryMode: 'filter',
+    query: `{ label: "${id}" }`,
+    timestamp: 1,
+    ...overrides,
+  });
+  const connected: ConnectionState = {
+    status: 'connected',
+    uri: 'mongodb://localhost',
+    connectionKey: 'localhost:27017',
+  };
+
+  it('keeps the newer selection attempt and pending rows when older connection history hydrates', async () => {
+    let emit!: (state: ConnectionState) => void;
+    mockApi.onConnectionState.mockImplementation((cb) => {
+      emit = cb;
+      return () => {};
+    });
+    const unsubscribe = useStore.getState().subscribeToConnectionState();
+    const connectReply = deferred<Result<ConnectedSession>>();
+    const rowReply = deferred<ReturnType<typeof rows>>();
+    const persisted = historyEntry('persisted', { collection: 'orders' });
+    const widths = { '["testdb","users"]': { name: 240 } };
+    useStore.setState({ queryHistory: [historyEntry('previous connection')], historyIndex: 0 });
+    mockApi.connect.mockReturnValueOnce(connectReply.promise);
+    mockApi.find.mockReturnValueOnce(rowReply.promise);
+    mockApi.sampleFields.mockResolvedValueOnce(fields('name'));
+    const connection = useStore.getState().connect('mongodb://localhost');
+    emit({ status: 'connecting', uri: 'mongodb://localhost' });
+    emit(connected);
+    const selection = useStore.getState().selectCollection('testdb', 'users');
+    const attempt = useStore.getState().queryHistory[0];
+    expect(attempt).toMatchObject({ db: 'testdb', collection: 'users', query: '{}' });
+
+    connectReply.resolve({
+      ok: true,
+      data: makeSession({
+        queryHistory: [persisted],
+        collectionColumnWidths: widths,
+        autoSelectedDb: 'archive',
+        collections: [{ name: 'orders', type: 'collection' }],
+      }),
+    });
+    await connection;
+    expect(useStore.getState()).toMatchObject({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      pendingFilterText: '{}',
+      queryMode: 'filter',
+      queryHistory: [attempt, persisted],
+      historyIndex: 0,
+      loading: true,
+      collectionColumnWidths: widths,
+    });
+    expect(mockApi.saveHistory).toHaveBeenLastCalledWith([attempt, persisted]);
+
+    rowReply.resolve(rows('newly selected users'));
+    await selection;
+    expect(useStore.getState()).toMatchObject({
+      loading: false,
+      docs: [{ label: 'newly selected users' }],
+      totalCount: 1,
+      queryHistory: [attempt, persisted],
+      historyIndex: 0,
+    });
+    unsubscribe();
+  });
+
+  it.each(['same query', 'same id'] as const)(
+    'reconciles %s history overlap while retaining the replay cursor, distinct attempts and the 50-entry cap',
+    async (overlap) => {
+      let emit!: (state: ConnectionState) => void;
+      mockApi.onConnectionState.mockImplementation((cb) => {
+        emit = cb;
+        return () => {};
+      });
+      const unsubscribe = useStore.getState().subscribeToConnectionState();
+      const connectReply = deferred<Result<ConnectedSession>>();
+      mockApi.connect.mockReturnValueOnce(connectReply.promise);
+      mockApi.find.mockResolvedValue(rows('query rows'));
+      mockApi.sampleFields.mockResolvedValue(fields('name'));
+      const connection = useStore.getState().connect('mongodb://localhost');
+      emit({ status: 'connecting', uri: 'mongodb://localhost' });
+      emit(connected);
+      await useStore.getState().selectCollection('testdb', 'users');
+      const initialAttempt = useStore.getState().queryHistory[0];
+      await useStore.getState().runQuery('{ active: true }');
+      const latestAttempt = useStore.getState().queryHistory[0];
+      await useStore.getState().restoreFromHistory(initialAttempt);
+      expect(useStore.getState().historyIndex).toBe(1);
+      expect(mockApi.saveHistory).toHaveBeenCalledTimes(2);
+
+      const duplicate = overlap === 'same id' ? initialAttempt : historyEntry('duplicate', { query: '{}' });
+      const repeated = historyEntry('earlier active attempt', { query: '{ active: true }' });
+      const older = Array.from({ length: 48 }, (_, index) =>
+        historyEntry('persisted-' + index, { collection: 'orders' })
+      );
+      connectReply.resolve({ ok: true, data: makeSession({ queryHistory: [duplicate, repeated, ...older] }) });
+      await connection;
+
+      const reconciled = [latestAttempt, initialAttempt, repeated, ...older.slice(0, 47)];
+      expect(useStore.getState().queryHistory).toEqual(reconciled);
+      expect(useStore.getState().queryHistory).toHaveLength(50);
+      expect(useStore.getState()).toMatchObject({
+        selectedCollection: 'users',
+        historyIndex: 1,
+        pendingFilterText: '{}',
+        queryMode: 'filter',
+      });
+      expect(mockApi.saveHistory).toHaveBeenLastCalledWith(reconciled);
+      const saves = mockApi.saveHistory.mock.calls.length;
+      await useStore.getState().navigateHistory(1);
+      expect(useStore.getState()).toMatchObject({ historyIndex: 2, pendingFilterText: repeated.query });
+      expect(useStore.getState().queryHistory).toEqual(reconciled);
+      expect(mockApi.saveHistory).toHaveBeenCalledTimes(saves);
+      unsubscribe();
+    }
+  );
+
+  it('clearing a paused projection lets the pending same-collection Aggregate replay settle', async () => {
+    const entry = historyEntry('aggregate', { queryMode: 'aggregate', query: '[{ $match: { active: true } }]' });
+    const reply = deferred<Result<Record<string, unknown>[]>>();
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      projection: { name: 1 },
+      queryHistory: [entry],
+    });
+    mockApi.aggregate.mockReturnValueOnce(reply.promise);
+    const replay = useStore.getState().restoreFromHistory(entry);
+    expect(useStore.getState()).toMatchObject({ loading: true, queryMode: 'aggregate', projection: { name: 1 } });
+
+    expect(await useStore.getState().clearProjection()).toBeNull();
+    expect(useStore.getState()).toMatchObject({ loading: true, projection: null });
+    reply.resolve({ ok: true, data: [{ name: 'Active user', active: true }] });
+    await replay;
+
+    expect(useStore.getState()).toMatchObject({
+      loading: false,
+      docs: [{ name: 'Active user', active: true }],
+      totalCount: 1,
+      projection: null,
+      queryMode: 'aggregate',
+      resultQueryMode: 'aggregate',
+      pendingFilterText: entry.query,
+      historyIndex: 0,
+    });
+    expect(useStore.getState().queryHistory).toEqual([entry]);
+    expect(mockApi.find).not.toHaveBeenCalled();
+    expect(mockApi.saveHistory).not.toHaveBeenCalled();
+  });
+
+  it('changes selection and title immediately and keeps old rows cleared after an initial load fails', async () => {
+    const reply = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    const fieldReply = deferred<Result<string[]>>();
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      docs: [{ label: 'old' }],
+      totalCount: 12,
+      projection: { name: 1 },
+      fieldNames: ['old'],
+      resultQueryMode: 'aggregate',
+      error: 'old error',
+    });
+    mockApi.find.mockReturnValueOnce(reply.promise);
+    mockApi.sampleFields.mockReturnValueOnce(fieldReply.promise);
+    const selection = useStore.getState().selectCollection('testdb', 'orders');
+
+    expect(useStore.getState()).toMatchObject({
+      selectedDb: 'testdb',
+      selectedCollection: 'orders',
+      docs: [],
+      totalCount: 0,
+      projection: null,
+      fieldNames: [],
+      resultQueryMode: 'filter',
+      error: null,
+      queryMode: 'filter',
+      pendingFilterText: '{}',
+      pendingQueryMode: 'filter',
+      historyIndex: 0,
+    });
+    expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'testdb.orders' });
+    reply.resolve({ ok: false, error: 'Initial load failed' });
+    await Promise.resolve();
+    expect(useStore.getState()).toMatchObject({
+      docs: [],
+      totalCount: 0,
+      loading: false,
+      error: 'Initial load failed',
+    });
+    fieldReply.resolve(fields('orderId'));
+    await selection;
+    expect(useStore.getState()).toMatchObject({
+      selectedCollection: 'orders',
+      docs: [],
+      totalCount: 0,
+      error: 'Initial load failed',
+      fieldNames: ['orderId'],
+    });
+    expect(useStore.getState().queryHistory[0]).toMatchObject({ collection: 'orders', query: '{}' });
+  });
+
+  it('ignores older rows and fields even when selection returns to the same collection', async () => {
+    const replies = [
+      deferred<ReturnType<typeof rows>>(),
+      deferred<ReturnType<typeof rows>>(),
+      deferred<ReturnType<typeof rows>>(),
+    ];
+    const fieldReplies = [
+      deferred<ReturnType<typeof fields>>(),
+      deferred<ReturnType<typeof fields>>(),
+      deferred<ReturnType<typeof fields>>(),
+    ];
+    for (const reply of replies) mockApi.find.mockReturnValueOnce(reply.promise);
+    for (const reply of fieldReplies) mockApi.sampleFields.mockReturnValueOnce(reply.promise);
+    const a = useStore.getState().selectCollection('testdb', 'users');
+    const b = useStore.getState().selectCollection('testdb', 'orders');
+    const latest = useStore.getState().selectCollection('testdb', 'users');
+    replies[2].resolve(rows('latest users'));
+    fieldReplies[2].resolve(fields('latest user field'));
+    await latest;
+    replies[1].resolve(rows('old orders'));
+    fieldReplies[1].resolve(fields('old order field'));
+    replies[0].resolve(rows('old users'));
+    fieldReplies[0].resolve(fields('old user field'));
+    await Promise.all([a, b]);
+    expect(useStore.getState()).toMatchObject({
+      selectedCollection: 'users',
+      docs: [{ label: 'latest users' }],
+      fieldNames: ['latest user field'],
+      totalCount: 1,
+      loading: false,
+      historyIndex: 0,
+    });
+    expect(useStore.getState().queryHistory.map((entry) => entry.collection)).toEqual(['users', 'orders', 'users']);
+    expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'testdb.users' });
+  });
+
+  it.each(['query', 'page'] as const)(
+    'retains delayed field discovery across a newer same-collection %s',
+    async (action) => {
+      const initialReply = deferred<ReturnType<typeof rows>>();
+      const fieldReply = deferred<ReturnType<typeof fields>>();
+      mockApi.find.mockReturnValueOnce(initialReply.promise).mockResolvedValueOnce(rows('newer rows'));
+      mockApi.sampleFields.mockReturnValueOnce(fieldReply.promise);
+      const selection = useStore.getState().selectCollection('testdb', 'users');
+      if (action === 'query') await useStore.getState().runQuery('{ active: true }');
+      else await useStore.getState().fetchPage(20);
+      expect(useStore.getState()).toMatchObject({ docs: [{ label: 'newer rows' }], fieldNames: [], loading: false });
+      initialReply.resolve(rows('superseded initial rows'));
+      fieldReply.resolve(fields('valid user field'));
+      await selection;
+      expect(useStore.getState()).toMatchObject({
+        docs: [{ label: 'newer rows' }],
+        fieldNames: ['valid user field'],
+        skip: action === 'page' ? 20 : 0,
+      });
+    }
+  );
+
+  it('replays history at intent time and keeps a newer selection after the older replay completes', async () => {
+    const old = historyEntry('old', { db: 'archive' });
+    const oldRows = deferred<ReturnType<typeof rows>>();
+    const oldFields = deferred<ReturnType<typeof fields>>();
+    mockApi.find.mockReturnValueOnce(oldRows.promise).mockResolvedValueOnce(rows('orders'));
+    mockApi.sampleFields.mockReturnValueOnce(oldFields.promise).mockResolvedValueOnce(fields('orderId'));
+    useStore.setState({
+      queryHistory: [old],
+      selectedDb: 'testdb',
+      selectedCollection: 'previous',
+      projection: { previous: 1 },
+      docs: [{ label: 'previous' }],
+      totalCount: 1,
+    });
+    const replay = useStore.getState().restoreFromHistory(old);
+    expect(useStore.getState()).toMatchObject({
+      selectedDb: 'archive',
+      selectedCollection: 'users',
+      pendingFilterText: old.query,
+      queryMode: 'filter',
+      historyIndex: 0,
+      docs: [],
+      projection: null,
+    });
+    expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'archive.users' });
+    await useStore.getState().selectCollection('testdb', 'orders');
+    oldFields.resolve(fields('old user field'));
+    oldRows.resolve(rows('old user rows'));
+    await replay;
+    expect(useStore.getState()).toMatchObject({
+      selectedDb: 'testdb',
+      selectedCollection: 'orders',
+      docs: [{ label: 'orders' }],
+      fieldNames: ['orderId'],
+      pendingFilterText: '{}',
+      queryMode: 'filter',
+      historyIndex: 0,
+    });
+    expect(mockApi.find.mock.calls.map(([db, collection]) => [db, collection])).toEqual([
+      ['archive', 'users'],
+      ['testdb', 'orders'],
+    ]);
+    expect(useStore.getState().queryHistory.map((entry) => entry.collection)).toEqual(['orders', 'users']);
+  });
+
+  it('keeps the latest history target, editor, QueryMode and cursor while old fields and rows arrive', async () => {
+    const old = historyEntry('old');
+    const latest = historyEntry('latest', { collection: 'orders', queryMode: 'aggregate', query: '[{ $match: {} }]' });
+    const oldRows = deferred<ReturnType<typeof rows>>();
+    const oldFields = deferred<ReturnType<typeof fields>>();
+    const latestRows = deferred<Result<Record<string, unknown>[]>>();
+    mockApi.find.mockReturnValueOnce(oldRows.promise);
+    mockApi.aggregate.mockReturnValueOnce(latestRows.promise);
+    mockApi.sampleFields.mockReturnValueOnce(oldFields.promise).mockResolvedValueOnce(fields('orderId'));
+    useStore.setState({ queryHistory: [old, latest] });
+    const oldReplay = useStore.getState().restoreFromHistory(old);
+    const latestReplay = useStore.getState().restoreFromHistory(latest);
+    expect(useStore.getState()).toMatchObject({
+      selectedCollection: 'orders',
+      pendingFilterText: latest.query,
+      queryMode: 'aggregate',
+      pendingQueryMode: 'aggregate',
+      historyIndex: 1,
+      loading: true,
+    });
+    oldRows.resolve(rows('old rows'));
+    oldFields.resolve(fields('old fields'));
+    await oldReplay;
+    expect(useStore.getState()).toMatchObject({
+      selectedCollection: 'orders',
+      pendingFilterText: latest.query,
+      queryMode: 'aggregate',
+      historyIndex: 1,
+      docs: [],
+      loading: true,
+      fieldNames: ['orderId'],
+    });
+    latestRows.resolve({ ok: true, data: [{ label: 'latest aggregate' }] });
+    await latestReplay;
+    expect(useStore.getState()).toMatchObject({
+      docs: [{ label: 'latest aggregate' }],
+      totalCount: 1,
+      resultQueryMode: 'aggregate',
+      historyIndex: 1,
+    });
+    expect(useStore.getState().queryHistory).toEqual([old, latest]);
+    expect(mockApi.saveHistory).not.toHaveBeenCalled();
+    expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'testdb.orders' });
+  });
+
+  it('advances consecutive history navigation immediately on the same collection without losing projection', async () => {
+    const a = historyEntry('a');
+    const b = historyEntry('b');
+    const first = deferred<ReturnType<typeof rows>>();
+    const second = deferred<ReturnType<typeof rows>>();
+    mockApi.find.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      queryHistory: [a, b],
+      projection: { label: 1 },
+    });
+    const one = useStore.getState().navigateHistory(1);
+    const two = useStore.getState().navigateHistory(1);
+    expect(useStore.getState()).toMatchObject({
+      historyIndex: 1,
+      pendingFilterText: b.query,
+      projection: { label: 1 },
+    });
+    second.resolve(rows('b'));
+    await two;
+    first.resolve(rows('a'));
+    await one;
+    expect(useStore.getState()).toMatchObject({
+      docs: [{ label: 'b' }],
+      historyIndex: 1,
+      pendingFilterText: b.query,
+      projection: { label: 1 },
+    });
+    expect(useStore.getState().queryHistory).toEqual([a, b]);
+  });
+
+  it.each(['before', 'after'] as const)(
+    'rejects previous same-server incarnation replies with broadcast %s connect reply',
+    async (order) => {
+      let emit!: (state: ConnectionState) => void;
+      mockApi.onConnectionState.mockImplementation((cb) => {
+        emit = cb;
+        return () => {};
+      });
+      useStore.setState({ status: connected });
+      const unsubscribe = useStore.getState().subscribeToConnectionState();
+      const oldRows = deferred<ReturnType<typeof rows>>();
+      const oldFields = deferred<ReturnType<typeof fields>>();
+      const disconnectReply = deferred<Result<undefined>>();
+      const connectReply = deferred<Result<ConnectedSession>>();
+      mockApi.find.mockReturnValueOnce(oldRows.promise).mockResolvedValueOnce(rows('new incarnation'));
+      mockApi.sampleFields
+        .mockReturnValueOnce(oldFields.promise)
+        .mockResolvedValueOnce(fields('new incarnation field'));
+      mockApi.disconnect.mockReturnValueOnce(disconnectReply.promise);
+      mockApi.connect.mockReturnValueOnce(connectReply.promise);
+      const oldSelection = useStore.getState().selectCollection('testdb', 'users');
+      const reconnect = useStore.getState().connect('mongodb://localhost');
+      expect(useStore.getState()).toMatchObject({ selectedCollection: null, docs: [], fieldNames: [] });
+      disconnectReply.resolve({ ok: true, data: undefined });
+      await Promise.resolve();
+      emit({ status: 'connecting', uri: 'mongodb://localhost' });
+      const widths = { '["testdb","users"]': { label: 240 } };
+      if (order === 'before') emit(connected);
+      connectReply.resolve({
+        ok: true,
+        data: makeSession({ collectionColumnWidths: widths, autoSelectedDb: 'testdb' }),
+      });
+      await reconnect;
+      if (order === 'after') emit(connected);
+      expect(useStore.getState().selectedDb).toBe('testdb');
+      expect(useStore.getState().collectionColumnWidths).toEqual(widths);
+      await useStore.getState().selectCollection('testdb', 'users');
+      oldRows.resolve(rows('previous incarnation'));
+      oldFields.resolve(fields('previous incarnation field'));
+      await oldSelection;
+      expect(useStore.getState()).toMatchObject({
+        docs: [{ label: 'new incarnation' }],
+        fieldNames: ['new incarnation field'],
+      });
+      expect(useStore.getState().collectionColumnWidths).toEqual(widths);
+      unsubscribe();
+    }
+  );
+
+  it.each<ConnectionState>([
+    { status: 'disconnected' },
+    { status: 'connecting', uri: 'mongodb://localhost' },
+    { status: 'error', uri: 'mongodb://localhost', error: 'Lost connection' },
+    { status: 'connected', uri: 'mongodb://elsewhere', connectionKey: 'elsewhere:27017' },
+  ])('invalidates collection work on the ConnectionState transition to $status $uri', async (next) => {
+    let emit!: (state: ConnectionState) => void;
+    mockApi.onConnectionState.mockImplementation((cb) => {
+      emit = cb;
+      return () => {};
+    });
+    useStore.setState({ status: connected });
+    const unsubscribe = useStore.getState().subscribeToConnectionState();
+    const rowReply = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    const fieldReply = deferred<ReturnType<typeof fields>>();
+    mockApi.find.mockReturnValueOnce(rowReply.promise);
+    mockApi.sampleFields.mockReturnValueOnce(fieldReply.promise);
+    const selection = useStore.getState().selectCollection('testdb', 'users');
+    emit(next);
+    rowReply.resolve({ ok: false, error: 'Old connection error' });
+    fieldReply.resolve(fields('old field'));
+    await selection;
+    expect(useStore.getState()).toMatchObject({
+      selectedCollection: null,
+      docs: [],
+      totalCount: 0,
+      fieldNames: [],
+      error: null,
+      loading: false,
+    });
+    expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: null });
+    unsubscribe();
+  });
+
+  it('invalidates collection work before waiting for disconnect transport', async () => {
+    const rowReply = deferred<ReturnType<typeof rows>>();
+    const fieldReply = deferred<ReturnType<typeof fields>>();
+    const disconnectReply = deferred<Result<undefined>>();
+    mockApi.find.mockReturnValueOnce(rowReply.promise);
+    mockApi.sampleFields.mockReturnValueOnce(fieldReply.promise);
+    mockApi.disconnect.mockReturnValueOnce(disconnectReply.promise);
+    const selection = useStore.getState().selectCollection('testdb', 'users');
+    const disconnect = useStore.getState().disconnect();
+    rowReply.resolve(rows('disconnected rows'));
+    fieldReply.resolve(fields('disconnected fields'));
+    await selection;
+    expect(useStore.getState()).toMatchObject({ selectedCollection: null, docs: [], totalCount: 0, fieldNames: [] });
+    disconnectReply.resolve({ ok: true, data: undefined });
+    await disconnect;
+  });
+
+  it('ignores a database listing that completes after a newer collection selection', async () => {
+    const listing = deferred<Result<{ name: string; type: string }[]>>();
+    mockApi.listCollections.mockReturnValueOnce(listing.promise);
+    mockApi.find.mockResolvedValueOnce(rows('new collection'));
+    mockApi.sampleFields.mockResolvedValueOnce(fields('new field'));
+    const database = useStore.getState().selectDb('oldDb');
+    await useStore.getState().selectCollection('newDb', 'users');
+    listing.resolve({ ok: true, data: [{ name: 'old collection', type: 'collection' }] });
+    await database;
+    expect(useStore.getState()).toMatchObject({
+      selectedDb: 'newDb',
+      selectedCollection: 'users',
+      docs: [{ label: 'new collection' }],
+      collections: [],
+      fieldNames: ['new field'],
+    });
   });
 });
