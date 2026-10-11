@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file. See [commit
 
 * **results:** remember explicitly resized collection column widths per connection, database, and collection across queries, navigation, reconnects, and application restarts.
 
+### Bug Fixes
+
+* **results:** keep empty results full-width without stretching remembered column widths.
+
 ## [2.22.2](https://github.com/terebentina/mongo-buddy/compare/v2.22.1...v2.22.2) (2026-10-10)
 
 

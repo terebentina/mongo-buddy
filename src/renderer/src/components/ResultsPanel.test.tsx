@@ -206,6 +206,31 @@ describe('ResultsPanel', () => {
     }
   });
 
+  it('keeps empty results full-width without stretching restored saved columns', async () => {
+    const docs = [{ name: 'Alice', email: 'alice@example.test' }];
+    useStore.setState({
+      docs,
+      totalCount: 1,
+      collectionColumnWidths: { '["testdb","users"]': { name: 220, email: 310 } },
+    });
+    render(<ResultsHarness />);
+    expect(screen.getByRole('table')).toHaveStyle({ width: '578px', minWidth: '578px' });
+
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [], totalCount: 0 } });
+    await act(async () => {
+      await useStore.getState().runQuery('{}');
+    });
+    expect(screen.getByRole('table')).toHaveStyle({ width: '100%', minWidth: '100%' });
+
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs, totalCount: 1 } });
+    await act(async () => {
+      await useStore.getState().refreshDocs();
+    });
+    expect(screen.getByRole('table')).toHaveStyle({ width: '578px', minWidth: '578px' });
+    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '220px' });
+    expect(screen.getByRole('columnheader', { name: 'email' })).toHaveStyle({ width: '310px' });
+  });
+
   it('recovers absent fields and collection-name preferences through navigation, queries, pagination, history and view changes', async () => {
     const docs = [{ name: 'Alice', email: 'a@example.test' }];
     useStore.setState({ docs, totalCount: 41 });

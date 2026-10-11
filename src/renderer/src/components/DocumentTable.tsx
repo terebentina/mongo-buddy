@@ -274,7 +274,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
   const automaticColumns = columns.filter((col) => !Object.hasOwn(columnWidths, col)).length;
   const savedWidth = columns.reduce((sum, col) => sum + (Object.hasOwn(columnWidths, col) ? columnWidths[col] : 0), 0);
   const automaticWidth = automaticColumns ? Math.max(150, (viewportWidth - 48 - savedWidth) / automaticColumns) : 0;
-  const tableWidth = 48 + savedWidth + automaticColumns * automaticWidth;
+  const tableWidth = columns.length === 0 ? '100%' : 48 + savedWidth + automaticColumns * automaticWidth;
   const [distinctState, setDistinctState] = useState<{
     column: string;
     anchor: HTMLElement;
