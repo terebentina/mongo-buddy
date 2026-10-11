@@ -2,15 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## Unreleased
+## [2.23.0](https://github.com/terebentina/mongo-buddy/compare/v2.22.2...v2.23.0) (2026-10-11)
+
 
 ### Features
 
-* **results:** remember explicitly resized collection column widths per connection, database, and collection across queries, navigation, reconnects, and application restarts. Column definitions are the single source of table sizing.
-
-### Bug Fixes
-
-* **results:** keep empty results full-width without stretching remembered column widths.
+* **results:** persist collection column widths ([#71](https://github.com/terebentina/mongo-buddy/issues/71)) ([c14ca0f](https://github.com/terebentina/mongo-buddy/commit/c14ca0f935c1318fa668d57e44ad725c5b200305))
 
 ## [2.22.2](https://github.com/terebentina/mongo-buddy/compare/v2.22.1...v2.22.2) (2026-10-10)
 
