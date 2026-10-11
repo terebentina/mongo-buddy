@@ -16,7 +16,7 @@ import type {
   SaveColumnWidthInput,
 } from '../../shared/types';
 import type { FilterValueAction } from './lib/filter-value';
-import { createCollectionQuery } from './collection-query';
+import { createCollectionQuery, type AcceptedResults } from './collection-query';
 import { createRequestFreshness } from './lib/request-freshness';
 import { collectionColumnWidthsKey } from '../../shared/collection-column-widths';
 import { toast } from 'sonner';
@@ -30,19 +30,14 @@ export interface StoreState {
   expandedDb: string | null;
   selectedDb: string | null;
   selectedCollection: string | null;
-  docs: Record<string, unknown>[];
-  totalCount: number;
-  skip: number;
+  acceptedResults: AcceptedResults | null;
   limit: number;
-  filter: Record<string, unknown>;
   projection: Record<string, unknown> | null;
-  resultQueryMode: QueryMode;
   error: string | null;
   loading: boolean;
   savedConnections: SavedConnection[];
   queryMode: QueryMode;
   fieldNames: string[];
-  sort: Record<string, 1 | -1> | null;
   pendingFilterText: string | null;
   queryHistory: QueryHistoryEntry[];
   collectionColumnWidths: ConnectionColumnWidths;
@@ -65,12 +60,16 @@ export interface StoreState {
   clearProjection: () => Promise<string | null>;
   loadDocument: (id: unknown) => Promise<Result<Record<string, unknown>>>;
   setQueryMode: (mode: QueryMode) => void;
-  setSort: (field: string) => void;
-  setLimit: (newLimit: number) => void;
+  setSort: (field: string) => Promise<void>;
+  setLimit: (newLimit: number) => Promise<void>;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
   updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
-  updateManyDocs: (update: UpdateManyInput, options: UpdateManyOptions) => Promise<Result<UpdateManyResult>>;
-  deleteResults: () => Promise<Result<number>>;
+  updateManyDocs: (
+    update: UpdateManyInput,
+    options: UpdateManyOptions,
+    expectedResults?: AcceptedResults
+  ) => Promise<Result<UpdateManyResult>>;
+  deleteResults: (expectedResults?: AcceptedResults) => Promise<Result<number>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
   refreshDocs: () => Promise<void>;
   loadSavedConnections: () => Promise<void>;
@@ -218,22 +217,39 @@ export const useStore = create<StoreState>()((set, get) => {
       return null;
     },
 
-    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions) => {
-      const { selectedDb, selectedCollection, filter } = get();
+    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions, expectedResults?: AcceptedResults) => {
+      const { selectedDb, selectedCollection, acceptedResults, queryMode, loading } = get();
       if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-      const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update, options);
-      if (result.ok) await get().refreshDocs();
+      const query = acceptedResults?.appliedQuery;
+      if (
+        query?.queryMode !== 'filter' ||
+        queryMode !== 'filter' ||
+        loading ||
+        query.db !== selectedDb ||
+        query.collection !== selectedCollection ||
+        (expectedResults && expectedResults !== acceptedResults)
+      )
+        return { ok: false, error: 'No current accepted filter results' };
+      const result = await window.api.updateMany(query.db, query.collection, query.filter, update, options);
+      if (result.ok && get().acceptedResults === acceptedResults && !get().loading) await get().refreshDocs();
       return result;
     },
 
-    deleteResults: async () => {
-      const { selectedDb, selectedCollection, filter } = get();
+    deleteResults: async (expectedResults?: AcceptedResults) => {
+      const { selectedDb, selectedCollection, acceptedResults, queryMode, loading } = get();
       if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-      const result = await window.api.deleteMany(selectedDb, selectedCollection, filter);
-      if (result.ok) {
-        set({ skip: 0 });
-        await get().refreshDocs();
-      }
+      const query = acceptedResults?.appliedQuery;
+      if (
+        query?.queryMode !== 'filter' ||
+        queryMode !== 'filter' ||
+        loading ||
+        query.db !== selectedDb ||
+        query.collection !== selectedCollection ||
+        (expectedResults && expectedResults !== acceptedResults)
+      )
+        return { ok: false, error: 'No current accepted filter results' };
+      const result = await window.api.deleteMany(query.db, query.collection, query.filter);
+      if (result.ok && get().acceptedResults === acceptedResults && !get().loading) await get().fetchPage(0);
       return result;
     },
 

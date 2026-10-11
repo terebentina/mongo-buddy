@@ -1,3 +1,4 @@
+import { filterResults } from './test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -33,8 +34,11 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve };
 }
 
+const mockApi = { find: vi.fn() };
+
 beforeEach(() => {
   vi.clearAllMocks();
+  (window as unknown as Record<string, unknown>).api = mockApi;
   window.matchMedia = vi.fn().mockReturnValue({
     matches: false,
     addEventListener: vi.fn(),
@@ -46,32 +50,31 @@ beforeEach(() => {
     selectedCollection: 'users',
   });
   useStore.setState({
-    docs: [],
-    totalCount: 0,
-    skip: 0,
     limit: 20,
     loading: false,
     queryMode: 'filter',
     projection: null,
+    acceptedResults: filterResults(
+      { ...useStore.getState().acceptedResults?.appliedQuery, projection: null, skip: 0, limit: 20 },
+      [],
+      0
+    ),
   });
 });
 
 describe('App document editing', () => {
   it('opens the editor only after the complete document load succeeds', async () => {
     const complete = { _id: 'original', name: 'Complete', secret: true };
-    const loadDocument = vi.fn().mockResolvedValue({ ok: true, data: complete });
-    useStore.setState({ loadDocument });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [complete], totalCount: 1 } });
 
     render(<App />);
     await userEvent.click(screen.getByRole('button', { name: 'Open row' }));
 
-    expect(loadDocument).toHaveBeenCalledWith('original');
     expect(await screen.findByText('Editor: Complete')).toBeInTheDocument();
   });
 
   it('shows an error and does not open the editor when the complete document load fails', async () => {
-    const loadDocument = vi.fn().mockResolvedValue({ ok: false, error: 'Load failed' });
-    useStore.setState({ loadDocument });
+    mockApi.find.mockResolvedValue({ ok: false, error: 'Load failed' });
 
     render(<App />);
     await userEvent.click(screen.getByRole('button', { name: 'Open row' }));
@@ -81,23 +84,22 @@ describe('App document editing', () => {
   });
 
   it('discards a document load after a newer row load starts', async () => {
-    const firstLoad = deferred<{ ok: true; data: Record<string, unknown> }>();
-    const newerLoad = deferred<{ ok: true; data: Record<string, unknown> }>();
-    const loadDocument = vi.fn().mockReturnValueOnce(firstLoad.promise).mockReturnValueOnce(newerLoad.promise);
-    useStore.setState({ loadDocument });
+    const firstLoad = deferred<{ ok: true; data: { docs: Record<string, unknown>[]; totalCount: number } }>();
+    const newerLoad = deferred<{ ok: true; data: { docs: Record<string, unknown>[]; totalCount: number } }>();
+    mockApi.find.mockReturnValueOnce(firstLoad.promise).mockReturnValueOnce(newerLoad.promise);
 
     render(<App />);
     await userEvent.click(screen.getByRole('button', { name: 'Open row' }));
     await userEvent.click(screen.getByRole('button', { name: 'Open newer row' }));
 
     await act(async () => {
-      newerLoad.resolve({ ok: true, data: { _id: 'newer', name: 'Newer complete' } });
+      newerLoad.resolve({ ok: true, data: { docs: [{ _id: 'newer', name: 'Newer complete' }], totalCount: 1 } });
       await newerLoad.promise;
     });
     expect(screen.getByText('Editor: Newer complete')).toBeInTheDocument();
 
     await act(async () => {
-      firstLoad.resolve({ ok: true, data: { _id: 'original', name: 'First complete' } });
+      firstLoad.resolve({ ok: true, data: { docs: [{ _id: 'original', name: 'First complete' }], totalCount: 1 } });
       await firstLoad.promise;
     });
     expect(screen.getByText('Editor: Newer complete')).toBeInTheDocument();
@@ -105,8 +107,8 @@ describe('App document editing', () => {
   });
 
   it('discards a document load after the collection selection changes', async () => {
-    const load = deferred<{ ok: true; data: Record<string, unknown> }>();
-    useStore.setState({ loadDocument: vi.fn().mockReturnValue(load.promise) });
+    const load = deferred<{ ok: true; data: { docs: Record<string, unknown>[]; totalCount: number } }>();
+    mockApi.find.mockReturnValue(load.promise);
 
     render(<App />);
     await userEvent.click(screen.getByRole('button', { name: 'Open row' }));
@@ -114,7 +116,7 @@ describe('App document editing', () => {
       useStore.setState({ selectedCollection: 'orders' });
     });
     await act(async () => {
-      load.resolve({ ok: true, data: { _id: 'original', name: 'Wrong collection' } });
+      load.resolve({ ok: true, data: { docs: [{ _id: 'original', name: 'Wrong collection' }], totalCount: 1 } });
       await load.promise;
     });
 
@@ -124,19 +126,34 @@ describe('App document editing', () => {
 
 describe('App result view preference', () => {
   it('keeps JSON selected when the query result and collection change', async () => {
-    useStore.setState({ docs: [{ name: 'Before' }], totalCount: 1 });
+    useStore.setState({
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, [{ name: 'Before' }], 1),
+    });
     render(<App />);
 
     await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
     expect(screen.getByLabelText('JSON results')).toHaveTextContent('"name": "Before"');
 
     await act(async () => {
-      useStore.setState({ docs: [{ name: 'After query' }], totalCount: 1 });
+      useStore.setState({
+        acceptedResults: filterResults(
+          { ...useStore.getState().acceptedResults?.appliedQuery },
+          [{ name: 'After query' }],
+          1
+        ),
+      });
     });
     expect(screen.getByLabelText('JSON results')).toHaveTextContent('"name": "After query"');
 
     await act(async () => {
-      useStore.setState({ selectedCollection: 'orders', docs: [{ name: 'After collection' }] });
+      useStore.setState({
+        selectedCollection: 'orders',
+        acceptedResults: filterResults(
+          { ...useStore.getState().acceptedResults?.appliedQuery, collection: 'orders' },
+          [{ name: 'After collection' }],
+          undefined
+        ),
+      });
     });
     expect(screen.getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('JSON results')).toHaveTextContent('"name": "After collection"');

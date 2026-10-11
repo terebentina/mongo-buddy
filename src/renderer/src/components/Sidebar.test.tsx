@@ -33,13 +33,10 @@ beforeEach(() => {
     expandedDb: null,
     selectedDb: null,
     selectedCollection: null,
-    docs: [],
-    totalCount: 0,
-    skip: 0,
     limit: 20,
-    filter: {},
     error: null,
     loading: false,
+    acceptedResults: null,
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });

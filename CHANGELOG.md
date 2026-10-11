@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Bug Fixes
 
+* **query:** accept AppliedQuery, rows and count together only after the latest successful reply; retain coherent results, page labels, sorting and projection after rejected queries, preserve rapid filter conditions, keep aggregate output complete, and bind bulk confirmations and writes to accepted filter results ([#73](https://github.com/terebentina/mongo-buddy/issues/73)).
 * **query:** update collection selection and title immediately, clear previous results on collection changes, show failed collection loads in the results panel, and keep history replay, results and autocomplete fields coherent across delayed replies and reconnects, including paused projection clearing and delayed history hydration ([#72](https://github.com/terebentina/mongo-buddy/issues/72)).
 
 ## [2.23.1](https://github.com/terebentina/mongo-buddy/compare/v2.23.0...v2.23.1) (2026-10-11)

@@ -1,3 +1,4 @@
+import { filterResults, aggregateResults, type FilterAppliedQuery } from './test-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStore, selectConnected } from './store';
 import type { ConnectionState, ConnectedSession, McpStatus, QueryHistoryEntry, Result } from '../../shared/types';
@@ -49,7 +50,10 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   return { promise, resolve };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  (window as unknown as Record<string, unknown>).api = mockApi;
+  mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
+  await useStore.getState().disconnect();
   vi.resetAllMocks();
   mockApi.onConnectionState.mockImplementation(() => () => {});
   mockApi.onMcpStatusUpdate.mockImplementation(() => () => {});
@@ -64,25 +68,20 @@ beforeEach(() => {
     expandedDb: null,
     selectedDb: null,
     selectedCollection: null,
-    docs: [],
-    totalCount: 0,
-    skip: 0,
     limit: 20,
-    filter: {},
     projection: null,
-    resultQueryMode: 'filter' as const,
     error: null,
     loading: false,
     savedConnections: [],
     queryMode: 'filter' as const,
     fieldNames: [],
-    sort: null,
     pendingFilterText: null,
     queryHistory: [],
     collectionColumnWidths: {},
     historyIndex: null,
     pendingQueryMode: null,
     mcpStatus: { running: false, port: null },
+    acceptedResults: null,
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });
@@ -169,7 +168,11 @@ describe('store', () => {
       selectedDb: 'testdb',
       selectedCollection: 'users',
       collections: [{ name: 'users', type: 'collection' }],
-      docs: [{ _id: '1' }],
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, db: 'testdb', collection: 'users' },
+        [{ _id: '1' }],
+        undefined
+      ),
     });
 
     await useStore.getState().toggleDb('testdb');
@@ -179,7 +182,7 @@ describe('store', () => {
     expect(state.selectedDb).toBe('testdb');
     expect(state.selectedCollection).toBe('users');
     expect(state.collections).toEqual([{ name: 'users', type: 'collection' }]);
-    expect(state.docs).toEqual([{ _id: '1' }]);
+    expect(state.acceptedResults?.docs ?? []).toEqual([{ _id: '1' }]);
     expect(mockApi.listCollections).not.toHaveBeenCalled();
   });
 
@@ -195,9 +198,9 @@ describe('store', () => {
     const state = useStore.getState();
     expect(state.selectedDb).toBe('testdb');
     expect(state.selectedCollection).toBe('users');
-    expect(state.docs).toEqual([{ _id: '1', name: 'Alice' }]);
-    expect(state.totalCount).toBe(1);
-    expect(state.skip).toBe(0);
+    expect(state.acceptedResults?.docs ?? []).toEqual([{ _id: '1', name: 'Alice' }]);
+    expect(state.acceptedResults?.totalCount ?? 0).toBe(1);
+    expect((state.acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(0);
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter: {},
       skip: 0,
@@ -213,12 +216,19 @@ describe('store', () => {
     mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
 
     // Set a non-empty filter before switching collections
-    useStore.setState({ filter: { status: 'active' }, pendingFilterText: '{"status":"active"}' });
+    useStore.setState({
+      pendingFilterText: '{"status":"active"}',
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, filter: { status: 'active' } },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
+    });
 
     await useStore.getState().selectCollection('testdb', 'orders');
 
     const state = useStore.getState();
-    expect(state.filter).toEqual({});
+    expect((state.acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.filter).toEqual({});
     expect(state.pendingFilterText).toBe('{}');
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'orders', {
       filter: {},
@@ -246,7 +256,7 @@ describe('store', () => {
     expect(state.databases).toEqual([]);
     expect(state.selectedDb).toBeNull();
     expect(state.selectedCollection).toBeNull();
-    expect(state.docs).toEqual([]);
+    expect(state.acceptedResults?.docs ?? []).toEqual([]);
     expect(mockApi.disconnect).toHaveBeenCalled();
   });
 
@@ -290,9 +300,9 @@ describe('store', () => {
     await useStore.getState().runQuery('{"name":"Alice"}');
 
     const state = useStore.getState();
-    expect(state.docs).toEqual([{ _id: '1', name: 'Alice' }]);
-    expect(state.filter).toEqual({ name: 'Alice' });
-    expect(state.skip).toBe(0);
+    expect(state.acceptedResults?.docs ?? []).toEqual([{ _id: '1', name: 'Alice' }]);
+    expect((state.acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.filter).toEqual({ name: 'Alice' });
+    expect((state.acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(0);
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter: { name: 'Alice' },
       skip: 0,
@@ -314,7 +324,7 @@ describe('store', () => {
     await useStore.getState().runQuery('[{"$group":{"_id":null,"total":{"$sum":1}}}]');
 
     const state = useStore.getState();
-    expect(state.docs).toEqual([{ _id: null, total: 42 }]);
+    expect(state.acceptedResults?.docs ?? []).toEqual([{ _id: null, total: 42 }]);
     expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', [{ $group: { _id: null, total: { $sum: 1 } } }]);
   });
 
@@ -355,6 +365,7 @@ describe('store', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
+      acceptedResults: filterResults(),
     });
     mockApi.insertOne.mockResolvedValue({ ok: true, data: { _id: '1', name: 'Alice' } });
     mockApi.find.mockResolvedValue({
@@ -367,7 +378,7 @@ describe('store', () => {
     expect(error).toBeNull();
     expect(mockApi.insertOne).toHaveBeenCalledWith('testdb', 'users', { name: 'Alice' });
     expect(mockApi.find).toHaveBeenCalled();
-    expect(useStore.getState().docs).toEqual([{ _id: '1', name: 'Alice' }]);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: '1', name: 'Alice' }]);
   });
 
   it('insertDoc() returns error on failure', async () => {
@@ -386,6 +397,7 @@ describe('store', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
+      acceptedResults: filterResults(),
     });
     mockApi.updateOne.mockResolvedValue({ ok: true, data: { _id: '1', name: 'Bob' } });
     mockApi.find.mockResolvedValue({
@@ -397,14 +409,23 @@ describe('store', () => {
 
     expect(error).toBeNull();
     expect(mockApi.updateOne).toHaveBeenCalledWith('testdb', 'users', '1', { name: 'Bob' });
-    expect(useStore.getState().docs).toEqual([{ _id: '1', name: 'Bob' }]);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: '1', name: 'Bob' }]);
   });
 
   it('updateManyDocs() refreshes docs and returns matched/modified counts', async () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      filter: { status: 'active' },
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: { status: 'active' },
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
     });
     mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 3, modifiedCount: 2 } });
     mockApi.find.mockResolvedValue({
@@ -416,14 +437,18 @@ describe('store', () => {
 
     expect(result).toEqual({ ok: true, data: { matchedCount: 3, modifiedCount: 2 } });
     expect(mockApi.find).toHaveBeenCalled();
-    expect(useStore.getState().docs).toEqual([{ _id: '1', status: 'active', archived: true }]);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: '1', status: 'active', archived: true }]);
   });
 
   it('updateManyDocs() does not refresh when the update fails, returns the error Result', async () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      filter: {},
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, db: 'testdb', collection: 'users', filter: {} },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
     });
     mockApi.updateMany.mockResolvedValue({ ok: false, error: 'Modifiers operate on fields' });
 
@@ -447,10 +472,20 @@ describe('store', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      filter,
-      skip: 20,
       limit: 20,
-      sort: { name: 1 },
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: filter,
+          sort: { name: 1 },
+          skip: 20,
+          limit: 20,
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
     });
     mockApi.deleteMany.mockResolvedValue({ ok: true, data: 7 });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: '21' }], totalCount: 1 } });
@@ -465,16 +500,25 @@ describe('store', () => {
       limit: 20,
       sort: { name: 1 },
     });
-    expect(useStore.getState().skip).toBe(0);
-    expect(useStore.getState().docs).toEqual([{ _id: '21' }]);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(0);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: '21' }]);
   });
 
   it('does not refresh results when the delete results action fails', async () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      filter: { status: 'inactive' },
-      skip: 20,
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: { status: 'inactive' },
+          skip: 20,
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
     });
     mockApi.deleteMany.mockResolvedValue({ ok: false, error: 'Delete failed' });
 
@@ -482,7 +526,7 @@ describe('store', () => {
 
     expect(result).toEqual({ ok: false, error: 'Delete failed' });
     expect(mockApi.find).not.toHaveBeenCalled();
-    expect(useStore.getState().skip).toBe(20);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(20);
   });
 
   it('skips the delete results API when no collection is selected', async () => {
@@ -498,8 +542,11 @@ describe('store', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      docs: [{ _id: '1', name: 'Alice' }],
-      totalCount: 1,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, db: 'testdb', collection: 'users' },
+        [{ _id: '1', name: 'Alice' }],
+        1
+      ),
     });
     mockApi.deleteOne.mockResolvedValue({ ok: true, data: undefined });
     mockApi.find.mockResolvedValue({
@@ -511,8 +558,8 @@ describe('store', () => {
 
     expect(error).toBeNull();
     expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', '1');
-    expect(useStore.getState().docs).toEqual([]);
-    expect(useStore.getState().totalCount).toBe(0);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([]);
+    expect(useStore.getState().acceptedResults?.totalCount ?? 0).toBe(0);
   });
 });
 
@@ -523,14 +570,23 @@ describe('projection', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      filter: { active: true },
       projection: null,
-      docs: [{ _id: 'old', name: 'Old' }],
-      totalCount: 1,
-      skip: 20,
       limit: 20,
-      sort: { name: 1 },
       queryMode: 'filter',
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: { active: true },
+          projection: null,
+          sort: { name: 1 },
+          skip: 20,
+          limit: 20,
+        },
+        [{ _id: 'old', name: 'Old' }],
+        1
+      ),
     });
   });
 
@@ -548,8 +604,8 @@ describe('projection', () => {
       limit: 20,
     });
     expect(useStore.getState().projection).toEqual(activeProjection);
-    expect(useStore.getState().docs).toEqual([{ name: 'Alice' }]);
-    expect(useStore.getState().totalCount).toBe(41);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ name: 'Alice' }]);
+    expect(useStore.getState().acceptedResults?.totalCount ?? 0).toBe(41);
   });
 
   it.each(['[]', 'null', '1', "'name'"])('rejects the non-document value %s before the request', async (text) => {
@@ -575,7 +631,7 @@ describe('projection', () => {
 
     expect(error).toBe('Cannot mix inclusion and exclusion');
     expect(useStore.getState().projection).toEqual({ name: 1 });
-    expect(useStore.getState().docs).toEqual([{ _id: 'old', name: 'Old' }]);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'old', name: 'Old' }]);
   });
 
   it('discards a late Apply response after a newer page request', async () => {
@@ -597,12 +653,18 @@ describe('projection', () => {
     await applyPromise;
 
     expect(useStore.getState().projection).toBeNull();
-    expect(useStore.getState().docs).toEqual([{ _id: 'page' }]);
-    expect(useStore.getState().skip).toBe(40);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'page' }]);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(40);
   });
 
   it('discards a late Clear response after a newer page request', async () => {
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     const clearResponse = deferred<{
       ok: true;
       data: { docs: Record<string, unknown>[]; totalCount: number };
@@ -621,8 +683,8 @@ describe('projection', () => {
     await clearPromise;
 
     expect(useStore.getState().projection).toEqual(activeProjection);
-    expect(useStore.getState().docs).toEqual([{ _id: 'page' }]);
-    expect(useStore.getState().skip).toBe(40);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'page' }]);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(40);
   });
 
   it('discards a late Apply response after a newer sort request', async () => {
@@ -639,17 +701,25 @@ describe('projection', () => {
     const applyPromise = useStore.getState().applyProjection('{ name: 1 }');
     useStore.getState().setSort('age');
     sortResponse.resolve({ ok: true, data: { docs: [{ _id: 'sorted' }], totalCount: 1 } });
-    await vi.waitFor(() => expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]));
+    await vi.waitFor(() => expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'sorted' }]));
     applyResponse.resolve({ ok: true, data: { docs: [{ name: 'stale Apply' }], totalCount: 1 } });
     await applyPromise;
 
     expect(useStore.getState().projection).toBeNull();
-    expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]);
-    expect(useStore.getState().sort).toEqual({ age: 1 });
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'sorted' }]);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.sort).toEqual({
+      age: 1,
+    });
   });
 
   it('discards a late Clear response after a newer sort request', async () => {
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     const clearResponse = deferred<{
       ok: true;
       data: { docs: Record<string, unknown>[]; totalCount: number };
@@ -663,13 +733,15 @@ describe('projection', () => {
     const clearPromise = useStore.getState().clearProjection();
     useStore.getState().setSort('age');
     sortResponse.resolve({ ok: true, data: { docs: [{ _id: 'sorted' }], totalCount: 1 } });
-    await vi.waitFor(() => expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]));
+    await vi.waitFor(() => expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'sorted' }]));
     clearResponse.resolve({ ok: true, data: { docs: [{ _id: 'stale Clear' }], totalCount: 1 } });
     await clearPromise;
 
     expect(useStore.getState().projection).toEqual(activeProjection);
-    expect(useStore.getState().docs).toEqual([{ _id: 'sorted' }]);
-    expect(useStore.getState().sort).toEqual({ age: 1 });
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'sorted' }]);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.sort).toEqual({
+      age: 1,
+    });
   });
 
   it('discards a late Apply response after a newer collection request', async () => {
@@ -693,11 +765,17 @@ describe('projection', () => {
 
     expect(useStore.getState().selectedCollection).toBe('orders');
     expect(useStore.getState().projection).toBeNull();
-    expect(useStore.getState().docs).toEqual([{ _id: 'order' }]);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'order' }]);
   });
 
   it('discards a late Clear response after a newer collection request', async () => {
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     const clearResponse = deferred<{
       ok: true;
       data: { docs: Record<string, unknown>[]; totalCount: number };
@@ -718,21 +796,28 @@ describe('projection', () => {
 
     expect(useStore.getState().selectedCollection).toBe('orders');
     expect(useStore.getState().projection).toBeNull();
-    expect(useStore.getState().docs).toEqual([{ _id: 'order' }]);
+    expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: 'order' }]);
   });
 
   it('updates the result QueryMode only after a successful request replaces the rows', async () => {
-    useStore.setState({ resultQueryMode: 'filter', queryMode: 'aggregate' });
+    useStore.setState({
+      queryMode: 'aggregate',
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
+    });
     mockApi.aggregate.mockResolvedValueOnce({ ok: false, error: 'Aggregate failed' });
 
     await useStore.getState().runQuery('[{ $match: {} }]');
 
-    expect(useStore.getState().resultQueryMode).toBe('filter');
+    expect(useStore.getState().acceptedResults?.appliedQuery.queryMode).toBe('filter');
 
     mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ _id: 'aggregate' }] });
     await useStore.getState().runQuery('[{ $match: {} }]');
 
-    expect(useStore.getState().resultQueryMode).toBe('aggregate');
+    expect(useStore.getState().acceptedResults?.appliedQuery.queryMode).toBe('aggregate');
   });
 
   it('treats an empty projection as no projection', async () => {
@@ -752,7 +837,13 @@ describe('projection', () => {
   });
 
   it('Clear removes the projection and reloads Filter results', async () => {
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: 'full' }], totalCount: 1 } });
 
     const error = await useStore.getState().clearProjection();
@@ -796,12 +887,18 @@ describe('projection', () => {
   });
 
   it('uses the projection for pagination, sorting, limit changes, refreshes, and filter value actions', async () => {
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
 
     await useStore.getState().fetchPage(40);
-    useStore.getState().setSort('age');
-    useStore.getState().setLimit(50);
+    await useStore.getState().setSort('age');
+    await useStore.getState().setLimit(50);
     await useStore.getState().refreshDocs();
     useStore.getState().applyFilterValue('status', 'active', 'include');
 
@@ -871,11 +968,23 @@ describe('projection', () => {
     await useStore.getState().selectDb('otherdb');
     expect(useStore.getState().projection).toBeNull();
 
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     await useStore.getState().selectCollection('otherdb', 'orders');
     expect(useStore.getState().projection).toBeNull();
 
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     await useStore.getState().disconnect();
     expect(useStore.getState().projection).toBeNull();
 
@@ -890,7 +999,13 @@ describe('projection', () => {
   });
 
   it('loads the complete document by its original _id without a projection', async () => {
-    useStore.setState({ projection: activeProjection });
+    useStore.setState({
+      projection: activeProjection,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: activeProjection },
+        useStore.getState().acceptedResults?.docs
+      ),
+    });
     const complete = { _id: 'original', name: 'Alice', secret: true };
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [complete], totalCount: 1 } });
 
@@ -1119,8 +1234,8 @@ describe('restoreFromHistory', () => {
       skip: 0,
       limit: 20,
     });
-    expect(state.docs).toEqual([{ name: 'Alice' }]);
-    expect(state.totalCount).toBe(1);
+    expect(state.acceptedResults?.docs ?? []).toEqual([{ name: 'Alice' }]);
+    expect(state.acceptedResults?.totalCount ?? 0).toBe(1);
   });
 
   it('different collection clears projection and restores its query and fields', async () => {
@@ -1150,36 +1265,85 @@ describe('restoreFromHistory', () => {
     expect(state.pendingQueryMode).toBe('aggregate');
     expect(state.pendingFilterText).toBe('[{"$match":{}}]');
     expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', [{ $match: {} }]);
-    expect(state.docs).toEqual([{ _id: 1 }]);
-    expect(state.totalCount).toBe(1);
+    expect(state.acceptedResults?.docs ?? []).toEqual([{ _id: 1 }]);
+    expect(state.acceptedResults?.totalCount ?? 0).toBe(1);
   });
 
   it('filter entry syncs filter state to parsed query', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: { old: 'stale' },
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
 
     await useStore.getState().restoreFromHistory(makeEntry({ query: '{"name":"Alice"}' }));
 
-    expect(useStore.getState().filter).toEqual({ name: 'Alice' });
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.filter).toEqual({
+      name: 'Alice',
+    });
   });
 
-  it('aggregate entry resets filter to empty object', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { old: 'stale' } });
+  it('aggregate history accepts a pipeline context without a filter', async () => {
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: { old: 'stale' },
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
+    });
     mockApi.aggregate.mockResolvedValue({ ok: true, data: [] });
 
     await useStore.getState().restoreFromHistory(makeEntry({ queryMode: 'aggregate', query: '[{"$match":{}}]' }));
 
-    expect(useStore.getState().filter).toEqual({});
+    expect(useStore.getState().acceptedResults?.appliedQuery).toEqual({
+      db: 'testdb',
+      collection: 'users',
+      queryMode: 'aggregate',
+      pipeline: [{ $match: {} }],
+    });
   });
 
   it('the filter value action uses a restored empty filter', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', filter: { status: 'active' } });
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: { status: 'active' },
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
 
     await useStore.getState().restoreFromHistory(makeEntry({ query: '{}' }));
     useStore.getState().applyFilterValue('name', 'Bob', 'include');
+    await vi.waitFor(() => expect(useStore.getState().loading).toBe(false));
 
-    expect(useStore.getState().filter).toEqual({ name: 'Bob' });
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.filter).toEqual({
+      name: 'Bob',
+    });
   });
 });
 
@@ -1187,30 +1351,39 @@ describe('filter value action', () => {
   it.each([
     ['include' as const, 'active'],
     ['exclude' as const, { $ne: 'active' }],
-  ])('applies the %s action and runs the new query', (action, condition) => {
+  ])('applies the %s action and runs the new query', async (action, condition) => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      filter: {},
-      skip: 40,
       queryHistory: [],
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'users',
+          filter: {},
+          skip: 40,
+        },
+        useStore.getState().acceptedResults?.docs ?? [],
+        useStore.getState().acceptedResults?.totalCount ?? 0
+      ),
     });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
 
     useStore.getState().applyFilterValue('status', 'active', action);
+    await vi.waitFor(() => expect(useStore.getState().loading).toBe(false));
 
     const filter = { status: condition };
     const query = JSON.stringify(filter, null, 2);
     const state = useStore.getState();
-    expect(state.filter).toEqual(filter);
-    expect(state.skip).toBe(0);
+    expect((state.acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.filter).toEqual(filter);
+    expect((state.acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(0);
     expect(state.pendingFilterText).toBe(query);
     expect(state.pendingQueryMode).toBe('filter');
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter,
       skip: 0,
       limit: 20,
-      sort: undefined,
     });
     expect(state.queryHistory[0]).toMatchObject({
       queryMode: 'filter',
@@ -1222,27 +1395,6 @@ describe('filter value action', () => {
 });
 
 describe('fetchDistinct', () => {
-  it('calls window.api.distinct with current db, collection, and field', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
-    const apiResult = { ok: true as const, data: { values: ['active', 'inactive'], truncated: false } };
-    mockApi.distinct.mockResolvedValue(apiResult);
-
-    const result = await useStore.getState().fetchDistinct('status');
-
-    expect(mockApi.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', undefined);
-    expect(result).toEqual(apiResult);
-  });
-
-  it('forwards filter arg to window.api.distinct', async () => {
-    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users' });
-    const apiResult = { ok: true as const, data: { values: ['active'], truncated: false } };
-    mockApi.distinct.mockResolvedValue(apiResult);
-
-    await useStore.getState().fetchDistinct('status', { age: 1 });
-
-    expect(mockApi.distinct).toHaveBeenCalledWith('testdb', 'users', 'status', { age: 1 });
-  });
-
   it('returns null when no collection selected', async () => {
     useStore.setState({ selectedDb: null, selectedCollection: null });
 
@@ -1469,10 +1621,9 @@ describe('collection selection ownership', () => {
     await selection;
     expect(useStore.getState()).toMatchObject({
       loading: false,
-      docs: [{ label: 'newly selected users' }],
-      totalCount: 1,
       queryHistory: [attempt, persisted],
       historyIndex: 0,
+      acceptedResults: { docs: [{ label: 'newly selected users' }], totalCount: 1 },
     });
     unsubscribe();
   });
@@ -1548,13 +1699,15 @@ describe('collection selection ownership', () => {
 
     expect(useStore.getState()).toMatchObject({
       loading: false,
-      docs: [{ name: 'Active user', active: true }],
-      totalCount: 1,
       projection: null,
       queryMode: 'aggregate',
-      resultQueryMode: 'aggregate',
       pendingFilterText: entry.query,
       historyIndex: 0,
+      acceptedResults: {
+        docs: [{ name: 'Active user', active: true }],
+        totalCount: 1,
+        appliedQuery: { queryMode: 'aggregate' },
+      },
     });
     expect(useStore.getState().queryHistory).toEqual([entry]);
     expect(mockApi.find).not.toHaveBeenCalled();
@@ -1567,12 +1720,10 @@ describe('collection selection ownership', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      docs: [{ label: 'old' }],
-      totalCount: 12,
       projection: { name: 1 },
       fieldNames: ['old'],
-      resultQueryMode: 'aggregate',
       error: 'old error',
+      acceptedResults: aggregateResults({ ...useStore.getState().acceptedResults?.appliedQuery }, [{ label: 'old' }]),
     });
     mockApi.find.mockReturnValueOnce(reply.promise);
     mockApi.sampleFields.mockReturnValueOnce(fieldReply.promise);
@@ -1581,34 +1732,30 @@ describe('collection selection ownership', () => {
     expect(useStore.getState()).toMatchObject({
       selectedDb: 'testdb',
       selectedCollection: 'orders',
-      docs: [],
-      totalCount: 0,
       projection: null,
       fieldNames: [],
-      resultQueryMode: 'filter',
       error: null,
       queryMode: 'filter',
       pendingFilterText: '{}',
       pendingQueryMode: 'filter',
       historyIndex: 0,
+      acceptedResults: null,
     });
     expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'testdb.orders' });
     reply.resolve({ ok: false, error: 'Initial load failed' });
     await Promise.resolve();
     expect(useStore.getState()).toMatchObject({
-      docs: [],
-      totalCount: 0,
       loading: false,
       error: 'Initial load failed',
+      acceptedResults: null,
     });
     fieldReply.resolve(fields('orderId'));
     await selection;
     expect(useStore.getState()).toMatchObject({
       selectedCollection: 'orders',
-      docs: [],
-      totalCount: 0,
       error: 'Initial load failed',
       fieldNames: ['orderId'],
+      acceptedResults: null,
     });
     expect(useStore.getState().queryHistory[0]).toMatchObject({ collection: 'orders', query: '{}' });
   });
@@ -1639,11 +1786,10 @@ describe('collection selection ownership', () => {
     await Promise.all([a, b]);
     expect(useStore.getState()).toMatchObject({
       selectedCollection: 'users',
-      docs: [{ label: 'latest users' }],
       fieldNames: ['latest user field'],
-      totalCount: 1,
       loading: false,
       historyIndex: 0,
+      acceptedResults: { docs: [{ label: 'latest users' }], totalCount: 1 },
     });
     expect(useStore.getState().queryHistory.map((entry) => entry.collection)).toEqual(['users', 'orders', 'users']);
     expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'testdb.users' });
@@ -1658,15 +1804,22 @@ describe('collection selection ownership', () => {
       mockApi.sampleFields.mockReturnValueOnce(fieldReply.promise);
       const selection = useStore.getState().selectCollection('testdb', 'users');
       if (action === 'query') await useStore.getState().runQuery('{ active: true }');
-      else await useStore.getState().fetchPage(20);
-      expect(useStore.getState()).toMatchObject({ docs: [{ label: 'newer rows' }], fieldNames: [], loading: false });
+      else {
+        initialReply.resolve(rows('initial rows'));
+        await vi.waitFor(() => expect(useStore.getState().loading).toBe(false));
+        await useStore.getState().fetchPage(20);
+      }
+      expect(useStore.getState()).toMatchObject({
+        fieldNames: [],
+        loading: false,
+        acceptedResults: { docs: [{ label: 'newer rows' }] },
+      });
       initialReply.resolve(rows('superseded initial rows'));
       fieldReply.resolve(fields('valid user field'));
       await selection;
       expect(useStore.getState()).toMatchObject({
-        docs: [{ label: 'newer rows' }],
         fieldNames: ['valid user field'],
-        skip: action === 'page' ? 20 : 0,
+        acceptedResults: { docs: [{ label: 'newer rows' }], appliedQuery: { skip: action === 'page' ? 20 : 0 } },
       });
     }
   );
@@ -1682,8 +1835,16 @@ describe('collection selection ownership', () => {
       selectedDb: 'testdb',
       selectedCollection: 'previous',
       projection: { previous: 1 },
-      docs: [{ label: 'previous' }],
-      totalCount: 1,
+      acceptedResults: filterResults(
+        {
+          ...useStore.getState().acceptedResults?.appliedQuery,
+          db: 'testdb',
+          collection: 'previous',
+          projection: { previous: 1 },
+        },
+        [{ label: 'previous' }],
+        1
+      ),
     });
     const replay = useStore.getState().restoreFromHistory(old);
     expect(useStore.getState()).toMatchObject({
@@ -1692,8 +1853,8 @@ describe('collection selection ownership', () => {
       pendingFilterText: old.query,
       queryMode: 'filter',
       historyIndex: 0,
-      docs: [],
       projection: null,
+      acceptedResults: null,
     });
     expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: 'archive.users' });
     await useStore.getState().selectCollection('testdb', 'orders');
@@ -1703,11 +1864,11 @@ describe('collection selection ownership', () => {
     expect(useStore.getState()).toMatchObject({
       selectedDb: 'testdb',
       selectedCollection: 'orders',
-      docs: [{ label: 'orders' }],
       fieldNames: ['orderId'],
       pendingFilterText: '{}',
       queryMode: 'filter',
       historyIndex: 0,
+      acceptedResults: { docs: [{ label: 'orders' }] },
     });
     expect(mockApi.find.mock.calls.map(([db, collection]) => [db, collection])).toEqual([
       ['archive', 'users'],
@@ -1744,17 +1905,19 @@ describe('collection selection ownership', () => {
       pendingFilterText: latest.query,
       queryMode: 'aggregate',
       historyIndex: 1,
-      docs: [],
       loading: true,
       fieldNames: ['orderId'],
+      acceptedResults: null,
     });
     latestRows.resolve({ ok: true, data: [{ label: 'latest aggregate' }] });
     await latestReplay;
     expect(useStore.getState()).toMatchObject({
-      docs: [{ label: 'latest aggregate' }],
-      totalCount: 1,
-      resultQueryMode: 'aggregate',
       historyIndex: 1,
+      acceptedResults: {
+        docs: [{ label: 'latest aggregate' }],
+        totalCount: 1,
+        appliedQuery: { queryMode: 'aggregate' },
+      },
     });
     expect(useStore.getState().queryHistory).toEqual([old, latest]);
     expect(mockApi.saveHistory).not.toHaveBeenCalled();
@@ -1785,10 +1948,10 @@ describe('collection selection ownership', () => {
     first.resolve(rows('a'));
     await one;
     expect(useStore.getState()).toMatchObject({
-      docs: [{ label: 'b' }],
       historyIndex: 1,
       pendingFilterText: b.query,
       projection: { label: 1 },
+      acceptedResults: { docs: [{ label: 'b' }] },
     });
     expect(useStore.getState().queryHistory).toEqual([a, b]);
   });
@@ -1815,7 +1978,11 @@ describe('collection selection ownership', () => {
       mockApi.connect.mockReturnValueOnce(connectReply.promise);
       const oldSelection = useStore.getState().selectCollection('testdb', 'users');
       const reconnect = useStore.getState().connect('mongodb://localhost');
-      expect(useStore.getState()).toMatchObject({ selectedCollection: null, docs: [], fieldNames: [] });
+      expect(useStore.getState()).toMatchObject({
+        selectedCollection: null,
+        fieldNames: [],
+        acceptedResults: null,
+      });
       disconnectReply.resolve({ ok: true, data: undefined });
       await Promise.resolve();
       emit({ status: 'connecting', uri: 'mongodb://localhost' });
@@ -1834,8 +2001,8 @@ describe('collection selection ownership', () => {
       oldFields.resolve(fields('previous incarnation field'));
       await oldSelection;
       expect(useStore.getState()).toMatchObject({
-        docs: [{ label: 'new incarnation' }],
         fieldNames: ['new incarnation field'],
+        acceptedResults: { docs: [{ label: 'new incarnation' }] },
       });
       expect(useStore.getState().collectionColumnWidths).toEqual(widths);
       unsubscribe();
@@ -1866,11 +2033,10 @@ describe('collection selection ownership', () => {
     await selection;
     expect(useStore.getState()).toMatchObject({
       selectedCollection: null,
-      docs: [],
-      totalCount: 0,
       fieldNames: [],
       error: null,
       loading: false,
+      acceptedResults: null,
     });
     expect(mockApi.setWindowTitle).toHaveBeenLastCalledWith({ location: null });
     unsubscribe();
@@ -1888,7 +2054,11 @@ describe('collection selection ownership', () => {
     rowReply.resolve(rows('disconnected rows'));
     fieldReply.resolve(fields('disconnected fields'));
     await selection;
-    expect(useStore.getState()).toMatchObject({ selectedCollection: null, docs: [], totalCount: 0, fieldNames: [] });
+    expect(useStore.getState()).toMatchObject({
+      selectedCollection: null,
+      fieldNames: [],
+      acceptedResults: null,
+    });
     disconnectReply.resolve({ ok: true, data: undefined });
     await disconnect;
   });
@@ -1905,9 +2075,236 @@ describe('collection selection ownership', () => {
     expect(useStore.getState()).toMatchObject({
       selectedDb: 'newDb',
       selectedCollection: 'users',
-      docs: [{ label: 'new collection' }],
       collections: [],
       fieldNames: ['new field'],
+      acceptedResults: { docs: [{ label: 'new collection' }] },
     });
+  });
+});
+
+describe('accepted query results', () => {
+  beforeEach(async () => {
+    useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', projection: { name: 1 } });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: 'accepted', name: 'Alice' }], totalCount: 61 } });
+    await useStore.getState().runQuery('{ active: true }');
+    await useStore.getState().setSort('name');
+    await useStore.getState().fetchPage(20);
+    mockApi.find.mockClear();
+  });
+
+  it.each(['server rejection', 'invalid JSON', 'invalid filter shape'] as const)(
+    'retains the complete accepted context after %s and uses it for paging and bulk writes',
+    async (failure) => {
+      const accepted = useStore.getState().acceptedResults;
+      mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Rejected condition' });
+      const text = failure === 'invalid JSON' ? '{ bad:' : failure === 'invalid filter shape' ? '[]' : '{ bad: true }';
+      expect(await useStore.getState().runQuery(text)).toBeTruthy();
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(useStore.getState().error).toBeTruthy();
+      expect(useStore.getState().loading).toBe(false);
+      mockApi.find
+        .mockReset()
+        .mockResolvedValue({ ok: true, data: { docs: [{ _id: 'next', name: 'Bob' }], totalCount: 61 } });
+      await useStore.getState().fetchPage(40);
+      expect(useStore.getState().acceptedResults).toEqual(
+        filterResults(
+          { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 40 },
+          [{ _id: 'next', name: 'Bob' }],
+          61
+        )
+      );
+      mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 61, modifiedCount: 61 } });
+      await useStore.getState().updateManyDocs({ $set: { checked: true } }, {});
+      expect(mockApi.updateMany).toHaveBeenCalledWith(
+        'testdb',
+        'users',
+        { active: true },
+        { $set: { checked: true } },
+        {}
+      );
+      mockApi.deleteMany.mockResolvedValue({ ok: true, data: 61 });
+      await useStore.getState().deleteResults();
+      expect(mockApi.deleteMany).toHaveBeenCalledWith('testdb', 'users', { active: true });
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ skip: 0, filter: { active: true } });
+    }
+  );
+
+  it.each(['page', 'sort', 'page size', 'projection Apply', 'projection Clear', 'refresh'] as const)(
+    'retains rows and all metadata when a %s change is rejected',
+    async (action) => {
+      const accepted = useStore.getState().acceptedResults;
+      mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Read rejected' });
+      if (action === 'page') await useStore.getState().fetchPage(40);
+      if (action === 'sort') await useStore.getState().setSort('age');
+      if (action === 'page size') await useStore.getState().setLimit(50);
+      if (action === 'projection Apply') await useStore.getState().applyProjection('{ age: 1 }');
+      if (action === 'projection Clear') await useStore.getState().clearProjection();
+      if (action === 'refresh') await useStore.getState().refreshDocs();
+      expect(useStore.getState()).toMatchObject({
+        acceptedResults: accepted,
+        projection: { name: 1 },
+        limit: 20,
+        loading: false,
+        error: 'Read rejected',
+      });
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+    }
+  );
+
+  it.each(['success', 'failure'] as const)(
+    'ignores superseded %s without clearing newer busy state or error',
+    async (oldOutcome) => {
+      const accepted = useStore.getState().acceptedResults;
+      const old = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+      const current = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+      mockApi.find.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
+      const oldRun = useStore.getState().runQuery('{ old: true }');
+      const currentRun = useStore.getState().runQuery('{ newest: true }');
+      old.resolve(
+        oldOutcome === 'success'
+          ? { ok: true, data: { docs: [{ name: 'stale' }], totalCount: 1 } }
+          : { ok: false, error: 'Stale rejection' }
+      );
+      await oldRun;
+      expect(useStore.getState()).toMatchObject({ acceptedResults: accepted, loading: true, error: null });
+      current.resolve({ ok: false, error: 'Current rejection' });
+      await currentRun;
+      expect(useStore.getState()).toMatchObject({
+        acceptedResults: accepted,
+        loading: false,
+        error: 'Current rejection',
+      });
+    }
+  );
+
+  it('explicit projection Apply uses submitted conditions while paging keeps accepted conditions', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Candidate rejected' });
+    await useStore.getState().runQuery('{ attempted: true }');
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ age: 27 }], totalCount: 3 } });
+    await useStore.getState().applyProjection('{ age: 1 }');
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults(
+        { filter: { attempted: true }, projection: { age: 1 }, sort: { name: 1 }, skip: 20 },
+        [{ age: 27 }],
+        3
+      )
+    );
+  });
+
+  it('rapid filter value actions preserve submitted conflicts through rejection and late replies', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    const replies = Array.from({ length: 3 }, () =>
+      deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>()
+    );
+    for (const reply of replies) mockApi.find.mockReturnValueOnce(reply.promise);
+    useStore.getState().applyFilterValue('status', 'active', 'include');
+    useStore.getState().applyFilterValue('status', 'active', 'exclude');
+    useStore.getState().applyFilterValue('tier', 2, 'include');
+    const filter = { active: true, status: { $in: ['active'], $ne: 'active' }, tier: 2 };
+    expect(JSON.parse(useStore.getState().pendingFilterText!)).toEqual(filter);
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(
+      useStore
+        .getState()
+        .queryHistory.slice(0, 3)
+        .map((entry) => JSON.parse(entry.query))
+    ).toEqual([
+      filter,
+      { active: true, status: { $in: ['active'], $ne: 'active' } },
+      { active: true, status: 'active' },
+    ]);
+    replies[2].resolve({ ok: false, error: 'Conflicting conditions rejected' });
+    await vi.waitFor(() => expect(useStore.getState().loading).toBe(false));
+    replies[0].resolve({ ok: true, data: { docs: [{ name: 'stale' }], totalCount: 1 } });
+    replies[1].resolve({ ok: false, error: 'Stale failure' });
+    await Promise.all(replies.map((reply) => reply.promise));
+    expect(useStore.getState()).toMatchObject({ acceptedResults: accepted, error: 'Conflicting conditions rejected' });
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [], totalCount: 0 } });
+    useStore.getState().applyFilterValue('tier', 3, 'include');
+    await vi.waitFor(() => expect(useStore.getState().loading).toBe(false));
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({
+      filter: { ...filter, tier: { $in: [2, 3] } },
+    });
+  });
+
+  it('clearing a paused preference leaves retained filter projection metadata intact', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    useStore.getState().setQueryMode('aggregate');
+    mockApi.aggregate.mockResolvedValue({ ok: false, error: 'Pipeline rejected' });
+    await useStore.getState().runQuery('[]');
+    await useStore.getState().clearProjection();
+    expect(useStore.getState().projection).toBeNull();
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    await useStore.getState().fetchPage(40);
+    expect(mockApi.find).toHaveBeenLastCalledWith('testdb', 'users', {
+      filter: { active: true },
+      projection: { name: 1 },
+      sort: { name: 1 },
+      skip: 40,
+      limit: 20,
+    });
+  });
+
+  it('requires accepted filter results for writes after a failed first query or an accepted aggregate', async () => {
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+    mockApi.find.mockResolvedValueOnce({ ok: false, error: 'First query failed' });
+    await useStore.getState().selectCollection('testdb', 'orders');
+    expect(useStore.getState().acceptedResults).toBeNull();
+    expect((await useStore.getState().deleteResults()).ok).toBe(false);
+    expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {})).ok).toBe(false);
+    useStore.getState().setQueryMode('aggregate');
+    mockApi.aggregate.mockResolvedValue({ ok: true, data: [{ total: 42 }] });
+    await useStore.getState().runQuery('[]');
+    useStore.getState().setQueryMode('filter');
+    await useStore.getState().fetchPage(20);
+    await useStore.getState().setSort('total');
+    await useStore.getState().setLimit(10);
+    expect((await useStore.getState().deleteResults()).ok).toBe(false);
+    expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {})).ok).toBe(false);
+    expect(mockApi.deleteMany).not.toHaveBeenCalled();
+    expect(mockApi.updateMany).not.toHaveBeenCalled();
+    expect(mockApi.find).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ collection: 'orders' }, [{ total: 42 }]));
+  });
+
+  it('retains the accepted page if deletion succeeds but the following page-one read fails', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    mockApi.deleteMany.mockResolvedValueOnce({ ok: true, data: 61 });
+    mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Refresh failed' });
+    expect(await useStore.getState().deleteResults()).toEqual({ ok: true, data: 61 });
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(useStore.getState().error).toBe('Refresh failed');
+  });
+
+  it('does not let a late write refresh supersede a newer query still waiting for its reply', async () => {
+    const write = deferred<Result<number>>();
+    const read = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    mockApi.deleteMany.mockReturnValueOnce(write.promise);
+    mockApi.find.mockReturnValueOnce(read.promise);
+    const deleting = useStore.getState().deleteResults();
+    const running = useStore.getState().runQuery('{ latest: true }');
+    write.resolve({ ok: true, data: 61 });
+    await deleting;
+    expect(useStore.getState().loading).toBe(true);
+    expect(mockApi.find).toHaveBeenCalledTimes(1);
+    read.resolve({ ok: true, data: { docs: [{ name: 'latest rows' }], totalCount: 1 } });
+    await running;
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ filter: { latest: true } });
+    expect(useStore.getState().acceptedResults?.docs).toEqual([{ name: 'latest rows' }]);
+  });
+
+  it('late mutation completion leaves a newer result snapshot and its page untouched', async () => {
+    const write = deferred<Result<number>>();
+    mockApi.deleteMany.mockReturnValueOnce(write.promise);
+    const deleting = useStore.getState().deleteResults();
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'new query' }], totalCount: 1 } });
+    await useStore.getState().runQuery('{ new: true }');
+    const newer = useStore.getState().acceptedResults;
+    write.resolve({ ok: true, data: 61 });
+    await deleting;
+    expect(useStore.getState().acceptedResults).toBe(newer);
+    expect(mockApi.find).toHaveBeenCalledTimes(1);
   });
 });

@@ -5,6 +5,25 @@ import type { StoreState } from './store';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 import { createRequestFreshness } from './lib/request-freshness';
 
+export type AppliedQuery =
+  | {
+      queryMode: 'filter';
+      db: string;
+      collection: string;
+      filter: Record<string, unknown>;
+      projection: Record<string, unknown> | null;
+      sort: Record<string, 1 | -1> | null;
+      skip: number;
+      limit: number;
+    }
+  | { queryMode: 'aggregate'; db: string; collection: string; pipeline: Record<string, unknown>[] };
+
+export interface AcceptedResults {
+  appliedQuery: AppliedQuery;
+  docs: Record<string, unknown>[];
+  totalCount: number;
+}
+
 function pushWindowTitle(db: string | null, collection: string | null): void {
   const location = db && collection ? `${db}.${collection}` : null;
   window.api.setWindowTitle({ location });
@@ -14,21 +33,18 @@ function pushWindowTitle(db: string | null, collection: string | null): void {
 export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get: StoreApi<StoreState>['getState']) {
   const resultRequests = createRequestFreshness();
   const selectionRequests = createRequestFreshness();
+  let workingFilter: { db: string; collection: string; filter: Record<string, unknown> } | null = null;
 
   const emptyResults = {
-    docs: [],
-    totalCount: 0,
-    skip: 0,
-    filter: {},
+    acceptedResults: null,
     projection: null,
-    resultQueryMode: 'filter',
     fieldNames: [],
-    sort: null,
     error: null,
     loading: false,
   } satisfies Partial<StoreState>;
 
   function reset(): void {
+    workingFilter = null;
     selectionRequests.invalidate();
     resultRequests.invalidate();
     set({
@@ -60,6 +76,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   }
 
   function selectTarget(db: string, collection: string): () => boolean {
+    workingFilter = null;
     const selectionIsCurrent = selectionRequests.start();
     resultRequests.invalidate();
     set({ ...emptyResults, expandedDb: db, selectedDb: db, selectedCollection: collection, historyIndex: null });
@@ -114,6 +131,49 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     addToHistory({ id: crypto.randomUUID(), queryMode, query, db, collection, timestamp: Date.now() });
   }
 
+  function acceptedFilter(): Extract<AppliedQuery, { queryMode: 'filter' }> | null {
+    const { acceptedResults, selectedDb, selectedCollection } = get();
+    const query = acceptedResults?.appliedQuery;
+    return query?.queryMode === 'filter' && query.db === selectedDb && query.collection === selectedCollection
+      ? query
+      : null;
+  }
+
+  function submittedFilter(db: string, collection: string): Record<string, unknown> {
+    if (workingFilter?.db === db && workingFilter.collection === collection) return workingFilter.filter;
+    return acceptedFilter()?.filter ?? {};
+  }
+
+  async function executeAppliedQuery(
+    appliedQuery: AppliedQuery,
+    requestIsCurrent: () => boolean,
+    preferences: Partial<Pick<StoreState, 'projection' | 'limit'>> = {}
+  ): Promise<string | null> {
+    set({ loading: true, error: null });
+    const { db, collection } = appliedQuery;
+    const result =
+      appliedQuery.queryMode === 'aggregate'
+        ? await window.api.aggregate(db, collection, appliedQuery.pipeline)
+        : await window.api.find(db, collection, {
+            filter: appliedQuery.filter,
+            ...(appliedQuery.projection ? { projection: appliedQuery.projection } : {}),
+            ...(appliedQuery.sort ? { sort: appliedQuery.sort } : {}),
+            skip: appliedQuery.skip,
+            limit: appliedQuery.limit,
+          });
+    if (!requestIsCurrent()) return null;
+    if (!result.ok) {
+      set({ loading: false, error: result.error });
+      return result.error;
+    }
+    const data = result.data;
+    const acceptedResults: AcceptedResults = Array.isArray(data)
+      ? { appliedQuery, docs: data, totalCount: data.length }
+      : { appliedQuery, ...data };
+    set({ acceptedResults, loading: false, error: null, ...preferences });
+    return null;
+  }
+
   async function executeQuery(
     db: string,
     collection: string,
@@ -122,69 +182,57 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     requestIsCurrent: () => boolean,
     recordHistory: boolean
   ): Promise<string | null> {
-    // All controls are captured synchronously, before transport I/O.
     const { limit, projection } = get();
     let parsed: unknown;
     try {
       parsed = JSON5.parse(queryText);
     } catch (e) {
-      set({ loading: false });
-      return e instanceof Error ? e.message : 'Invalid JSON';
+      const error = e instanceof Error ? e.message : 'Invalid JSON';
+      set({ loading: false, error });
+      return error;
     }
     if (recordHistory) recordAttempt(db, collection, queryMode, queryText);
     if (queryMode === 'aggregate') {
       if (!Array.isArray(parsed)) {
-        set({ loading: false });
-        return 'Aggregate pipeline must be a JSON array';
+        const error = 'Aggregate pipeline must be a JSON array';
+        set({ loading: false, error });
+        return error;
       }
-      set({ loading: true, skip: 0, error: null, sort: null });
-      const result = await window.api.aggregate(db, collection, parsed as Record<string, unknown>[]);
-      if (!requestIsCurrent()) return null;
-      if (!result.ok) {
-        set({ loading: false, error: result.error });
-        return result.error;
-      }
-      set({ loading: false, docs: result.data, totalCount: result.data.length, resultQueryMode: 'aggregate' });
-      return null;
+      return executeAppliedQuery(
+        { db, collection, queryMode, pipeline: parsed as Record<string, unknown>[] },
+        requestIsCurrent
+      );
+    }
+    if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+      const error = 'Filter must be a JSON object';
+      set({ loading: false, error });
+      return error;
     }
     const filter = parsed as Record<string, unknown>;
-    set({ loading: true, skip: 0, error: null, sort: null, filter });
-    const result = await window.api.find(db, collection, {
-      filter,
-      ...(projection ? { projection } : {}),
-      skip: 0,
-      limit,
-    });
-    if (!requestIsCurrent()) return null;
-    if (!result.ok) {
-      set({ loading: false, error: result.error });
-      return result.error;
-    }
-    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
-    return null;
+    workingFilter = { db, collection, filter };
+    return executeAppliedQuery(
+      { db, collection, queryMode, filter, projection, sort: null, skip: 0, limit },
+      requestIsCurrent
+    );
   }
 
   const state = {
     selectedDb: null,
     selectedCollection: null,
-    docs: [],
-    totalCount: 0,
-    skip: 0,
+    acceptedResults: null,
     limit: 20,
-    filter: {},
     projection: null,
-    resultQueryMode: 'filter',
     error: null,
     loading: false,
     queryMode: 'filter',
     fieldNames: [],
-    sort: null,
     pendingFilterText: null,
     queryHistory: [],
     historyIndex: null,
     pendingQueryMode: null,
 
     selectDb: async (db: string) => {
+      workingFilter = null;
       const selectionIsCurrent = selectionRequests.start();
       resultRequests.invalidate();
       set({
@@ -219,23 +267,9 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     fetchPage: async (skip: number) => {
-      const { selectedDb, selectedCollection, limit, filter, projection, sort } = get();
-      if (!selectedDb || !selectedCollection) return;
-      const requestIsCurrent = resultRequests.start();
-      set({ loading: true, skip });
-      const result = await window.api.find(selectedDb, selectedCollection, {
-        filter,
-        ...(projection ? { projection } : {}),
-        skip,
-        limit,
-        sort: sort ?? undefined,
-      });
-      if (!requestIsCurrent()) return;
-      if (!result.ok) {
-        set({ loading: false, error: result.error });
-        return;
-      }
-      set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
+      const query = acceptedFilter();
+      if (!query) return;
+      await executeAppliedQuery({ ...query, skip }, resultRequests.start());
     },
 
     runQuery: async (queryText: string) => {
@@ -274,7 +308,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     applyProjection: async (projectionText: string) => {
-      const { selectedDb, selectedCollection, filter, sort, skip, limit, queryMode } = get();
+      const { selectedDb, selectedCollection, limit, queryMode } = get();
       if (!selectedDb || !selectedCollection) return 'No collection selected';
       if (queryMode === 'aggregate') return 'Projection is paused in Aggregate mode';
 
@@ -288,54 +322,33 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
         return 'Projection must be a JSON object';
       }
 
-      const nextProjection = Object.keys(parsed).length > 0 ? (parsed as Record<string, unknown>) : null;
-      const requestIsCurrent = resultRequests.start();
-      const result = await window.api.find(selectedDb, selectedCollection, {
-        filter,
-        ...(nextProjection ? { projection: nextProjection } : {}),
-        ...(sort ? { sort } : {}),
-        skip,
-        limit,
-      });
-      if (!requestIsCurrent()) return null;
-      if (!result.ok) return result.error;
-
-      set({
-        projection: nextProjection,
-        docs: result.data.docs,
-        totalCount: result.data.totalCount,
-        resultQueryMode: 'filter',
-        error: null,
-      });
-      return null;
+      const projection = Object.keys(parsed).length > 0 ? (parsed as Record<string, unknown>) : null;
+      const accepted = acceptedFilter();
+      return executeAppliedQuery(
+        {
+          db: selectedDb,
+          collection: selectedCollection,
+          queryMode: 'filter',
+          filter: submittedFilter(selectedDb, selectedCollection),
+          projection,
+          sort: accepted?.sort ?? null,
+          skip: accepted?.skip ?? 0,
+          limit: accepted?.limit ?? limit,
+        },
+        resultRequests.start(),
+        { projection }
+      );
     },
 
     clearProjection: async () => {
-      const { selectedDb, selectedCollection, filter, sort, skip, limit, queryMode } = get();
+      const { selectedDb, selectedCollection, queryMode } = get();
       if (!selectedDb || !selectedCollection) return 'No collection selected';
       if (queryMode === 'aggregate') {
+        // This only clears the collection preference; retained rows keep their metadata.
         set({ projection: null });
         return null;
       }
-
-      const requestIsCurrent = resultRequests.start();
-      const result = await window.api.find(selectedDb, selectedCollection, {
-        filter,
-        ...(sort ? { sort } : {}),
-        skip,
-        limit,
-      });
-      if (!requestIsCurrent()) return null;
-      if (!result.ok) return result.error;
-
-      set({
-        projection: null,
-        docs: result.data.docs,
-        totalCount: result.data.totalCount,
-        resultQueryMode: 'filter',
-        error: null,
-      });
-      return null;
+      return get().applyProjection('{}');
     },
 
     loadDocument: async (id: unknown) => {
@@ -357,40 +370,29 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       set({ queryMode: mode });
     },
 
-    setSort: (field: string) => {
-      const { sort } = get();
-      let newSort: Record<string, 1 | -1> | null;
-      if (!sort || !(field in sort)) {
-        newSort = { [field]: 1 };
-      } else if (sort[field] === 1) {
-        newSort = { [field]: -1 };
-      } else {
-        newSort = null;
-      }
-      set({ sort: newSort, skip: 0 });
-      get().fetchPage(0);
+    setSort: async (field: string) => {
+      const query = acceptedFilter();
+      if (!query) return;
+      const { sort } = query;
+      const nextSort =
+        !sort || !(field in sort) ? { [field]: 1 as const } : sort[field] === 1 ? { [field]: -1 as const } : null;
+      await executeAppliedQuery({ ...query, sort: nextSort, skip: 0 }, resultRequests.start());
     },
 
-    setLimit: (newLimit: number) => {
-      set({ limit: newLimit, skip: 0 });
-      get().fetchPage(0);
+    setLimit: async (limit: number) => {
+      const query = acceptedFilter();
+      if (!query) {
+        set({ limit });
+        return;
+      }
+      await executeAppliedQuery({ ...query, limit, skip: 0 }, resultRequests.start(), { limit });
     },
 
     refreshDocs: async () => {
-      const { selectedDb, selectedCollection, skip, limit, filter, projection, sort } = get();
-      if (!selectedDb || !selectedCollection) return;
-      const requestIsCurrent = resultRequests.start();
-      const result = await window.api.find(selectedDb, selectedCollection, {
-        filter,
-        ...(projection ? { projection } : {}),
-        skip,
-        limit,
-        sort: sort ?? undefined,
-      });
-      if (!requestIsCurrent()) return;
-      if (result.ok) {
-        set({ docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
-      }
+      const { acceptedResults, selectedDb, selectedCollection } = get();
+      const query = acceptedResults?.appliedQuery;
+      if (!query || query.db !== selectedDb || query.collection !== selectedCollection) return;
+      await executeAppliedQuery(query, resultRequests.start());
     },
 
     restoreFromHistory: async (entry: QueryHistoryEntry) => {
@@ -400,8 +402,8 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       const selectionIsCurrent =
         db !== selectedDb || collection !== selectedCollection ? selectTarget(db, collection) : null;
       const requestIsCurrent = resultRequests.start();
+      workingFilter = { db, collection, filter: {} };
       set({
-        filter: {},
         pendingFilterText: query,
         pendingQueryMode: queryMode,
         queryMode,
@@ -423,12 +425,27 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => {
-      const { selectedDb, selectedCollection, filter } = get();
+      const { selectedDb, selectedCollection, projection, limit } = get();
       if (!selectedDb || !selectedCollection) return;
-      const newFilter = { ...filter, [column]: combineFilterValue(filter[column], value, action) };
-      const query = JSON.stringify(newFilter, null, 2);
-      set({ filter: newFilter, skip: 0, pendingFilterText: query, pendingQueryMode: 'filter', queryMode: 'filter' });
-      get().fetchPage(0);
+      const filter = submittedFilter(selectedDb, selectedCollection);
+      const nextFilter = { ...filter, [column]: combineFilterValue(filter[column], value, action) };
+      workingFilter = { db: selectedDb, collection: selectedCollection, filter: nextFilter };
+      const query = JSON.stringify(nextFilter, null, 2);
+      set({ pendingFilterText: query, pendingQueryMode: 'filter', queryMode: 'filter' });
+      const accepted = acceptedFilter();
+      void executeAppliedQuery(
+        {
+          db: selectedDb,
+          collection: selectedCollection,
+          queryMode: 'filter',
+          filter: nextFilter,
+          projection,
+          sort: accepted?.sort ?? null,
+          skip: 0,
+          limit: accepted?.limit ?? limit,
+        },
+        resultRequests.start()
+      );
       recordAttempt(selectedDb, selectedCollection, 'filter', query);
     },
 

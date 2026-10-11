@@ -54,7 +54,7 @@ export function QueryEditor() {
   const runExplain = useStore((s) => s.runExplain);
   const loading = useStore((s) => s.loading);
   const [explainOutput, setExplainOutput] = useState<Record<string, unknown> | null>(null);
-  const filter = useStore((s) => s.filter);
+  const appliedQuery = useStore((s) => s.acceptedResults?.appliedQuery);
   const fieldNames = useStore((s) => s.fieldNames);
   const pendingFilterText = useStore((s) => s.pendingFilterText);
   const pendingQueryMode = useStore((s) => s.pendingQueryMode);
@@ -127,7 +127,10 @@ export function QueryEditor() {
     }
   }, [getEditorText, queryMode, runExplain]);
 
-  const hasActiveFilter = Object.keys(filter).length > 0 || queryMode === 'aggregate';
+  const hasActiveFilter =
+    (appliedQuery?.queryMode === 'filter' && Object.keys(appliedQuery.filter).length > 0) ||
+    appliedQuery?.queryMode === 'aggregate' ||
+    queryMode === 'aggregate';
 
   const handleClear = useCallback(async () => {
     if (viewRef.current) {

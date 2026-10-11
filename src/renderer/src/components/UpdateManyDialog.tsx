@@ -9,6 +9,7 @@ import JSON5 from 'json5';
 import { foldGutter, foldKeymap } from '@codemirror/language';
 import { baseExtensions } from '../lib/editor';
 import type { UpdateManyInput, UpdateManyOptions } from '../../../shared/types';
+import type { AcceptedResults } from '../collection-query';
 
 const DEFAULT_UPDATE = '{\n  "$set": {}\n}';
 const DEFAULT_OPTIONS = '{}';
@@ -22,14 +23,19 @@ const editorTheme = EditorView.theme({
 export function UpdateManyDialog() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmation, setConfirmation] = useState<AcceptedResults | null>(null);
   const updateViewRef = useRef<EditorView | null>(null);
   const optionsViewRef = useRef<EditorView | null>(null);
   const updateManyDocs = useStore((s) => s.updateManyDocs);
-  const selectedCollection = useStore((s) => s.selectedCollection);
   const queryMode = useStore((s) => s.queryMode);
   const loading = useStore((s) => s.loading);
-  const totalCount = useStore((s) => s.totalCount);
-  const filter = useStore((s) => s.filter);
+  const acceptedResults = useStore((s) => s.acceptedResults);
+  const displayed = open ? confirmation : acceptedResults;
+  const query = displayed?.appliedQuery;
+  const selectedCollection = query?.collection;
+  const totalCount = displayed?.totalCount ?? 0;
+  const filter = query?.queryMode === 'filter' ? query.filter : {};
+  const canConfirm = !loading && !saving && acceptedResults === confirmation && query?.queryMode === 'filter';
 
   const updateEditorRefCallback = useCallback((node: HTMLDivElement | null) => {
     if (node) {
@@ -69,10 +75,12 @@ export function UpdateManyDialog() {
 
   const handleOpenChange = (openState: boolean): void => {
     if (!openState) setSaving(false);
+    if (openState) setConfirmation(acceptedResults);
     setOpen(openState);
   };
 
   const handleConfirm = async (): Promise<void> => {
+    if (!canConfirm || !confirmation) return;
     const updateText = updateViewRef.current?.state.doc.toString() ?? '';
     const optionsText = optionsViewRef.current?.state.doc.toString() ?? '';
     let update: UpdateManyInput;
@@ -98,7 +106,7 @@ export function UpdateManyDialog() {
     }
 
     setSaving(true);
-    const result = await updateManyDocs(update, options);
+    const result = await updateManyDocs(update, options, confirmation);
     if (!result.ok) {
       setSaving(false);
       toast.error(result.error);
@@ -112,8 +120,6 @@ export function UpdateManyDialog() {
     handleOpenChange(false);
   };
 
-  // Aggregate results have no filter to hand to updateMany, and the store's
-  // filter is stale after an aggregate run.
   if (queryMode === 'aggregate') return null;
 
   const isEmptyFilter = Object.keys(filter).length === 0;
@@ -121,7 +127,12 @@ export function UpdateManyDialog() {
 
   return (
     <>
-      <Button variant="outline" size="sm" disabled={loading || totalCount === 0} onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={loading || totalCount === 0 || query?.queryMode !== 'filter'}
+        onClick={() => handleOpenChange(true)}
+      >
         Update results
       </Button>
       <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -166,7 +177,7 @@ export function UpdateManyDialog() {
             </div>
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleConfirm} disabled={saving}>
+            <Button onClick={handleConfirm} disabled={!canConfirm}>
               Update {totalCount.toLocaleString()} {docWord}
             </Button>
           </div>

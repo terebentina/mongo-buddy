@@ -1,3 +1,4 @@
+import { filterResults } from '../test-fixtures';
 import { useState } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -54,15 +55,12 @@ beforeEach(() => {
     collections: [],
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    docs: [],
-    totalCount: 0,
-    skip: 0,
     limit: 20,
-    filter: {},
     error: null,
     loading: false,
     savedConnections: [],
     queryMode: 'filter' as const,
+    acceptedResults: filterResults(),
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });

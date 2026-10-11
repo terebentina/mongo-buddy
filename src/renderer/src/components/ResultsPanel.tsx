@@ -105,16 +105,20 @@ function ProjectionPopover() {
 }
 
 export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: ResultsPanelProps) {
-  const docs = useStore((s) => s.docs);
-  const totalCount = useStore((s) => s.totalCount);
-  const skip = useStore((s) => s.skip);
-  const limit = useStore((s) => s.limit);
+  const acceptedResults = useStore((s) => s.acceptedResults);
+  const appliedQuery = acceptedResults?.appliedQuery;
+  const docs = acceptedResults?.docs ?? [];
+  const totalCount = acceptedResults?.totalCount ?? 0;
+  const limitPreference = useStore((s) => s.limit);
+  const skip = appliedQuery?.queryMode === 'filter' ? appliedQuery.skip : 0;
+  const limit = appliedQuery?.queryMode === 'filter' ? appliedQuery.limit : limitPreference;
+  const canPage = appliedQuery?.queryMode === 'filter';
   const loading = useStore((s) => s.loading);
   const error = useStore((s) => s.error);
   const fetchPage = useStore((s) => s.fetchPage);
   const setLimit = useStore((s) => s.setLimit);
   const currentPage = Math.floor(skip / limit) + 1;
-  const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+  const totalPages = canPage ? Math.max(1, Math.ceil(totalCount / limit)) : 1;
   const [pageInput, setPageInput] = useState(String(currentPage));
   const [lastCurrentPage, setLastCurrentPage] = useState(currentPage);
 
@@ -168,7 +172,7 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
           <Button
             variant="outline"
             size="sm"
-            disabled={skip === 0}
+            disabled={!canPage || loading || skip === 0}
             onClick={() => fetchPage(Math.max(0, skip - limit))}
           >
             Previous
@@ -177,6 +181,8 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
             Page
             <input
               type="number"
+              aria-label="Page"
+              disabled={!canPage || loading}
               className="w-14 h-7 px-1.5 text-center text-sm border rounded bg-background"
               value={pageInput}
               min={1}
@@ -184,8 +190,8 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
               onChange={(e) => setPageInput(e.target.value)}
               onBlur={() => {
                 const page = Math.max(1, Math.min(totalPages, Math.floor(Number(pageInput)) || 1));
-                setPageInput(String(page));
-                fetchPage((page - 1) * limit);
+                setPageInput(String(currentPage));
+                if (canPage && !loading && page !== currentPage) void fetchPage((page - 1) * limit);
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
@@ -195,6 +201,8 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
           </span>
           <select
             className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
+            aria-label="Documents per page"
+            disabled={!canPage || loading}
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
           >
@@ -207,7 +215,7 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
           <Button
             variant="outline"
             size="sm"
-            disabled={skip + limit >= totalCount}
+            disabled={!canPage || loading || skip + limit >= totalCount}
             onClick={() => fetchPage(skip + limit)}
           >
             Next
