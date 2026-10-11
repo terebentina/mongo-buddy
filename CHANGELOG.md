@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Changed
+
+* Require an explicit collection selection for database exports.
+* Remove unused internal hook and UI options, redundant operation guards, and the unused renderer count bridge; the MCP count tool remains supported.
+* Derive preload API declarations from the runtime bridge and remove the unsupported non-context-isolated fallback.
+
 ## [2.23.0](https://github.com/terebentina/mongo-buddy/compare/v2.22.2...v2.23.0) (2026-10-11)
 
 

@@ -13,7 +13,6 @@ import { CollectionColumnWidthsStore } from './collection-column-widths-store';
 import { createConnectionManager } from './connection-manager';
 import { registerIpcHandlers } from './ipc-handlers';
 import { createDispatcher } from './commands/dispatch';
-import { countCommand } from './commands/count';
 import { listDatabasesCommand } from './commands/list-databases';
 import { sampleFieldsCommand } from './commands/sample-fields';
 import { listCollectionsCommand } from './commands/list-collections';
@@ -97,7 +96,6 @@ registerIpcHandlers({
 
 const dispatch = createDispatcher(connectionManager);
 const mongoCommands = [
-  countCommand,
   listDatabasesCommand,
   sampleFieldsCommand,
   listCollectionsCommand,

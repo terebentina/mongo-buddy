@@ -54,7 +54,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   const [indexesOpen, setIndexesOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 
-  const exp = useOperation('export-collection');
+  const exp = useOperation<'export-collection'>();
   const exporting = exp.status === 'running' || exp.status === 'pending';
 
   const selectDb = useStore((s) => s.selectDb);
@@ -342,8 +342,8 @@ function DatabaseRow({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [existingCollectionNames, setExistingCollectionNames] = useState<string[]>([]);
 
-  const exp = useOperation('export-database');
-  const imp = useOperation('import-collection');
+  const exp = useOperation<'export-database'>();
+  const imp = useOperation<'import-collection'>();
 
   const refreshDocs = useStore((s) => s.refreshDocs);
   const refreshDatabases = useStore((s) => s.refreshDatabases);

@@ -40,7 +40,7 @@ beforeEach(() => {
 describe('useOperation', () => {
   it('start() returns the operation id', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-42' });
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     let id: string | null = null;
     await act(async () => {
       id = await result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
@@ -55,7 +55,7 @@ describe('useOperation', () => {
 
   it('reflects progress updates in state', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-7' });
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     await act(async () => {
       await result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
     });
@@ -73,9 +73,9 @@ describe('useOperation', () => {
     });
   });
 
-  it('reflects terminal state with typed result', async () => {
+  it('reflects terminal state', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-1' });
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     await act(async () => {
       await result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
     });
@@ -90,17 +90,12 @@ describe('useOperation', () => {
     });
     await waitFor(() => {
       expect(result.current.status).toBe('succeeded');
-      expect(result.current.result).toEqual({
-        kind: 'export-collection',
-        exported: 500,
-        path: '/tmp/x.bson.gz',
-      });
     });
   });
 
   it('surfaces rejection when start returns ok:false; start returns null', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: false, error: 'already in progress' });
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     let id: string | null = 'unset' as string | null;
     await act(async () => {
       id = await result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
@@ -114,7 +109,7 @@ describe('useOperation', () => {
 
   it('cancel() calls api.operationCancel with current id', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-9' });
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     await act(async () => {
       await result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
     });
@@ -125,7 +120,7 @@ describe('useOperation', () => {
   });
 
   it('cancel() is a no-op when no op started', async () => {
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     await act(async () => {
       await result.current.cancel();
     });
@@ -134,7 +129,7 @@ describe('useOperation', () => {
 
   it('reset() returns the hook to idle', async () => {
     mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-1' });
-    const { result } = renderHook(() => useOperation('export-collection'));
+    const { result } = renderHook(() => useOperation<'export-collection'>());
     await act(async () => {
       await result.current.start({ kind: 'export-collection', db: 'd', collection: 'c' });
     });
@@ -153,7 +148,6 @@ describe('useOperation', () => {
     });
     await waitFor(() => {
       expect(result.current.status).toBe('idle');
-      expect(result.current.result).toBeNull();
       expect(result.current.error).toBeNull();
     });
   });
@@ -166,7 +160,7 @@ describe('useOperation', () => {
 
   it('progress on a new start replaces previous op state', async () => {
     mockApi.operationStart.mockResolvedValueOnce({ ok: true, data: 'op-a' });
-    const { result } = renderHook(() => useOperation('import-collection'));
+    const { result } = renderHook(() => useOperation<'import-collection'>());
     await act(async () => {
       await result.current.start({
         kind: 'import-collection',
@@ -202,9 +196,7 @@ describe('useOperation', () => {
       });
     });
     await waitFor(() => {
-      // new op: no record yet, should be pending, result cleared
       expect(result.current.status).toBe('pending');
-      expect(result.current.result).toBeNull();
     });
   });
 });
@@ -228,6 +220,7 @@ describe('waitForTerminal', () => {
     const rec = await p;
     expect(rec.status).toBe('succeeded');
     expect(rec.id).toBe('op-x');
+    expect(rec.result).toEqual({ kind: 'export-collection', exported: 10, path: '/x' });
   });
 
   it('resolves immediately if record already terminal', async () => {

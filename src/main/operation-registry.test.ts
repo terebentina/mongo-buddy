@@ -576,6 +576,22 @@ describe('OperationRegistry', () => {
   });
 
   describe('export-database', () => {
+    it('rejects database export without an explicit collection selection', () => {
+      const { emits, emit } = makeEmitSpy();
+      const registry = createOperationRegistry({
+        mongo: makeMongoPort(),
+        fs: makeFsPort(),
+        dialog: makeDialogPort(),
+        emit,
+        kinds: OPERATIONS,
+      });
+
+      const res = registry.start({ kind: 'export-database', db: 'mydb' } as unknown as OperationParams, TEST_ACTIVE);
+
+      expect(res.ok).toBe(false);
+      expect(emits).toEqual([]);
+    });
+
     it('iterates collections with progress.label updated per collection', async () => {
       const fs = makeFsPort();
       const dialog = makeDialogPort({ folderPath: '/tmp/out' });
@@ -597,7 +613,10 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
-      const res = registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      const res = registry.start(
+        { kind: 'export-database', db: 'mydb', collections: ['a', 'b', 'c', 'v'] },
+        TEST_ACTIVE
+      );
       expect(res.ok).toBe(true);
 
       const terminal = await waitForTerminal(emits);
@@ -657,7 +676,7 @@ describe('OperationRegistry', () => {
 
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
-      const res = registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      const res = registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'b', 'c'] }, TEST_ACTIVE);
       expect(res.ok).toBe(true);
       const id = res.ok ? res.data : '';
       cancelFn = () => registry.cancel(id);
@@ -726,29 +745,6 @@ describe('OperationRegistry', () => {
       const exportedNames = (mongo.exportCollection as ReturnType<typeof vi.fn>).mock.calls.map((args) => args[2]);
       expect(exportedNames).toEqual(['a']);
     });
-
-    it('exports every collection when params.collections is undefined', async () => {
-      const fs = makeFsPort();
-      const dialog = makeDialogPort({ folderPath: '/tmp/out' });
-      const mongo = makeMongoPort({
-        listCollections: async () => ({
-          ok: true,
-          data: [
-            { name: 'a', type: 'collection', count: 1 },
-            { name: 'b', type: 'collection', count: 1 },
-          ],
-        }),
-        exportCollection: async () => ({ ok: true, data: 10 }),
-      });
-      const { emits, emit } = makeEmitSpy();
-      const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
-
-      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
-      const terminal = await waitForTerminal(emits);
-      expect(terminal.status).toBe('succeeded');
-
-      expect(mongo.exportCollection).toHaveBeenCalledTimes(2);
-    });
   });
 
   describe('export-database sidecar', () => {
@@ -772,7 +768,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
-      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'b'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -810,7 +806,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
-      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'b', 'c'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -846,7 +842,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
-      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'b', 'c'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -876,7 +872,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
-      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'b'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('succeeded');
@@ -903,7 +899,7 @@ describe('OperationRegistry', () => {
       const { emits, emit } = makeEmitSpy();
       const registry = createOperationRegistry({ mongo, fs, dialog, emit, kinds: OPERATIONS });
 
-      registry.start({ kind: 'export-database', db: 'mydb' }, TEST_ACTIVE);
+      registry.start({ kind: 'export-database', db: 'mydb', collections: ['a', 'b'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
 
       expect(terminal.status).toBe('failed');
@@ -1075,7 +1071,7 @@ describe('OperationRegistry', () => {
         params: z.object({
           kind: z.literal('export-database'),
           db: z.string(),
-          collections: z.array(z.string()).optional(),
+          collections: z.array(z.string()),
         }),
         async run(_a, _p, ctx) {
           // Wait one microtask so the emit consumer can cancel on 'running'.
@@ -1091,7 +1087,7 @@ describe('OperationRegistry', () => {
       const { registry, emits } = buildRegistry(fakeDef, (rec, runningRegistry) => {
         if (rec.status === 'running') runningRegistry.cancel(rec.id);
       });
-      registry.start({ kind: 'export-database', db: 'd' }, TEST_ACTIVE);
+      registry.start({ kind: 'export-database', db: 'd', collections: ['c'] }, TEST_ACTIVE);
       const terminal = await waitForTerminal(emits);
       expect(terminal.status).toBe('cancelled');
       expect(terminal.result).toEqual({ kind: 'export-database', exported: 5, folder: '/tmp/x' });

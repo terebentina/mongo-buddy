@@ -7,7 +7,7 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
   params: z.object({
     kind: z.literal('export-database'),
     db: z.string(),
-    collections: z.array(z.string()).optional(),
+    collections: z.array(z.string()),
   }),
   async run(active, params, ctx) {
     const folder = await ctx.dialog.pickFolder();
@@ -23,11 +23,8 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
       return { ok: false, error: listRes.error };
     }
 
-    let collections = listRes.data.filter((c) => c.type === 'collection');
-    if (params.collections !== undefined) {
-      const wanted = new Set(params.collections);
-      collections = collections.filter((c) => wanted.has(c.name));
-    }
+    const wanted = new Set(params.collections);
+    const collections = listRes.data.filter((c) => c.type === 'collection' && wanted.has(c.name));
     const total = collections.length;
     ctx.onProgress({ processed: 0, total });
 
@@ -50,14 +47,12 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
       const loopCtx = {
         ...ctx,
         onProgress: (patch: Parameters<typeof ctx.onProgress>[0]): void => {
-          if (typeof patch.processed === 'number') {
-            ctx.onProgress({
-              processed: totalExported + patch.processed,
-              total,
-              label: coll.name,
-              stage: `${i + 1} of ${total}`,
-            });
-          }
+          ctx.onProgress({
+            processed: totalExported + patch.processed!,
+            total,
+            label: coll.name,
+            stage: `${i + 1} of ${total}`,
+          });
         },
       };
 

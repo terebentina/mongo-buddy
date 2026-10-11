@@ -5,13 +5,11 @@ import type {
   OperationStatus,
   OperationId,
   OperationParams,
-  OperationResult,
   OperationRecord,
   OperationProgress,
 } from '../../../shared/types';
 
 type ParamsFor<K extends OperationKind> = Extract<OperationParams, { kind: K }>;
-type ResultFor<K extends OperationKind> = Extract<OperationResult, { kind: K }>;
 
 type UseOperationStatus = OperationStatus | 'idle' | 'rejected';
 
@@ -63,12 +61,11 @@ interface UseOperationReturn<K extends OperationKind> {
   cancel: () => Promise<void>;
   status: UseOperationStatus;
   progress: OperationProgress;
-  result: ResultFor<K> | null;
   error: string | null;
   reset: () => void;
 }
 
-export function useOperation<K extends OperationKind>(kind: K): UseOperationReturn<K> {
+export function useOperation<K extends OperationKind>(): UseOperationReturn<K> {
   const [id, setId] = useState<OperationId | null>(null);
   const [rejection, setRejection] = useState<string | null>(null);
 
@@ -98,7 +95,6 @@ export function useOperation<K extends OperationKind>(kind: K): UseOperationRetu
 
   let status: UseOperationStatus;
   let error: string | null = null;
-  let result: ResultFor<K> | null = null;
   let progress: OperationProgress = EMPTY_PROGRESS;
 
   if (rejection !== null) {
@@ -108,14 +104,11 @@ export function useOperation<K extends OperationKind>(kind: K): UseOperationRetu
     status = rec.status;
     progress = rec.progress;
     error = rec.error ?? null;
-    if (rec.result && rec.result.kind === kind) {
-      result = rec.result as ResultFor<K>;
-    }
   } else if (id) {
     status = 'pending';
   } else {
     status = 'idle';
   }
 
-  return { start, cancel, status, progress, result, error, reset };
+  return { start, cancel, status, progress, error, reset };
 }

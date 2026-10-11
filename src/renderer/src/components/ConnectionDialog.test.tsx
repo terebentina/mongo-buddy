@@ -33,7 +33,6 @@ const mockApi = {
   listDatabases: vi.fn(),
   listCollections: vi.fn(),
   find: vi.fn(),
-  count: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),

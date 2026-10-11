@@ -13,33 +13,21 @@ function ScrollArea({
       <BaseScrollArea.Viewport className="h-full w-full max-h-[inherit] rounded-[inherit]">
         {children}
       </BaseScrollArea.Viewport>
-      <ScrollBar orientation="vertical" />
+      <ScrollBar />
       <BaseScrollArea.Corner />
     </BaseScrollArea.Root>
   );
 }
 
-function ScrollBar({
-  className,
-  orientation = 'vertical',
-  ref,
-  ...props
-}: React.ComponentPropsWithoutRef<typeof BaseScrollArea.Scrollbar> & { ref?: React.Ref<HTMLDivElement> }) {
+function ScrollBar() {
   return (
     <BaseScrollArea.Scrollbar
-      ref={ref}
-      orientation={orientation}
-      className={cn(
-        'flex touch-none select-none transition-colors',
-        orientation === 'vertical' && 'h-full w-2.5 border-l border-l-transparent p-px',
-        orientation === 'horizontal' && 'h-2.5 flex-col border-t border-t-transparent p-px',
-        className
-      )}
-      {...props}
+      orientation="vertical"
+      className="flex touch-none select-none transition-colors h-full w-2.5 border-l border-l-transparent p-px"
     >
       <BaseScrollArea.Thumb className="w-full rounded-full bg-border" />
     </BaseScrollArea.Scrollbar>
   );
 }
 
-export { ScrollArea, ScrollBar };
+export { ScrollArea };

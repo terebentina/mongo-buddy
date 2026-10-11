@@ -108,8 +108,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
   const byKind = new Map<OperationKind, AnyOperationDef>(deps.kinds.map((k) => [k.kind, k]));
 
   const emitUpdate = (id: OperationId, patch: Partial<OperationRecord>): void => {
-    const current = records.get(id);
-    if (!current) return;
+    const current = records.get(id)!;
     const next: OperationRecord = {
       ...current,
       ...patch,
@@ -119,8 +118,7 @@ export function createOperationRegistry(deps: RegistryDeps): OperationRegistry {
   };
 
   const updateProgress = (id: OperationId, patch: Partial<OperationProgress>): void => {
-    const current = records.get(id);
-    if (!current) return;
+    const current = records.get(id)!;
     const nextProgress: OperationProgress = { ...current.progress, ...patch };
     const next: OperationRecord = { ...current, progress: nextProgress };
     records.set(id, next);

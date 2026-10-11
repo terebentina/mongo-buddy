@@ -27,14 +27,10 @@ function DialogContent({
   className,
   children,
   hideClose,
-  onInteractOutside: _oio,
-  onEscapeKeyDown: _oek,
   ref,
   ...props
 }: React.ComponentPropsWithoutRef<typeof BaseDialog.Popup> & {
   hideClose?: boolean;
-  onInteractOutside?: (e: Event) => void;
-  onEscapeKeyDown?: (e: KeyboardEvent) => void;
   ref?: React.Ref<HTMLDivElement>;
 }) {
   return (

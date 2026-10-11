@@ -60,7 +60,7 @@ const colls = (names: string[]): CollectionInfo[] => names.map((name) => ({ name
 describe('exportDatabaseOp', () => {
   it('dialog cancelled (folderPath=null): returns ok with exported:0, folder:null', async () => {
     const { ctx } = makeCtx({ folderPath: null });
-    const res = await exportDatabaseOp.run(ACTIVE, { kind: 'export-database', db: 'd' }, ctx);
+    const res = await exportDatabaseOp.run(ACTIVE, { kind: 'export-database', db: 'd', collections: ['a'] }, ctx);
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.data.data).toEqual({ kind: 'export-database', exported: 0, folder: null });
@@ -69,7 +69,7 @@ describe('exportDatabaseOp', () => {
 
   it('listCollections failure: returns ok:false', async () => {
     const { ctx } = makeCtx({ listResult: { ok: false, error: 'no perms' } });
-    const res = await exportDatabaseOp.run(ACTIVE, { kind: 'export-database', db: 'd' }, ctx);
+    const res = await exportDatabaseOp.run(ACTIVE, { kind: 'export-database', db: 'd', collections: ['a'] }, ctx);
     expect(res.ok).toBe(false);
     if (res.ok) return;
     expect(res.error).toBe('no perms');
@@ -97,7 +97,11 @@ describe('exportDatabaseOp', () => {
       }
     );
 
-    const res = await exportDatabaseOp.run(ACTIVE, { kind: 'export-database', db: 'd' }, ctx);
+    const res = await exportDatabaseOp.run(
+      ACTIVE,
+      { kind: 'export-database', db: 'd', collections: ['a', 'b', 'c'] },
+      ctx
+    );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.data.data.exported).toBe(2);

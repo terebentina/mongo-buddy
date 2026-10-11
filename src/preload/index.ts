@@ -50,8 +50,6 @@ export function createApi(ipc: IpcLike) {
       ipc.invoke('mongo:listIndexes', { db, collection }) as Promise<Result<IndexInfo[]>>,
     find: (db: string, collection: string, opts: FindOpts): Promise<Result<FindResult>> =>
       ipc.invoke('mongo:find', { db, collection, ...opts }) as Promise<Result<FindResult>>,
-    count: (db: string, collection: string, filter?: Record<string, unknown>): Promise<Result<number>> =>
-      ipc.invoke('mongo:count', { db, collection, filter: filter ?? {} }) as Promise<Result<number>>,
     aggregate: (
       db: string,
       collection: string,
@@ -180,13 +178,8 @@ const api = createApi(ipcRenderer as unknown as IpcLike);
 
 export type MongoApi = ReturnType<typeof createApi>;
 
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('api', api);
-  } catch (error) {
-    console.error(error);
-  }
-} else if (typeof window !== 'undefined') {
-  // @ts-expect-error (define in dts)
-  window.api = api;
+try {
+  contextBridge.exposeInMainWorld('api', api);
+} catch (error) {
+  console.error(error);
 }

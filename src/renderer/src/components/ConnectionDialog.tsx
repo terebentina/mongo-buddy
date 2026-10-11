@@ -130,12 +130,6 @@ export function ConnectionDialog({ open, onOpenChange }: ConnectionDialogProps) 
       <DialogContent
         className="max-h-[calc(100vh-2rem)] overflow-hidden grid-rows-[auto_minmax(3rem,1fr)_auto]"
         hideClose={!connected}
-        onInteractOutside={(e) => {
-          if (!connected) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (!connected) e.preventDefault();
-        }}
       >
         <DialogHeader>
           <DialogTitle>Connect to MongoDB</DialogTitle>

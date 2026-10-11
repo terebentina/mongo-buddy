@@ -7,7 +7,6 @@ import { useStore } from '../store';
 const mockApi = {
   updateMany: vi.fn(),
   find: vi.fn(),
-  count: vi.fn(),
 };
 
 beforeEach(() => {

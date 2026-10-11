@@ -2,6 +2,8 @@
 
 A desktop MongoDB GUI client (Electron + React) that also exposes a built-in MCP server so AI assistants can use the same connection the user has open in the GUI.
 
+Renderer hooks and UI primitives are private application implementation, not supported external interfaces. Preload supports context-isolated windows only; `Window.api` uses the API type inferred from `createApi`.
+
 ## Language
 
 ### Connection family
@@ -80,6 +82,8 @@ _Avoid_: filter button, cell filter.
 A declarative one-shot MongoDB operation. Shape: `{ name, input: ZodSchema, run(active, input): Promise<O> }`. Lives in `src/main/commands/`. Stateless. The body of `run` is bare driver work — no try/catch, no EJSON, no precondition check; those are the **Dispatcher**'s job. `name` is the single canonical identifier (camelCase, e.g. `listDatabases`, `insertOne`); the IPC channel `mongo:${name}` and the MCP tool name (= `name`) are derived by the adapters.
 _Avoid_: handler, action, operation. "Operation" is reserved for the long-running task tracked by `OperationRegistry` (export/import).
 
+The `count` command is MCP-only: it has no renderer `window.api.count` method or `mongo:count` IPC registration.
+
 **Dispatcher**:
 The single seam that runs a **MongoCommand**. Owns: `manager.getActive()` precondition, Zod input validation, whole-input `EJSON.deserialize`, calling `command.run`, whole-output `EJSON.serialize`, try/catch → `Result<T>`. Created once at app startup and shared by both transport adapters. The **MCP write approval** gate separately checks the active client before prompting and again before dispatch.
 
@@ -122,6 +126,8 @@ A long-running task tracked by `OperationRegistry` (export collection, export da
 **OperationDef**:
 The declarative definition of an **Operation** kind. Shape: `{ kind, params: ZodSchema, run(active, params, ctx): Promise<Result<{ data, warning? }>> }`. Lives in `src/main/operations/`. The body of `run` does the work — acquire resources via `ctx` (dialog, fs, mongo, signal, onProgress), return success/failure as `Result`. The **OperationRegistry** owns the state machine (`running` → terminal), the `inFlight` enqueue guard, signal-based cancellation classification, and Zod-validation of params; an **OperationDef** body never emits status. `kind` is the canonical identifier and matches the corresponding `OperationParams` discriminant.
 _Avoid_: handler, runner. "Operation" alone is the runtime task.
+
+Database export always receives an explicit `collections: string[]` selection. Shared types and the export-database Zod schema require it; omitting the selection is not an "export all" mode. The exporter skips views even when selected.
 
 ### Copying
 
