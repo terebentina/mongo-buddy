@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Bug Fixes
+
+* **query:** update collection selection and title immediately, clear previous results on collection changes, show failed collection loads in the results panel, and keep history replay, results and autocomplete fields coherent across delayed replies and reconnects ([#72](https://github.com/terebentina/mongo-buddy/issues/72)).
+
 ## [2.23.1](https://github.com/terebentina/mongo-buddy/compare/v2.23.0...v2.23.1) (2026-10-11)
 
 ## [2.23.0](https://github.com/terebentina/mongo-buddy/compare/v2.22.2...v2.23.0) (2026-10-11)

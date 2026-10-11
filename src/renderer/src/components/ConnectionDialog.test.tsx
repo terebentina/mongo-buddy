@@ -27,6 +27,7 @@ vi.mock('sonner', () => ({
 }));
 
 const mockApi = {
+  setWindowTitle: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn(),
   onConnectionState: vi.fn(() => () => {}),
