@@ -1,4 +1,4 @@
-import { filterResults } from '../test-fixtures';
+import { aggregateResults, filterResults } from '../test-fixtures';
 import { useState } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -30,6 +30,7 @@ const mockApi = {
   deleteConnection: vi.fn(),
   getLastUsed: vi.fn(),
   saveHistory: vi.fn(),
+  setWindowTitle: vi.fn(),
 };
 
 function getEditorView(): EditorView {
@@ -46,8 +47,11 @@ function setEditorText(value: string): void {
   });
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+beforeEach(async () => {
+  (window as unknown as Record<string, unknown>).api = mockApi;
+  mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
+  await useStore.getState().disconnect();
+  vi.resetAllMocks();
   useStore.setState({
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
     uri: 'mongodb://localhost',
@@ -66,7 +70,7 @@ beforeEach(() => {
 });
 
 describe('DocumentEditor', () => {
-  it('submit calls insert-one and refreshes table', async () => {
+  it('saving a new document closes the dialog and displays the refreshed rows', async () => {
     mockApi.insertOne.mockResolvedValue({ ok: true, data: { _id: '1', name: 'Alice' } });
     mockApi.find.mockResolvedValue({
       ok: true,
@@ -80,12 +84,11 @@ describe('DocumentEditor', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(mockApi.insertOne).toHaveBeenCalledWith('testdb', 'users', { name: 'Alice' });
-    });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(useStore.getState().acceptedResults).toEqual(filterResults({}, [{ _id: '1', name: 'Alice' }], 1));
   });
 
-  it('save calls update-one and refreshes table', async () => {
+  it('saving an edited document closes the editor and displays the replacement', async () => {
     mockApi.updateOne.mockResolvedValue({ ok: true, data: { _id: { $oid: '123' }, name: 'Bob' } });
     mockApi.find.mockResolvedValue({
       ok: true,
@@ -99,12 +102,11 @@ describe('DocumentEditor', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
 
-    await waitFor(() => {
-      expect(mockApi.updateOne).toHaveBeenCalledWith('testdb', 'users', { $oid: '123' }, { name: 'Bob' });
-    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(useStore.getState().acceptedResults).toEqual(filterResults({}, [{ _id: { $oid: '123' }, name: 'Bob' }], 1));
   });
 
-  it('delete button shows confirm, calls delete-one, refreshes table', async () => {
+  it('deleting a document requires confirmation then closes the editor and removes its result', async () => {
     mockApi.deleteOne.mockResolvedValue({ ok: true, data: undefined });
     mockApi.find.mockResolvedValue({
       ok: true,
@@ -112,14 +114,57 @@ describe('DocumentEditor', () => {
     });
 
     const onClose = vi.fn();
+    useStore.setState({ acceptedResults: filterResults({}, [{ _id: { $oid: '123' }, name: 'Alice' }], 1) });
     render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={onClose} />);
 
     await userEvent.click(screen.getByRole('button', { name: /delete/i }));
+    expect(mockApi.deleteOne).not.toHaveBeenCalled();
+    expect(useStore.getState().acceptedResults?.docs).toEqual([{ _id: { $oid: '123' }, name: 'Alice' }]);
     await userEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
-    await waitFor(() => {
-      expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', { $oid: '123' });
-    });
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(useStore.getState().acceptedResults).toEqual(filterResults({}, [], 0));
+  });
+
+  it('saving an insert leaves aggregate output unchanged until explicit Run, including output-stage pipelines', async () => {
+    const pipeline = [{ $match: { active: true } }, { $out: 'summary' }];
+    useStore.getState().setQueryMode('aggregate');
+    mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ total: 41 }] });
+    await useStore.getState().runQuery(JSON.stringify(pipeline));
+    const snapshot = useStore.getState().acceptedResults;
+    mockApi.aggregate.mockClear();
+    mockApi.insertOne.mockResolvedValueOnce({ ok: true, data: { _id: 'new', name: 'Bob' } });
+    render(<DocumentEditor />);
+    await userEvent.click(screen.getByRole('button', { name: /add document/i }));
+    setEditorText('{ name: "Bob" }');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(useStore.getState().acceptedResults).toBe(snapshot);
+    expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ pipeline }, [{ total: 41 }]));
+    expect(mockApi.aggregate).not.toHaveBeenCalled();
+    expect(mockApi.find).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('a saved edit closes successfully when refresh fails and keeps the retained row metadata', async () => {
+    const accepted = filterResults(
+      { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 20 },
+      [{ _id: { $oid: '123' }, name: 'Alice' }],
+      41
+    );
+    useStore.setState({ acceptedResults: accepted });
+    mockApi.updateOne.mockResolvedValueOnce({ ok: true, data: { _id: { $oid: '123' }, name: 'Bob' } });
+    mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Refresh unavailable' });
+    const onClose = vi.fn();
+    render(<DocumentEditor editDoc={{ _id: { $oid: '123' }, name: 'Alice' }} onClose={onClose} />);
+    setEditorText('{ name: "Bob" }');
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(useStore.getState()).toMatchObject({ loading: false, error: 'Refresh unavailable' });
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('invalid JSON in editor shows error', async () => {

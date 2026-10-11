@@ -17,6 +17,7 @@ const mockApi = {
   updateMany: vi.fn(),
   deleteMany: vi.fn(),
   deleteOne: vi.fn(),
+  emptyCollection: vi.fn(),
   listConnections: vi.fn(),
   saveConnection: vi.fn(),
   deleteConnection: vi.fn(),
@@ -2307,4 +2308,624 @@ describe('accepted query results', () => {
     expect(useStore.getState().acceptedResults).toBe(newer);
     expect(mockApi.find).toHaveBeenCalledTimes(1);
   });
+});
+
+describe('mutation refresh ownership', () => {
+  type ReadResult = Result<{ docs: Record<string, unknown>[]; totalCount: number }>;
+  const mutations = [
+    {
+      name: 'insert document',
+      api: mockApi.insertOne,
+      run: () => useStore.getState().insertDoc({ name: 'Bob' }),
+      reply: { ok: true, data: { _id: 'new', name: 'Bob' } },
+      outcome: null,
+      args: ['testdb', 'users', { name: 'Bob' }],
+      skip: 20,
+    },
+    {
+      name: 'update document',
+      api: mockApi.updateOne,
+      run: () => useStore.getState().updateDoc({ $oid: '123' }, { name: 'Bob' }),
+      reply: { ok: true, data: { _id: { $oid: '123' }, name: 'Bob' } },
+      outcome: null,
+      args: ['testdb', 'users', { $oid: '123' }, { name: 'Bob' }],
+      skip: 20,
+    },
+    {
+      name: 'delete document',
+      api: mockApi.deleteOne,
+      run: () => useStore.getState().deleteDoc({ $oid: '123' }),
+      reply: { ok: true, data: undefined },
+      outcome: null,
+      args: ['testdb', 'users', { $oid: '123' }],
+      skip: 20,
+    },
+    {
+      name: 'update results',
+      api: mockApi.updateMany,
+      run: () => useStore.getState().updateManyDocs({ $set: { checked: true } }, {}),
+      reply: { ok: true, data: { matchedCount: 61, modifiedCount: 3 } },
+      outcome: { ok: true, data: { matchedCount: 61, modifiedCount: 3 } },
+      args: ['testdb', 'users', { active: true }, { $set: { checked: true } }, {}],
+      skip: 20,
+    },
+    {
+      name: 'delete results',
+      api: mockApi.deleteMany,
+      run: () => useStore.getState().deleteResults(),
+      reply: { ok: true, data: 3 },
+      outcome: { ok: true, data: 3 },
+      args: ['testdb', 'users', { active: true }],
+      skip: 0,
+    },
+    {
+      name: 'empty collection',
+      api: mockApi.emptyCollection,
+      run: () => useStore.getState().emptyCollection('testdb', 'users'),
+      reply: { ok: true, data: 61 },
+      outcome: { ok: true, data: 61 },
+      args: ['testdb', 'users'],
+      skip: 20,
+    },
+  ];
+
+  beforeEach(async () => {
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      projection: { name: 1 },
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ name: 'Alice' }], totalCount: 61 } });
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['name'] });
+    await useStore.getState().runQuery('{ active: true }');
+    await useStore.getState().setSort('name');
+    await useStore.getState().fetchPage(20);
+    mockApi.find.mockClear();
+    for (const mutation of mutations) mutation.api.mockResolvedValue(mutation.reply);
+  });
+
+  it('overlapping document writes each refresh their changes even after the first refresh commits', async () => {
+    const firstWrite = deferred<Result<Record<string, unknown>>>();
+    const secondWrite = deferred<Result<Record<string, unknown>>>();
+    mockApi.insertOne.mockReturnValueOnce(firstWrite.promise).mockReturnValueOnce(secondWrite.promise);
+    mockApi.find
+      .mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Bob' }], totalCount: 62 } })
+      .mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Bob' }, { name: 'Carol' }], totalCount: 63 } });
+    const first = useStore.getState().insertDoc({ name: 'Bob' });
+    const second = useStore.getState().insertDoc({ name: 'Carol' });
+
+    firstWrite.resolve({ ok: true, data: { _id: 'bob', name: 'Bob' } });
+    expect(await first).toBeNull();
+    expect(useStore.getState().acceptedResults?.docs).toEqual([{ name: 'Bob' }]);
+
+    secondWrite.resolve({ ok: true, data: { _id: 'carol', name: 'Carol' } });
+    expect(await second).toBeNull();
+
+    expect(mockApi.find).toHaveBeenCalledTimes(2);
+    expect(mockApi.find).toHaveBeenLastCalledWith('testdb', 'users', {
+      filter: { active: true },
+      projection: { name: 1 },
+      sort: { name: 1 },
+      skip: 20,
+      limit: 20,
+    });
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults(
+        { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 20 },
+        [{ name: 'Bob' }, { name: 'Carol' }],
+        63
+      )
+    );
+    expect(useStore.getState()).toMatchObject({ loading: false, error: null });
+  });
+
+  it.each(['success', 'failure'] as const)(
+    'a second successful write refreshes while the first read is pending and ignores its stale %s',
+    async (outcome) => {
+      const accepted = useStore.getState().acceptedResults;
+      const firstWrite = deferred<Result<Record<string, unknown>>>();
+      const secondWrite = deferred<Result<Record<string, unknown>>>();
+      const firstRead = deferred<ReadResult>();
+      const secondRead = deferred<ReadResult>();
+      const firstRequested = deferred<void>();
+      const secondRequested = deferred<void>();
+      mockApi.insertOne.mockReturnValueOnce(firstWrite.promise).mockReturnValueOnce(secondWrite.promise);
+      mockApi.find
+        .mockImplementationOnce(() => {
+          firstRequested.resolve();
+          return firstRead.promise;
+        })
+        .mockImplementationOnce(() => {
+          secondRequested.resolve();
+          return secondRead.promise;
+        });
+      const first = useStore.getState().insertDoc({ name: 'Bob' });
+      const second = useStore.getState().insertDoc({ name: 'Carol' });
+      firstWrite.resolve({ ok: true, data: { _id: 'bob', name: 'Bob' } });
+      await firstRequested.promise;
+
+      secondWrite.resolve({ ok: true, data: { _id: 'carol', name: 'Carol' } });
+      await secondRequested.promise;
+      expect(mockApi.find).toHaveBeenCalledTimes(2);
+      firstRead.resolve(
+        outcome === 'success'
+          ? { ok: true, data: { docs: [{ name: 'Bob' }], totalCount: 62 } }
+          : { ok: false, error: 'First refresh unavailable' }
+      );
+      expect(await first).toBeNull();
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(useStore.getState()).toMatchObject({ loading: true, error: null });
+
+      secondRead.resolve({ ok: true, data: { docs: [{ name: 'Bob' }, { name: 'Carol' }], totalCount: 63 } });
+      expect(await second).toBeNull();
+      expect(useStore.getState().acceptedResults).toEqual(
+        filterResults(
+          { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 20 },
+          [{ name: 'Bob' }, { name: 'Carol' }],
+          63
+        )
+      );
+      expect(useStore.getState()).toMatchObject({ loading: false, error: null });
+    }
+  );
+
+  it('a document write begun during an automatic refresh remains refreshable after that read commits', async () => {
+    const read = deferred<ReadResult>();
+    const write = deferred<Result<Record<string, unknown>>>();
+    mockApi.find
+      .mockReturnValueOnce(read.promise)
+      .mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Carol' }], totalCount: 62 } });
+    const refreshing = useStore.getState().refreshDocs();
+    expect(useStore.getState().loading).toBe(true);
+    mockApi.insertOne.mockReturnValueOnce(write.promise);
+    const inserting = useStore.getState().insertDoc({ name: 'Carol' });
+
+    read.resolve({ ok: true, data: { docs: [{ name: 'Alice refreshed' }], totalCount: 61 } });
+    await refreshing;
+    expect(useStore.getState().acceptedResults?.docs).toEqual([{ name: 'Alice refreshed' }]);
+    write.resolve({ ok: true, data: { _id: 'carol', name: 'Carol' } });
+    expect(await inserting).toBeNull();
+
+    expect(mockApi.find).toHaveBeenCalledTimes(2);
+    expect(mockApi.find).toHaveBeenLastCalledWith('testdb', 'users', {
+      filter: { active: true },
+      projection: { name: 1 },
+      sort: { name: 1 },
+      skip: 20,
+      limit: 20,
+    });
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults(
+        { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 20 },
+        [{ name: 'Carol' }],
+        62
+      )
+    );
+    expect(useStore.getState()).toMatchObject({ loading: false, error: null });
+  });
+
+  it.each(['success', 'server rejection', 'invalid Run'] as const)(
+    'a document write begun during an explicit newer read cannot revive old rows after %s',
+    async (outcome) => {
+      const accepted = useStore.getState().acceptedResults;
+      const read = deferred<ReadResult>();
+      const write = deferred<Result<Record<string, unknown>>>();
+      mockApi.find.mockReturnValueOnce(read.promise);
+      const running = useStore.getState().runQuery('{ newest: true }');
+      expect(useStore.getState().loading).toBe(true);
+      mockApi.insertOne.mockReturnValueOnce(write.promise);
+      const inserting = useStore.getState().insertDoc({ name: 'Bob' });
+      let error: string | null = null;
+
+      if (outcome === 'invalid Run') {
+        error = await useStore.getState().runQuery('{ bad:');
+        expect(error).toBeTruthy();
+      }
+      read.resolve(
+        outcome === 'server rejection'
+          ? { ok: false, error: 'New condition rejected' }
+          : { ok: true, data: { docs: [{ name: 'Newest' }], totalCount: 1 } }
+      );
+      const runError = await running;
+      if (outcome === 'server rejection') {
+        expect(runError).toBe('New condition rejected');
+        error = 'New condition rejected';
+      } else {
+        expect(runError).toBeNull();
+      }
+      write.resolve({ ok: true, data: { _id: 'bob', name: 'Bob' } });
+      expect(await inserting).toBeNull();
+
+      expect(mockApi.find).toHaveBeenCalledTimes(1);
+      expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+        filter: { newest: true },
+        projection: { name: 1 },
+        skip: 0,
+        limit: 20,
+      });
+      if (outcome === 'success') {
+        expect(useStore.getState().acceptedResults).toEqual(
+          filterResults({ filter: { newest: true }, projection: { name: 1 } }, [{ name: 'Newest' }], 1)
+        );
+      } else {
+        expect(useStore.getState().acceptedResults).toBe(accepted);
+      }
+      expect(useStore.getState()).toMatchObject({ loading: false, error });
+    }
+  );
+
+  it.each(mutations)(
+    '$name refreshes accepted conditions and page, not rejected input or changed preferences',
+    async (mutation) => {
+      mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Candidate rejected' });
+      await useStore.getState().runQuery('{ rejected: true }');
+      useStore.getState().setQueryMode('aggregate');
+      await useStore.getState().clearProjection();
+      useStore.setState({ limit: 50 });
+      useStore.getState().setQueryMode('filter');
+      mockApi.find.mockClear();
+      mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Bob' }], totalCount: 58 } });
+
+      expect(await mutation.run()).toEqual(mutation.outcome);
+
+      expect(mutation.api).toHaveBeenCalledWith(...mutation.args);
+      expect(mockApi.find).toHaveBeenCalledTimes(1);
+      expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+        filter: { active: true },
+        projection: { name: 1 },
+        sort: { name: 1 },
+        skip: mutation.skip,
+        limit: 20,
+      });
+      expect(useStore.getState().acceptedResults).toEqual(
+        filterResults(
+          { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: mutation.skip },
+          [{ name: 'Bob' }],
+          58
+        )
+      );
+      expect(useStore.getState()).toMatchObject({ limit: 50, projection: null, loading: false, error: null });
+    }
+  );
+
+  it('clearing the paused projection preference does not suppress a pending document write refresh', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    const write = deferred<Result<Record<string, unknown>>>();
+    mockApi.insertOne.mockReturnValueOnce(write.promise);
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Bob' }], totalCount: 62 } });
+    const inserting = useStore.getState().insertDoc({ name: 'Bob' });
+
+    useStore.getState().setQueryMode('aggregate');
+    expect(await useStore.getState().clearProjection()).toBeNull();
+    expect(useStore.getState().projection).toBeNull();
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(mockApi.find).not.toHaveBeenCalled();
+
+    write.resolve({ ok: true, data: { _id: 'bob', name: 'Bob' } });
+    expect(await inserting).toBeNull();
+
+    expect(mockApi.find).toHaveBeenCalledTimes(1);
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
+      filter: { active: true },
+      projection: { name: 1 },
+      sort: { name: 1 },
+      skip: 20,
+      limit: 20,
+    });
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults(
+        { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 20 },
+        [{ name: 'Bob' }],
+        62
+      )
+    );
+    expect(useStore.getState()).toMatchObject({
+      queryMode: 'aggregate',
+      projection: null,
+      loading: false,
+      error: null,
+    });
+    expect(mockApi.aggregate).not.toHaveBeenCalled();
+  });
+
+  it('automatic refresh keeps the accepted filter even when the editor has switched to Aggregate', async () => {
+    useStore.getState().setQueryMode('aggregate');
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Updated' }], totalCount: 61 } });
+
+    await useStore.getState().refreshDocs();
+
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults(
+        { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 20 },
+        [{ name: 'Updated' }],
+        61
+      )
+    );
+    expect(mockApi.aggregate).not.toHaveBeenCalled();
+    expect(useStore.getState().queryMode).toBe('aggregate');
+  });
+
+  it.each(mutations)(
+    '$name stays successful if the follow-up read fails without relabeling retained rows',
+    async (mutation) => {
+      const accepted = useStore.getState().acceptedResults;
+      mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Refresh unavailable' });
+
+      expect(await mutation.run()).toEqual(mutation.outcome);
+
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(useStore.getState()).toMatchObject({
+        loading: false,
+        error: 'Refresh unavailable',
+        acceptedResults: {
+          docs: [{ name: 'Alice' }],
+          totalCount: 61,
+          appliedQuery: { skip: 20, limit: 20, projection: { name: 1 }, sort: { name: 1 } },
+        },
+      });
+    }
+  );
+
+  it('deletion proposes page one without changing the displayed page until the read succeeds', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    const read = deferred<ReadResult>();
+    const requested = deferred<void>();
+    mockApi.find.mockImplementationOnce(() => {
+      requested.resolve();
+      return read.promise;
+    });
+
+    const deleting = useStore.getState().deleteResults();
+    await requested.promise;
+
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(useStore.getState().loading).toBe(true);
+    read.resolve({ ok: true, data: { docs: [{ name: 'Remaining' }], totalCount: 58 } });
+    expect(await deleting).toEqual({ ok: true, data: 3 });
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults(
+        { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: 0 },
+        [{ name: 'Remaining' }],
+        58
+      )
+    );
+  });
+
+  it.each(mutations)('$name cannot refresh a different database with the same collection name', async (mutation) => {
+    const write = deferred<unknown>();
+    mutation.api.mockReturnValueOnce(write.promise);
+    const mutating = mutation.run();
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Other database' }], totalCount: 1 } });
+    await useStore.getState().selectCollection('otherdb', 'users');
+    const newer = useStore.getState().acceptedResults;
+
+    write.resolve(mutation.reply);
+    expect(await mutating).toEqual(mutation.outcome);
+
+    expect(mutation.api).toHaveBeenCalledWith(...mutation.args);
+    expect(mockApi.find).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().acceptedResults).toBe(newer);
+    expect(useStore.getState()).toMatchObject({ selectedDb: 'otherdb', loading: false, error: null });
+  });
+
+  it('returning to the same selection does not revive an old document write refresh', async () => {
+    const write = deferred<Result<Record<string, unknown>>>();
+    mockApi.insertOne.mockReturnValueOnce(write.promise);
+    const inserting = useStore.getState().insertDoc({ name: 'Bob' });
+    await useStore.getState().selectCollection('testdb', 'orders');
+    await useStore.getState().selectCollection('testdb', 'users');
+    await useStore.getState().runQuery('{ returned: true }');
+    const returned = useStore.getState().acceptedResults;
+    const readCount = mockApi.find.mock.calls.length;
+
+    write.resolve({ ok: true, data: { _id: 'new', name: 'Bob' } });
+    expect(await inserting).toBeNull();
+
+    expect(useStore.getState().acceptedResults).toBe(returned);
+    expect(mockApi.find).toHaveBeenCalledTimes(readCount);
+  });
+
+  it.each([mutations[0], mutations[5]])(
+    '$name cannot refresh the same server and selection after reconnect',
+    async (mutation) => {
+      const write = deferred<unknown>();
+      mutation.api.mockReturnValueOnce(write.promise);
+      const mutating = mutation.run();
+      mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
+      mockApi.connect.mockResolvedValue({ ok: true, data: makeSession({ autoSelectedDb: 'testdb' }) });
+      await useStore.getState().connect('mongodb://localhost');
+      await useStore.getState().selectCollection('testdb', 'users');
+      await useStore.getState().runQuery('{ newConnection: true }');
+      const reconnected = useStore.getState().acceptedResults;
+      const readCount = mockApi.find.mock.calls.length;
+
+      write.resolve(mutation.reply);
+      expect(await mutating).toEqual(mutation.outcome);
+
+      expect(useStore.getState().acceptedResults).toBe(reconnected);
+      expect(mockApi.find).toHaveBeenCalledTimes(readCount);
+      expect(useStore.getState()).toMatchObject({
+        status: { status: 'connected', connectionKey: 'localhost:27017' },
+        loading: false,
+        error: null,
+      });
+    }
+  );
+
+  it.each(['server rejection', 'invalid JSON', 'invalid shape'] as const)(
+    'a pending document write cannot clear a newer Run error from %s',
+    async (failure) => {
+      const accepted = useStore.getState().acceptedResults;
+      const write = deferred<Result<Record<string, unknown>>>();
+      mockApi.updateOne.mockReturnValueOnce(write.promise);
+      const updating = useStore.getState().updateDoc('123', { name: 'Bob' });
+      mockApi.find.mockResolvedValueOnce({ ok: false, error: 'New condition rejected' });
+      const text = failure === 'invalid JSON' ? '{ bad:' : failure === 'invalid shape' ? '[]' : '{ bad: true }';
+      const error = await useStore.getState().runQuery(text);
+      expect(error).toBeTruthy();
+      const readCount = mockApi.find.mock.calls.length;
+
+      write.resolve({ ok: true, data: { _id: '123', name: 'Bob' } });
+      expect(await updating).toBeNull();
+
+      expect(useStore.getState()).toMatchObject({ acceptedResults: accepted, loading: false, error });
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(mockApi.find).toHaveBeenCalledTimes(readCount);
+    }
+  );
+
+  it('a pending empty action leaves a newer read busy and allows only that reply to replace results', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    const write = deferred<Result<number>>();
+    const read = deferred<ReadResult>();
+    mockApi.emptyCollection.mockReturnValueOnce(write.promise);
+    mockApi.find.mockReturnValueOnce(read.promise);
+    const emptying = useStore.getState().emptyCollection('testdb', 'users');
+    const running = useStore.getState().runQuery('{ newest: true }');
+
+    write.resolve({ ok: true, data: 61 });
+    expect(await emptying).toEqual({ ok: true, data: 61 });
+
+    expect(mockApi.find).toHaveBeenCalledTimes(1);
+    expect(useStore.getState()).toMatchObject({ acceptedResults: accepted, loading: true, error: null });
+    read.resolve({ ok: true, data: { docs: [{ name: 'Newest' }], totalCount: 1 } });
+    await running;
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults({ filter: { newest: true }, projection: { name: 1 } }, [{ name: 'Newest' }], 1)
+    );
+  });
+
+  it.each(['success', 'failure'] as const)(
+    'a mutation refresh completing with %s cannot overwrite a newer invalid Run',
+    async (outcome) => {
+      const accepted = useStore.getState().acceptedResults;
+      const read = deferred<ReadResult>();
+      const requested = deferred<void>();
+      mockApi.find.mockImplementationOnce(() => {
+        requested.resolve();
+        return read.promise;
+      });
+      const inserting = useStore.getState().insertDoc({ name: 'Bob' });
+      await requested.promise;
+      const error = await useStore.getState().runQuery('{ bad:');
+      read.resolve(
+        outcome === 'success'
+          ? { ok: true, data: { docs: [{ name: 'Stale refresh' }], totalCount: 62 } }
+          : { ok: false, error: 'Stale refresh failure' }
+      );
+      expect(await inserting).toBeNull();
+
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(useStore.getState()).toMatchObject({ loading: false, error });
+    }
+  );
+
+  it('a late deletion refresh does not clear a newer read busy state or replace its accepted result', async () => {
+    const accepted = useStore.getState().acceptedResults;
+    const oldRead = deferred<ReadResult>();
+    const newRead = deferred<ReadResult>();
+    const requested = deferred<void>();
+    mockApi.find
+      .mockImplementationOnce(() => {
+        requested.resolve();
+        return oldRead.promise;
+      })
+      .mockReturnValueOnce(newRead.promise);
+    const deleting = useStore.getState().deleteResults();
+    await requested.promise;
+    const running = useStore.getState().runQuery('{ newest: true }');
+
+    oldRead.resolve({ ok: true, data: { docs: [{ name: 'Stale page one' }], totalCount: 58 } });
+    expect(await deleting).toEqual({ ok: true, data: 3 });
+    expect(useStore.getState()).toMatchObject({ acceptedResults: accepted, loading: true, error: null });
+
+    newRead.resolve({ ok: true, data: { docs: [{ name: 'Newest' }], totalCount: 2 } });
+    await running;
+    expect(useStore.getState().acceptedResults).toEqual(
+      filterResults({ filter: { newest: true }, projection: { name: 1 } }, [{ name: 'Newest' }], 2)
+    );
+  });
+
+  it.each(['filter', 'aggregate'] as const)(
+    'aggregate snapshots survive document mutations, empty and automatic refresh in %s editor mode',
+    async (editorMode) => {
+      const pipeline = [{ $match: { active: true } }, { $out: 'summary' }];
+      useStore.getState().setQueryMode('aggregate');
+      mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ total: 61 }] });
+      await useStore.getState().runQuery(JSON.stringify(pipeline));
+      const snapshot = useStore.getState().acceptedResults;
+      useStore.getState().setQueryMode(editorMode);
+      mockApi.find.mockClear();
+      mockApi.aggregate.mockClear();
+      for (const mutation of [mutations[0], mutations[1], mutations[2], mutations[5]]) {
+        expect(await mutation.run()).toEqual(mutation.outcome);
+        expect(useStore.getState().acceptedResults).toBe(snapshot);
+      }
+      await useStore.getState().refreshDocs();
+
+      expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ pipeline }, [{ total: 61 }]));
+      expect(useStore.getState().acceptedResults).toBe(snapshot);
+      expect(mockApi.aggregate).not.toHaveBeenCalled();
+      expect(mockApi.find).not.toHaveBeenCalled();
+      expect(useStore.getState()).toMatchObject({ queryMode: editorMode, loading: false, error: null });
+    }
+  );
+
+  it.each([
+    { pipeline: [{ $match: { active: true } }, { $out: 'summary' }] },
+    { pipeline: [{ $match: { active: true } }, { $merge: { into: 'summary', on: '_id', whenMatched: 'replace' } }] },
+  ])(
+    'only explicit Run replaces an aggregate snapshot and executes the complete output pipeline $pipeline',
+    async ({ pipeline }) => {
+      useStore.getState().setQueryMode('aggregate');
+      mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ total: 61 }] });
+      await useStore.getState().runQuery('[]');
+      const snapshot = useStore.getState().acceptedResults;
+      mockApi.aggregate.mockClear();
+      await useStore.getState().insertDoc({ name: 'Bob' });
+      await useStore.getState().refreshDocs();
+      expect(useStore.getState().acceptedResults).toBe(snapshot);
+      expect(mockApi.aggregate).not.toHaveBeenCalled();
+
+      mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ total: 62 }] });
+      expect(await useStore.getState().runQuery(JSON.stringify(pipeline))).toBeNull();
+
+      expect(mockApi.aggregate).toHaveBeenCalledTimes(1);
+      expect(mockApi.aggregate).toHaveBeenCalledWith('testdb', 'users', pipeline);
+      expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ pipeline }, [{ total: 62 }]));
+      expect(mockApi.find).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['success', 'failure'] as const)(
+    'a stale filter refresh completing with %s cannot replace a newer accepted aggregate snapshot',
+    async (outcome) => {
+      const read = deferred<ReadResult>();
+      const requested = deferred<void>();
+      mockApi.find.mockImplementationOnce(() => {
+        requested.resolve();
+        return read.promise;
+      });
+      const inserting = useStore.getState().insertDoc({ name: 'Bob' });
+      await requested.promise;
+      useStore.getState().setQueryMode('aggregate');
+      const pipeline = [{ $group: { _id: null, total: { $sum: 1 } } }, { $merge: 'summary' }];
+      mockApi.aggregate.mockResolvedValueOnce({ ok: true, data: [{ total: 62 }] });
+      await useStore.getState().runQuery(JSON.stringify(pipeline));
+      const snapshot = useStore.getState().acceptedResults;
+
+      read.resolve(
+        outcome === 'success'
+          ? { ok: true, data: { docs: [{ name: 'Stale filter rows' }], totalCount: 62 } }
+          : { ok: false, error: 'Stale filter read failed' }
+      );
+      expect(await inserting).toBeNull();
+
+      expect(useStore.getState().acceptedResults).toBe(snapshot);
+      expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ pipeline }, [{ total: 62 }]));
+      expect(useStore.getState()).toMatchObject({ loading: false, error: null });
+      expect(mockApi.aggregate).toHaveBeenCalledTimes(1);
+    }
+  );
 });

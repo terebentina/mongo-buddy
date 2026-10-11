@@ -71,6 +71,7 @@ export interface StoreState {
   ) => Promise<Result<UpdateManyResult>>;
   deleteResults: (expectedResults?: AcceptedResults) => Promise<Result<number>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
+  emptyCollection: (db: string, collection: string) => Promise<Result<number>>;
   refreshDocs: () => Promise<void>;
   loadSavedConnections: () => Promise<void>;
   saveConnection: (name: string, uri: string) => Promise<void>;
@@ -197,69 +198,6 @@ export const useStore = create<StoreState>()((set, get) => {
         return;
       }
       await get().selectDb(db);
-    },
-
-    insertDoc: async (doc: Record<string, unknown>) => {
-      const { selectedDb, selectedCollection } = get();
-      if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await window.api.insertOne(selectedDb, selectedCollection, doc);
-      if (!result.ok) return result.error;
-      await get().refreshDocs();
-      return null;
-    },
-
-    updateDoc: async (id: unknown, doc: Record<string, unknown>) => {
-      const { selectedDb, selectedCollection } = get();
-      if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await window.api.updateOne(selectedDb, selectedCollection, id, doc);
-      if (!result.ok) return result.error;
-      await get().refreshDocs();
-      return null;
-    },
-
-    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions, expectedResults?: AcceptedResults) => {
-      const { selectedDb, selectedCollection, acceptedResults, queryMode, loading } = get();
-      if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-      const query = acceptedResults?.appliedQuery;
-      if (
-        query?.queryMode !== 'filter' ||
-        queryMode !== 'filter' ||
-        loading ||
-        query.db !== selectedDb ||
-        query.collection !== selectedCollection ||
-        (expectedResults && expectedResults !== acceptedResults)
-      )
-        return { ok: false, error: 'No current accepted filter results' };
-      const result = await window.api.updateMany(query.db, query.collection, query.filter, update, options);
-      if (result.ok && get().acceptedResults === acceptedResults && !get().loading) await get().refreshDocs();
-      return result;
-    },
-
-    deleteResults: async (expectedResults?: AcceptedResults) => {
-      const { selectedDb, selectedCollection, acceptedResults, queryMode, loading } = get();
-      if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-      const query = acceptedResults?.appliedQuery;
-      if (
-        query?.queryMode !== 'filter' ||
-        queryMode !== 'filter' ||
-        loading ||
-        query.db !== selectedDb ||
-        query.collection !== selectedCollection ||
-        (expectedResults && expectedResults !== acceptedResults)
-      )
-        return { ok: false, error: 'No current accepted filter results' };
-      const result = await window.api.deleteMany(query.db, query.collection, query.filter);
-      if (result.ok && get().acceptedResults === acceptedResults && !get().loading) await get().fetchPage(0);
-      return result;
-    },
-
-    deleteDoc: async (id: unknown) => {
-      const { selectedDb, selectedCollection } = get();
-      if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await window.api.deleteOne(selectedDb, selectedCollection, id);
-      if (!result.ok) return result.error;
-      await get().refreshDocs();
-      return null;
     },
 
     loadSavedConnections: async () => {

@@ -83,6 +83,8 @@ Filter and Aggregate in the editor select what the next Run executes. The displa
 
 Delete results and Update results are available in the editor's Filter mode and require successfully loaded filter results. Their confirmation shows the accepted collection, filter and query-time match count; deletion with an empty filter still requires typing the exact collection name. A newly accepted result invalidates an open bulk confirmation, so close and reopen it before proceeding. Table/JSON switching and saved collection column widths are independent of query acceptance.
 
+Successful document and result-based mutations refresh the accepted filter with its projection, sort and page. Delete results proposes page one, which becomes the displayed page only when the refresh succeeds. Navigation, reconnects and newer query attempts suppress an older mutation's follow-up, including attempts that fail or contain invalid input. A failed refresh shows a query error and retains the previous rows and page; the write still succeeds. Aggregate results remain a snapshot after mutations, empty collection, imports and automatic refreshes, even when Filter is selected in the editor. Press **Run** explicitly to execute the complete pipeline again; automatic refresh never reruns it or substitutes a filter query.
+
 ---
 
 ## 🤖 MCP Server

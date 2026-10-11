@@ -1,6 +1,13 @@
 import type { StoreApi } from 'zustand';
 import JSON5 from 'json5';
-import type { ConnectionState, QueryHistoryEntry, QueryMode } from '../../shared/types';
+import type {
+  ConnectionState,
+  QueryHistoryEntry,
+  QueryMode,
+  Result,
+  UpdateManyInput,
+  UpdateManyOptions,
+} from '../../shared/types';
 import type { StoreState } from './store';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 import { createRequestFreshness } from './lib/request-freshness';
@@ -32,8 +39,16 @@ function pushWindowTitle(db: string | null, collection: string | null): void {
 // Composed into the application store; ownership never leaves this module.
 export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get: StoreApi<StoreState>['getState']) {
   const resultRequests = createRequestFreshness();
+  // Automatic reads supersede replies, but only explicit row intent supersedes pending writes.
+  const rowIntents = createRequestFreshness();
   const selectionRequests = createRequestFreshness();
   let workingFilter: { db: string; collection: string; filter: Record<string, unknown> } | null = null;
+  let automaticReadIsCurrent: (() => boolean) | null = null;
+
+  function startAutomaticRead(): () => boolean {
+    automaticReadIsCurrent = resultRequests.start();
+    return automaticReadIsCurrent;
+  }
 
   const emptyResults = {
     acceptedResults: null,
@@ -46,6 +61,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   function reset(): void {
     workingFilter = null;
     selectionRequests.invalidate();
+    rowIntents.invalidate();
     resultRequests.invalidate();
     set({
       ...emptyResults,
@@ -78,6 +94,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   function selectTarget(db: string, collection: string): () => boolean {
     workingFilter = null;
     const selectionIsCurrent = selectionRequests.start();
+    rowIntents.invalidate();
     resultRequests.invalidate();
     set({ ...emptyResults, expandedDb: db, selectedDb: db, selectedCollection: collection, historyIndex: null });
     pushWindowTitle(db, collection);
@@ -144,6 +161,62 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     return acceptedFilter()?.filter ?? {};
   }
 
+  function acceptedMutationFilter(
+    expectedResults?: AcceptedResults
+  ): Result<Extract<AppliedQuery, { queryMode: 'filter' }>> {
+    const { selectedDb, selectedCollection, acceptedResults, queryMode, loading } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+    const query = acceptedFilter();
+    if (!query || queryMode !== 'filter' || loading || (expectedResults && expectedResults !== acceptedResults)) {
+      return { ok: false, error: 'No current accepted filter results' };
+    }
+    return { ok: true, data: query };
+  }
+
+  async function mutate<T>(
+    db: string,
+    collection: string,
+    write: (db: string, collection: string) => Promise<Result<T>>,
+    refresh: { firstPage?: boolean; collections?: boolean } = {}
+  ): Promise<Result<T>> {
+    const { acceptedResults, selectedDb, selectedCollection } = get();
+    const rowIntentIsCurrent = rowIntents.capture();
+    const selectionIsCurrent = selectionRequests.capture();
+    const contextIsCurrent = (): boolean => {
+      const current = get();
+      return (
+        rowIntentIsCurrent() &&
+        selectionIsCurrent() &&
+        current.selectedDb === selectedDb &&
+        current.selectedCollection === selectedCollection
+      );
+    };
+    const query = acceptedResults?.appliedQuery;
+    const refreshQuery =
+      (!get().loading || automaticReadIsCurrent?.() === true) &&
+      query?.queryMode === 'filter' &&
+      query.db === db &&
+      query.collection === collection
+        ? { ...query, skip: refresh.firstPage ? 0 : query.skip }
+        : null;
+
+    const result = await write(db, collection);
+    if (!result.ok) return result;
+    if (refresh.collections && selectedDb === db && contextIsCurrent()) {
+      // Collection counts are separate from rows; a listing failure cannot undo the write.
+      try {
+        const listed = await window.api.listCollections(db);
+        if (listed.ok && contextIsCurrent()) set({ collections: listed.data });
+      } catch {
+        // Retain the existing sidebar metadata if transport fails.
+      }
+    }
+    if (refreshQuery && contextIsCurrent()) {
+      await executeAppliedQuery(refreshQuery, startAutomaticRead());
+    }
+    return result;
+  }
+
   async function executeAppliedQuery(
     appliedQuery: AppliedQuery,
     requestIsCurrent: () => boolean,
@@ -151,16 +224,24 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   ): Promise<string | null> {
     set({ loading: true, error: null });
     const { db, collection } = appliedQuery;
-    const result =
-      appliedQuery.queryMode === 'aggregate'
-        ? await window.api.aggregate(db, collection, appliedQuery.pipeline)
-        : await window.api.find(db, collection, {
-            filter: appliedQuery.filter,
-            ...(appliedQuery.projection ? { projection: appliedQuery.projection } : {}),
-            ...(appliedQuery.sort ? { sort: appliedQuery.sort } : {}),
-            skip: appliedQuery.skip,
-            limit: appliedQuery.limit,
-          });
+    let result;
+    try {
+      result =
+        appliedQuery.queryMode === 'aggregate'
+          ? await window.api.aggregate(db, collection, appliedQuery.pipeline)
+          : await window.api.find(db, collection, {
+              filter: appliedQuery.filter,
+              ...(appliedQuery.projection ? { projection: appliedQuery.projection } : {}),
+              ...(appliedQuery.sort ? { sort: appliedQuery.sort } : {}),
+              skip: appliedQuery.skip,
+              limit: appliedQuery.limit,
+            });
+    } catch (e) {
+      if (!requestIsCurrent()) return null;
+      const error = e instanceof Error ? e.message : 'Query failed';
+      set({ loading: false, error });
+      return error;
+    }
     if (!requestIsCurrent()) return null;
     if (!result.ok) {
       set({ loading: false, error: result.error });
@@ -234,6 +315,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     selectDb: async (db: string) => {
       workingFilter = null;
       const selectionIsCurrent = selectionRequests.start();
+      rowIntents.invalidate();
       resultRequests.invalidate();
       set({
         ...emptyResults,
@@ -267,12 +349,14 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     fetchPage: async (skip: number) => {
+      rowIntents.invalidate();
       const query = acceptedFilter();
       if (!query) return;
       await executeAppliedQuery({ ...query, skip }, resultRequests.start());
     },
 
     runQuery: async (queryText: string) => {
+      rowIntents.invalidate();
       const { selectedDb, selectedCollection, queryMode } = get();
       if (!selectedDb || !selectedCollection) return null;
       const requestIsCurrent = resultRequests.start();
@@ -280,21 +364,24 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     runExplain: async (queryText: string) => {
+      rowIntents.invalidate();
       const { selectedDb, selectedCollection, queryMode } = get();
       if (!selectedDb || !selectedCollection) return null;
 
+      const requestIsCurrent = resultRequests.start();
       let parsed: unknown;
       try {
         parsed = JSON5.parse(queryText);
       } catch (e) {
+        set({ loading: false });
         return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' };
       }
 
       if (queryMode === 'aggregate' && !Array.isArray(parsed)) {
+        set({ loading: false });
         return { ok: false, error: 'Aggregate pipeline must be a JSON array' };
       }
 
-      const requestIsCurrent = resultRequests.start();
       set({ loading: true });
       const result = await window.api.explain(
         selectedDb,
@@ -308,17 +395,21 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     applyProjection: async (projectionText: string) => {
+      rowIntents.invalidate();
       const { selectedDb, selectedCollection, limit, queryMode } = get();
       if (!selectedDb || !selectedCollection) return 'No collection selected';
       if (queryMode === 'aggregate') return 'Projection is paused in Aggregate mode';
 
+      const requestIsCurrent = resultRequests.start();
       let parsed: unknown;
       try {
         parsed = JSON5.parse(projectionText);
       } catch (e) {
+        set({ loading: false });
         return e instanceof Error ? e.message : 'Invalid JSON';
       }
       if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+        set({ loading: false });
         return 'Projection must be a JSON object';
       }
 
@@ -335,7 +426,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
           skip: accepted?.skip ?? 0,
           limit: accepted?.limit ?? limit,
         },
-        resultRequests.start(),
+        requestIsCurrent,
         { projection }
       );
     },
@@ -371,6 +462,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     setSort: async (field: string) => {
+      rowIntents.invalidate();
       const query = acceptedFilter();
       if (!query) return;
       const { sort } = query;
@@ -380,6 +472,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     setLimit: async (limit: number) => {
+      rowIntents.invalidate();
       const query = acceptedFilter();
       if (!query) {
         set({ limit });
@@ -388,14 +481,60 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       await executeAppliedQuery({ ...query, limit, skip: 0 }, resultRequests.start(), { limit });
     },
 
+    insertDoc: async (doc: Record<string, unknown>) => {
+      const { selectedDb, selectedCollection } = get();
+      if (!selectedDb || !selectedCollection) return 'No collection selected';
+      const result = await mutate(selectedDb, selectedCollection, (db, collection) =>
+        window.api.insertOne(db, collection, doc)
+      );
+      return result.ok ? null : result.error;
+    },
+
+    updateDoc: async (id: unknown, doc: Record<string, unknown>) => {
+      const { selectedDb, selectedCollection } = get();
+      if (!selectedDb || !selectedCollection) return 'No collection selected';
+      const result = await mutate(selectedDb, selectedCollection, (db, collection) =>
+        window.api.updateOne(db, collection, id, doc)
+      );
+      return result.ok ? null : result.error;
+    },
+
+    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions, expectedResults?: AcceptedResults) => {
+      const accepted = acceptedMutationFilter(expectedResults);
+      if (!accepted.ok) return accepted;
+      const { db, collection, filter } = accepted.data;
+      return mutate(db, collection, (db, collection) => window.api.updateMany(db, collection, filter, update, options));
+    },
+
+    deleteResults: async (expectedResults?: AcceptedResults) => {
+      const accepted = acceptedMutationFilter(expectedResults);
+      if (!accepted.ok) return accepted;
+      const { db, collection, filter } = accepted.data;
+      return mutate(db, collection, (db, collection) => window.api.deleteMany(db, collection, filter), {
+        firstPage: true,
+      });
+    },
+
+    deleteDoc: async (id: unknown) => {
+      const { selectedDb, selectedCollection } = get();
+      if (!selectedDb || !selectedCollection) return 'No collection selected';
+      const result = await mutate(selectedDb, selectedCollection, (db, collection) =>
+        window.api.deleteOne(db, collection, id)
+      );
+      return result.ok ? null : result.error;
+    },
+
+    emptyCollection: async (db: string, collection: string) =>
+      mutate(db, collection, (db, collection) => window.api.emptyCollection(db, collection), { collections: true }),
+
     refreshDocs: async () => {
-      const { acceptedResults, selectedDb, selectedCollection } = get();
-      const query = acceptedResults?.appliedQuery;
-      if (!query || query.db !== selectedDb || query.collection !== selectedCollection) return;
-      await executeAppliedQuery(query, resultRequests.start());
+      const query = acceptedFilter();
+      if (!query || (get().loading && automaticReadIsCurrent?.() !== true)) return;
+      await executeAppliedQuery(query, startAutomaticRead());
     },
 
     restoreFromHistory: async (entry: QueryHistoryEntry) => {
+      rowIntents.invalidate();
       const { selectedDb, selectedCollection, queryHistory } = get();
       const { db, collection, query, queryMode } = entry;
       const idx = queryHistory.findIndex((e) => e.id === entry.id);
@@ -425,6 +564,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
 
     applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => {
+      rowIntents.invalidate();
       const { selectedDb, selectedCollection, projection, limit } = get();
       if (!selectedDb || !selectedCollection) return;
       const filter = submittedFilter(selectedDb, selectedCollection);
