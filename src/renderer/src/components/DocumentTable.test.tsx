@@ -6,6 +6,7 @@ import { useStore } from '../store';
 
 const mockApi = {
   distinct: vi.fn(),
+  saveColumnWidth: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
 };
 
 const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
@@ -20,6 +21,7 @@ beforeEach(() => {
     selectedDb: 'testdb',
     selectedCollection: 'users',
     docs: [],
+    collectionColumnWidths: {},
     filter: {},
     projection: null,
     queryMode: 'filter',
@@ -58,7 +60,8 @@ describe('DocumentTable', () => {
         // Match the rendered header: px-4, gap-1, a 14px menu icon with
         // p-0.5 on both sides, and (in Filter mode) a 14px sort icon + gap-1.
         const controlsWidth = queryMode === 'filter' ? 14 + 4 + 18 : 18;
-        const availableTextWidth = parseFloat(header.style.width) - 32 - 4 - controlsWidth - 1;
+        const width = (screen.getByRole('table').querySelector('col:nth-child(2)') as HTMLTableColElement).style.width;
+        const availableTextWidth = parseFloat(width) - 32 - 4 - controlsWidth - 1;
         expect(availableTextWidth).toBeGreaterThanOrEqual(headerTextWidth);
       } finally {
         getContext.mockRestore();
