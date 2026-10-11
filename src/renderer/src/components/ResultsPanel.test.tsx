@@ -1,11 +1,24 @@
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ResultsPanel, type ResultViewMode } from './ResultsPanel';
 import { useStore } from '../store';
+import { Toaster, toast } from 'sonner';
+import type { ConnectionState, SaveColumnWidthInput } from '../../../shared/types';
 
-const mockApi = { find: vi.fn() };
+const mockApi = {
+  find: vi.fn(),
+  aggregate: vi.fn(),
+  sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  listCollections: vi.fn().mockResolvedValue({ ok: true, data: [] }),
+  saveHistory: vi.fn().mockResolvedValue(undefined),
+  setWindowTitle: vi.fn(),
+  saveColumnWidth: vi.fn(),
+  connect: vi.fn(),
+  disconnect: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+  onConnectionState: vi.fn<(cb: (state: ConnectionState) => void) => () => void>(),
+};
 
 function ResultsHarness() {
   const [viewMode, setViewMode] = useState<ResultViewMode>('table');
@@ -15,11 +28,17 @@ function ResultsHarness() {
 beforeEach(() => {
   vi.clearAllMocks();
   (window as unknown as Record<string, unknown>).api = mockApi;
+  toast.dismiss();
+  mockApi.saveColumnWidth.mockResolvedValue({ ok: true, data: undefined });
+  mockApi.onConnectionState.mockImplementation(() => () => {});
   useStore.setState({
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'key' },
     selectedDb: 'testdb',
     selectedCollection: 'users',
     docs: [],
+    collectionColumnWidths: {},
+    queryHistory: [],
+    historyIndex: null,
     totalCount: 0,
     skip: 0,
     limit: 20,
@@ -148,4 +167,258 @@ describe('ResultsPanel', () => {
     expect(screen.getByRole('button', { name: 'Projection options' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
   });
+
+  it('remembers independent completed resizes through sort cycles and loading remounts without freezing untouched columns', async () => {
+    const docs = [{ _id: '1', name: 'Alice', email: 'alice@example.test' }];
+    useStore.setState({ docs, totalCount: 21 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 21 } });
+    render(<ResultsHarness />);
+    const resize = (column: string, from: number, to: number) => {
+      const header = screen.getByRole('columnheader', { name: column });
+      Object.defineProperty(header, 'offsetWidth', { configurable: true, value: from });
+      fireEvent.mouseDown(screen.getByRole('separator', { name: `Resize ${column}` }), { clientX: 100 });
+      fireEvent.mouseMove(document, { clientX: 100 + to - from });
+      fireEvent.mouseUp(document);
+    };
+    resize('name', 150, 220);
+    resize('email', 150, 10);
+    expect(screen.getByRole('table').querySelector('col:nth-child(4)')).toHaveStyle({ width: '40px' });
+    resize('email', 40, 310);
+    expect(useStore.getState().collectionColumnWidths).toEqual({ '["testdb","users"]': { name: 220, email: 310 } });
+
+    const { promise, resolve: finish } = Promise.withResolvers<unknown>();
+    mockApi.find.mockReturnValueOnce(promise);
+    fireEvent.click(screen.getByRole('columnheader', { name: 'name' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    await act(async () => finish({ ok: true, data: { docs, totalCount: 21 } }));
+    expect(useStore.getState().sort).toEqual({ name: 1 });
+    for (const [field, sort] of [
+      ['name', { name: -1 }],
+      ['name', null],
+      ['email', { email: 1 }],
+    ] as const) {
+      await userEvent.click(screen.getByRole('columnheader', { name: field }));
+      expect(useStore.getState().sort).toEqual(sort);
+      expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '220px' });
+      expect(screen.getByRole('table').querySelector('col:nth-child(4)')).toHaveStyle({ width: '310px' });
+    }
+  });
+
+  it('keeps empty results full-width without stretching restored saved columns', async () => {
+    const docs = [{ name: 'Alice', email: 'alice@example.test' }];
+    useStore.setState({
+      docs,
+      totalCount: 1,
+      collectionColumnWidths: { '["testdb","users"]': { name: 220, email: 310 } },
+    });
+    render(<ResultsHarness />);
+    expect(screen.getByRole('table')).toHaveStyle({ width: '578px', minWidth: '578px' });
+
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [], totalCount: 0 } });
+    await act(async () => {
+      await useStore.getState().runQuery('{}');
+    });
+    expect(screen.getByRole('table')).toHaveStyle({ width: '100%', minWidth: '100%' });
+
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs, totalCount: 1 } });
+    await act(async () => {
+      await useStore.getState().refreshDocs();
+    });
+    expect(screen.getByRole('table')).toHaveStyle({ width: '578px', minWidth: '578px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '220px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '310px' });
+  });
+
+  it('recovers absent fields and collection-name preferences through navigation, queries, pagination, history and view changes', async () => {
+    const docs = [{ name: 'Alice', email: 'a@example.test' }];
+    useStore.setState({ docs, totalCount: 41 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 41 } });
+    mockApi.aggregate.mockResolvedValue({ ok: true, data: docs });
+    render(<ResultsHarness />);
+    const header = screen.getByRole('columnheader', { name: 'name' });
+    Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 150 });
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
+    fireEvent.mouseMove(document, { clientX: 200 });
+    fireEvent.mouseUp(document);
+
+    await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '50' } });
+    await waitFor(() => expect(useStore.getState().loading).toBe(false));
+    await act(async () => {
+      await useStore.getState().runQuery('{ name: "Alice" }');
+    });
+    await act(async () => {
+      await useStore.getState().refreshDocs();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Table' }));
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
+
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ email: 'only' }], totalCount: 1 } });
+    await act(async () => {
+      await useStore.getState().applyProjection('{ email: 1, _id: 0 }');
+    });
+    expect(screen.queryByRole('columnheader', { name: 'name' })).not.toBeInTheDocument();
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [], totalCount: 0 } });
+    await act(async () => {
+      await useStore.getState().clearProjection();
+    });
+    expect(screen.getByText('No documents found')).toBeInTheDocument();
+    await act(async () => {
+      await useStore.getState().refreshDocs();
+    });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
+
+    await act(async () => {
+      await useStore.getState().selectCollection('testdb', 'renamed');
+    });
+    expect(useStore.getState().collectionColumnWidths['["testdb","renamed"]']).toBeUndefined();
+    await act(async () => {
+      await useStore.getState().restoreFromHistory({
+        id: 'users',
+        db: 'testdb',
+        collection: 'users',
+        queryMode: 'aggregate',
+        query: '[]',
+        timestamp: 1,
+      });
+    });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
+    expect(useStore.getState().collectionColumnWidths['["testdb","users"]'].email).toBeUndefined();
+    await act(async () => {
+      await useStore.getState().selectCollection('otherdb', 'users');
+    });
+    expect(useStore.getState().collectionColumnWidths['["otherdb","users"]']).toBeUndefined();
+    await act(async () => {
+      await useStore.getState().selectCollection('testdb', 'users');
+    });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
+  });
+
+  it('cancels an interrupted drag and restores selection without leaking the preview into another collection', async () => {
+    const docs = [{ name: 'Alice', email: 'a@example.test' }];
+    useStore.setState({ docs, totalCount: 1 });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
+    render(<ResultsHarness />);
+    document.body.style.userSelect = 'text';
+    const header = screen.getByRole('columnheader', { name: 'name' });
+    Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 150 });
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
+    fireEvent.mouseMove(document, { clientX: 300 });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '350px' });
+    expect(useStore.getState().collectionColumnWidths).toEqual({});
+    await act(async () => {
+      await useStore.getState().selectCollection('testdb', 'orders');
+    });
+    fireEvent.mouseMove(document, { clientX: 500 });
+    fireEvent.mouseUp(document);
+    expect(document.body.style.userSelect).toBe('text');
+    expect(useStore.getState().collectionColumnWidths).toEqual({});
+    document.body.style.userSelect = '';
+  });
+
+  it('fits a numeric width once and retains a newer in-memory choice with a visible save failure until reconnect', async () => {
+    const docs = [{ name: 'Alice', email: 'a@example.test' }];
+    useStore.setState({ docs, totalCount: 1 });
+    const context = { font: '', measureText: () => ({ width: 100 }) };
+    const getContext = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(context as unknown as CanvasRenderingContext2D);
+    let storedWidth = 0;
+    mockApi.saveColumnWidth.mockImplementation(async (chosen: SaveColumnWidthInput) => {
+      if (chosen.width === 300) return { ok: false, error: 'Disk full' };
+      storedWidth = chosen.width;
+      return { ok: true, data: undefined };
+    });
+    try {
+      render(
+        <>
+          <ResultsHarness />
+          <Toaster />
+        </>
+      );
+      fireEvent.doubleClick(screen.getByRole('separator', { name: 'Resize name' }));
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '174px' });
+      const header = screen.getByRole('columnheader', { name: 'name' });
+      Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 174 });
+      fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
+      fireEvent.mouseMove(document, { clientX: 226 });
+      fireEvent.mouseUp(document);
+      expect(await screen.findByText(/Column width was not saved: Disk full/)).toBeInTheDocument();
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '300px' });
+      await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Table' }));
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '300px' });
+      await act(async () => {
+        await useStore.getState().disconnect();
+      });
+      expect(useStore.getState().collectionColumnWidths).toEqual({});
+      mockApi.connect.mockResolvedValue({
+        ok: true,
+        data: {
+          uri: 'mongodb://localhost',
+          databases: [],
+          queryHistory: [],
+          autoSelectedDb: 'testdb',
+          collections: [],
+          collectionColumnWidths: { '["testdb","users"]': { name: storedWidth } },
+        },
+      });
+      mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
+      await act(async () => {
+        await useStore.getState().connect('mongodb://localhost');
+        await useStore.getState().selectCollection('testdb', 'users');
+      });
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '174px' });
+    } finally {
+      getContext.mockRestore();
+    }
+  });
+
+  it.each(['before', 'after'] as const)(
+    'restores saved widths when the connected broadcast arrives %s the connect reply',
+    async (connectedOrder) => {
+      const uri = 'mongodb://smoke.invalid:27017';
+      const connected: ConnectionState = { status: 'connected', uri, connectionKey: 'smoke.invalid:27017' };
+      let emit: (state: ConnectionState) => void = () => {};
+      mockApi.onConnectionState.mockImplementation((cb) => {
+        emit = cb;
+        return () => {};
+      });
+      mockApi.connect.mockImplementation(async () => {
+        emit({ status: 'connecting', uri });
+        if (connectedOrder === 'before') emit(connected);
+        return {
+          ok: true,
+          data: {
+            uri,
+            databases: [],
+            queryHistory: [],
+            autoSelectedDb: 'tracy',
+            collections: [],
+            collectionColumnWidths: { '["tracy","labels"]': { _id: 600, name: 104 } },
+          },
+        };
+      });
+      const docs = [{ _id: '1', name: 'Label' }];
+      mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
+      useStore.setState({ status: { status: 'disconnected' }, selectedDb: null, selectedCollection: null });
+      const unsubscribe = useStore.getState().subscribeToConnectionState();
+      try {
+        render(<ResultsHarness />);
+        await act(async () => {
+          await useStore.getState().connect(uri);
+          await useStore.getState().selectCollection('tracy', 'labels');
+        });
+        if (connectedOrder === 'after') act(() => emit(connected));
+        expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '600px' });
+        expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '104px' });
+        expect(useStore.getState().collectionColumnWidths).toEqual({
+          '["tracy","labels"]': { _id: 600, name: 104 },
+        });
+      } finally {
+        unsubscribe();
+      }
+    }
+  );
 });
