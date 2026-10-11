@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import JSON5 from 'json5';
 import type {
   DbInfo,
   CollectionInfo,
@@ -15,11 +16,17 @@ import type {
   ConnectionColumnWidths,
   SaveColumnWidthInput,
 } from '../../shared/types';
-import type { FilterValueAction } from './lib/filter-value';
-import { createCollectionQuery } from './collection-query';
+import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 import { createRequestFreshness } from './lib/request-freshness';
 import { collectionColumnWidthsKey } from '../../shared/collection-column-widths';
 import { toast } from 'sonner';
+
+const resultRequests = createRequestFreshness();
+
+function pushWindowTitle(db: string | null, collection: string | null): void {
+  const location = db && collection ? `${db}.${collection}` : null;
+  window.api.setWindowTitle({ location });
+}
 
 export interface StoreState {
   status: ConnectionState;
@@ -59,7 +66,7 @@ export interface StoreState {
   selectDb: (db: string) => Promise<void>;
   selectCollection: (db: string, collection: string) => Promise<void>;
   fetchPage: (skip: number) => Promise<void>;
-  runQuery: (queryText: string) => Promise<string | null>;
+  runQuery: (queryText: string, opts?: { skipHistory?: boolean }) => Promise<string | null>;
   runExplain: (queryText: string) => Promise<Result<Record<string, unknown>> | null>;
   applyProjection: (projectionText: string) => Promise<string | null>;
   clearProjection: () => Promise<string | null>;
@@ -76,6 +83,8 @@ export interface StoreState {
   loadSavedConnections: () => Promise<void>;
   saveConnection: (name: string, uri: string) => Promise<void>;
   deleteConnection: (name: string) => Promise<void>;
+  addToHistory: (entry: QueryHistoryEntry) => void;
+  switchCollection: (db: string, collection: string) => Promise<void>;
   restoreFromHistory: (entry: QueryHistoryEntry) => Promise<void>;
   navigateHistory: (direction: -1 | 1) => Promise<void>;
   applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => void;
@@ -89,215 +98,600 @@ export interface StoreState {
 
 export const selectConnected = (s: StoreState): boolean => s.status.status === 'connected';
 
-export const useStore = create<StoreState>()((set, get) => {
-  const collectionQuery = createCollectionQuery(set, get);
-  const connectionRequests = createRequestFreshness();
-  return {
-    ...collectionQuery.state,
-    status: { status: 'disconnected' },
-    uri: '',
-    databases: [],
-    ghostDatabases: [],
-    collections: [],
-    expandedDb: null,
-    savedConnections: [],
-    collectionColumnWidths: {},
-    mcpStatus: { running: false, port: null },
+export const useStore = create<StoreState>()((set, get) => ({
+  status: { status: 'disconnected' },
+  uri: '',
+  databases: [],
+  ghostDatabases: [],
+  collections: [],
+  expandedDb: null,
+  selectedDb: null,
+  selectedCollection: null,
+  docs: [],
+  totalCount: 0,
+  skip: 0,
+  limit: 20,
+  filter: {},
+  projection: null,
+  resultQueryMode: 'filter',
+  error: null,
+  loading: false,
+  savedConnections: [],
+  queryMode: 'filter',
+  fieldNames: [],
+  sort: null,
+  pendingFilterText: null,
+  queryHistory: [],
+  collectionColumnWidths: {},
+  historyIndex: null,
+  pendingQueryMode: null,
+  mcpStatus: { running: false, port: null },
 
-    connect: async (uri: string) => {
-      const requestIsCurrent = connectionRequests.start();
-      const wasConnected = selectConnected(get());
-      collectionQuery.reset();
-      set({
-        loading: true,
-        error: null,
-        collectionColumnWidths: {},
-        queryHistory: [],
-        collections: [],
-        expandedDb: null,
-        databases: [],
-        ghostDatabases: [],
+  connect: async (uri: string) => {
+    resultRequests.invalidate();
+    if (selectConnected(get())) await get().disconnect();
+    set({ loading: true, error: null, collectionColumnWidths: {} });
+    const result = await window.api.connect(uri);
+    if (!result.ok) {
+      set({ loading: false, error: result.error });
+      return;
+    }
+    const { databases, queryHistory, collectionColumnWidths, autoSelectedDb, collections } = result.data;
+    set({
+      loading: false,
+      uri: result.data.uri,
+      databases,
+      ghostDatabases: [],
+      queryHistory,
+      collectionColumnWidths,
+      expandedDb: autoSelectedDb,
+      selectedDb: autoSelectedDb,
+      collections,
+      projection: null,
+    });
+  },
+
+  disconnect: async () => {
+    resultRequests.invalidate();
+    await window.api.disconnect();
+    set({
+      uri: '',
+      databases: [],
+      ghostDatabases: [],
+      collections: [],
+      expandedDb: null,
+      selectedDb: null,
+      selectedCollection: null,
+      docs: [],
+      totalCount: 0,
+      skip: 0,
+      filter: {},
+      projection: null,
+      error: null,
+      fieldNames: [],
+      collectionColumnWidths: {},
+    });
+    pushWindowTitle(null, null);
+  },
+
+  // The connect reply can hydrate widths before the connected broadcast.
+  subscribeToConnectionState: () =>
+    window.api.onConnectionState((status) =>
+      set((state) => ({
+        status,
+        ...(status.status !== 'connected' ||
+        (state.status.status === 'connected' && state.status.connectionKey !== status.connectionKey)
+          ? { collectionColumnWidths: {} }
+          : {}),
+      }))
+    ),
+
+  saveColumnWidth: async (input) => {
+    const { status } = get();
+    if (status.status !== 'connected' || status.connectionKey !== input.connectionKey) return;
+    const namespace = collectionColumnWidthsKey(input.db, input.collection);
+    set((state) => ({
+      collectionColumnWidths: {
+        ...state.collectionColumnWidths,
+        [namespace]: { ...state.collectionColumnWidths[namespace], [input.column]: input.width },
+      },
+    }));
+    try {
+      const result = await window.api.saveColumnWidth(input);
+      if (!result.ok) toast.error(`Column width was not saved: ${result.error}`);
+    } catch (err) {
+      toast.error(`Column width was not saved: ${(err as Error).message}`);
+    }
+  },
+
+  initMcpStatus: () => {
+    const unsubscribe = window.api.onMcpStatusUpdate((mcpStatus) => set({ mcpStatus }));
+    window.api.getMcpStatus().then((mcpStatus) => set({ mcpStatus }));
+    return unsubscribe;
+  },
+
+  toggleDb: async (db: string) => {
+    if (get().expandedDb === db) {
+      set({ expandedDb: null });
+      return;
+    }
+    await get().selectDb(db);
+  },
+
+  selectDb: async (db: string) => {
+    resultRequests.invalidate();
+    set({
+      loading: true,
+      expandedDb: db,
+      selectedDb: db,
+      selectedCollection: null,
+      collections: [],
+      docs: [],
+      totalCount: 0,
+      fieldNames: [],
+      projection: null,
+    });
+    const result = await window.api.listCollections(db);
+    if (!result.ok) {
+      set({ loading: false, error: result.error });
+      return;
+    }
+    set({ loading: false, collections: result.data });
+  },
+
+  selectCollection: async (db: string, collection: string) => {
+    const { limit } = get();
+    const requestIsCurrent = resultRequests.start();
+    set({
+      loading: true,
+      expandedDb: db,
+      selectedDb: db,
+      selectedCollection: collection,
+      skip: 0,
+      fieldNames: [],
+      sort: null,
+      filter: {},
+      pendingFilterText: '{}',
+      pendingQueryMode: 'filter',
+      projection: null,
+    });
+    pushWindowTitle(db, collection);
+    const [result, fieldsResult] = await Promise.all([
+      window.api.find(db, collection, { filter: {}, skip: 0, limit }),
+      window.api.sampleFields(db, collection),
+    ]);
+    if (!requestIsCurrent()) return;
+    if (!result.ok) {
+      set({ loading: false, error: result.error });
+      return;
+    }
+    set({
+      loading: false,
+      docs: result.data.docs,
+      totalCount: result.data.totalCount,
+      resultQueryMode: 'filter',
+      fieldNames: fieldsResult.ok ? fieldsResult.data : [],
+    });
+    get().addToHistory({
+      id: crypto.randomUUID(),
+      queryMode: 'filter',
+      query: '{}',
+      db,
+      collection,
+      timestamp: Date.now(),
+    });
+  },
+
+  fetchPage: async (skip: number) => {
+    const { selectedDb, selectedCollection, limit, filter, projection, sort } = get();
+    if (!selectedDb || !selectedCollection) return;
+    const requestIsCurrent = resultRequests.start();
+    set({ loading: true, skip });
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(projection ? { projection } : {}),
+      skip,
+      limit,
+      sort: sort ?? undefined,
+    });
+    if (!requestIsCurrent()) return;
+    if (!result.ok) {
+      set({ loading: false, error: result.error });
+      return;
+    }
+    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
+  },
+
+  runQuery: async (queryText: string, opts?: { skipHistory?: boolean }) => {
+    const { selectedDb, selectedCollection, limit, queryMode, projection } = get();
+    if (!selectedDb || !selectedCollection) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON5.parse(queryText);
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Invalid JSON';
+    }
+
+    if (!opts?.skipHistory) {
+      get().addToHistory({
+        id: crypto.randomUUID(),
+        queryMode,
+        query: queryText,
+        db: selectedDb,
+        collection: selectedCollection,
+        timestamp: Date.now(),
       });
-      if (wasConnected) {
-        await window.api.disconnect();
-        if (!requestIsCurrent()) return;
+    }
+
+    if (queryMode === 'aggregate') {
+      if (!Array.isArray(parsed)) {
+        return 'Aggregate pipeline must be a JSON array';
       }
-      const result = await window.api.connect(uri);
-      if (!requestIsCurrent()) return;
+      const requestIsCurrent = resultRequests.start();
+      set({ loading: true, skip: 0, error: null, sort: null });
+      const result = await window.api.aggregate(selectedDb, selectedCollection, parsed as Record<string, unknown>[]);
+      if (!requestIsCurrent()) return null;
       if (!result.ok) {
         set({ loading: false, error: result.error });
-        return;
+        return result.error;
       }
-      const { databases, queryHistory, collectionColumnWidths, autoSelectedDb, collections } = result.data;
-      set({
-        loading: false,
-        uri: result.data.uri,
-        databases,
-        queryHistory,
-        collectionColumnWidths,
-        // A connected broadcast may already have enabled a newer user selection.
-        ...(get().selectedDb === null ? { expandedDb: autoSelectedDb, selectedDb: autoSelectedDb, collections } : {}),
-      });
-    },
+      set({ loading: false, docs: result.data, totalCount: result.data.length, resultQueryMode: 'aggregate' });
+      return null;
+    }
 
-    disconnect: async () => {
-      connectionRequests.invalidate();
-      collectionQuery.reset();
+    // filter mode
+    const filter = parsed as Record<string, unknown>;
+    const requestIsCurrent = resultRequests.start();
+    set({ loading: true, skip: 0, error: null, sort: null, filter });
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(projection ? { projection } : {}),
+      skip: 0,
+      limit,
+    });
+    if (!requestIsCurrent()) return null;
+    if (!result.ok) {
+      set({ loading: false, error: result.error });
+      return result.error;
+    }
+    set({ loading: false, docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
+    return null;
+  },
+
+  runExplain: async (queryText: string) => {
+    const { selectedDb, selectedCollection, queryMode } = get();
+    if (!selectedDb || !selectedCollection) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON5.parse(queryText);
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' };
+    }
+
+    if (queryMode === 'aggregate' && !Array.isArray(parsed)) {
+      return { ok: false, error: 'Aggregate pipeline must be a JSON array' };
+    }
+
+    set({ loading: true });
+    const result = await window.api.explain(
+      selectedDb,
+      selectedCollection,
+      queryMode,
+      parsed as Record<string, unknown> | Record<string, unknown>[]
+    );
+    set({ loading: false });
+    return result;
+  },
+
+  applyProjection: async (projectionText: string) => {
+    const { selectedDb, selectedCollection, filter, sort, skip, limit, queryMode } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    if (queryMode === 'aggregate') return 'Projection is paused in Aggregate mode';
+
+    let parsed: unknown;
+    try {
+      parsed = JSON5.parse(projectionText);
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Invalid JSON';
+    }
+    if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+      return 'Projection must be a JSON object';
+    }
+
+    const nextProjection = Object.keys(parsed).length > 0 ? (parsed as Record<string, unknown>) : null;
+    const requestIsCurrent = resultRequests.start();
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(nextProjection ? { projection: nextProjection } : {}),
+      ...(sort ? { sort } : {}),
+      skip,
+      limit,
+    });
+    if (!requestIsCurrent()) return null;
+    if (!result.ok) return result.error;
+
+    set({
+      projection: nextProjection,
+      docs: result.data.docs,
+      totalCount: result.data.totalCount,
+      resultQueryMode: 'filter',
+      error: null,
+    });
+    return null;
+  },
+
+  clearProjection: async () => {
+    const { selectedDb, selectedCollection, filter, sort, skip, limit, queryMode } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    if (queryMode === 'aggregate') {
+      set({ projection: null });
+      return null;
+    }
+
+    const requestIsCurrent = resultRequests.start();
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(sort ? { sort } : {}),
+      skip,
+      limit,
+    });
+    if (!requestIsCurrent()) return null;
+    if (!result.ok) return result.error;
+
+    set({
+      projection: null,
+      docs: result.data.docs,
+      totalCount: result.data.totalCount,
+      resultQueryMode: 'filter',
+      error: null,
+    });
+    return null;
+  },
+
+  loadDocument: async (id: unknown) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter: { _id: id },
+      skip: 0,
+      limit: 1,
+    });
+    if (!result.ok) return result;
+    const document = result.data.docs[0];
+    if (!document) return { ok: false, error: 'Document not found' };
+    return { ok: true, data: document };
+  },
+
+  setQueryMode: (mode: QueryMode) => {
+    set({ queryMode: mode });
+  },
+
+  setSort: (field: string) => {
+    const { sort } = get();
+    let newSort: Record<string, 1 | -1> | null;
+    if (!sort || !(field in sort)) {
+      newSort = { [field]: 1 };
+    } else if (sort[field] === 1) {
+      newSort = { [field]: -1 };
+    } else {
+      newSort = null;
+    }
+    set({ sort: newSort, skip: 0 });
+    get().fetchPage(0);
+  },
+
+  setLimit: (newLimit: number) => {
+    set({ limit: newLimit, skip: 0 });
+    get().fetchPage(0);
+  },
+
+  insertDoc: async (doc: Record<string, unknown>) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    const result = await window.api.insertOne(selectedDb, selectedCollection, doc);
+    if (!result.ok) return result.error;
+    await get().refreshDocs();
+    return null;
+  },
+
+  updateDoc: async (id: unknown, doc: Record<string, unknown>) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    const result = await window.api.updateOne(selectedDb, selectedCollection, id, doc);
+    if (!result.ok) return result.error;
+    await get().refreshDocs();
+    return null;
+  },
+
+  updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions) => {
+    const { selectedDb, selectedCollection, filter } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+    const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update, options);
+    if (result.ok) await get().refreshDocs();
+    return result;
+  },
+
+  deleteResults: async () => {
+    const { selectedDb, selectedCollection, filter } = get();
+    if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
+    const result = await window.api.deleteMany(selectedDb, selectedCollection, filter);
+    if (result.ok) {
+      set({ skip: 0 });
+      await get().refreshDocs();
+    }
+    return result;
+  },
+
+  deleteDoc: async (id: unknown) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return 'No collection selected';
+    const result = await window.api.deleteOne(selectedDb, selectedCollection, id);
+    if (!result.ok) return result.error;
+    await get().refreshDocs();
+    return null;
+  },
+
+  refreshDocs: async () => {
+    const { selectedDb, selectedCollection, skip, limit, filter, projection, sort } = get();
+    if (!selectedDb || !selectedCollection) return;
+    const requestIsCurrent = resultRequests.start();
+    const result = await window.api.find(selectedDb, selectedCollection, {
+      filter,
+      ...(projection ? { projection } : {}),
+      skip,
+      limit,
+      sort: sort ?? undefined,
+    });
+    if (!requestIsCurrent()) return;
+    if (result.ok) {
+      set({ docs: result.data.docs, totalCount: result.data.totalCount, resultQueryMode: 'filter' });
+    }
+  },
+
+  loadSavedConnections: async () => {
+    const connections = await window.api.listConnections();
+    set({ savedConnections: connections });
+  },
+
+  saveConnection: async (name: string, uri: string) => {
+    await window.api.saveConnection({ name, uri });
+    const connections = await window.api.listConnections();
+    set({ savedConnections: connections });
+  },
+
+  deleteConnection: async (name: string) => {
+    await window.api.deleteConnection(name);
+    const connections = await window.api.listConnections();
+    set({ savedConnections: connections });
+  },
+
+  addToHistory: (entry: QueryHistoryEntry) => {
+    const { queryHistory } = get();
+    const top = queryHistory[0];
+    if (
+      top &&
+      top.query === entry.query &&
+      top.db === entry.db &&
+      top.collection === entry.collection &&
+      top.queryMode === entry.queryMode
+    ) {
+      set({ historyIndex: 0 });
+      return;
+    }
+    const updated = [entry, ...queryHistory].slice(0, 50);
+    set({ queryHistory: updated, historyIndex: 0 });
+    window.api.saveHistory(updated);
+  },
+
+  switchCollection: async (db: string, collection: string) => {
+    resultRequests.invalidate();
+    set({
+      expandedDb: db,
+      selectedDb: db,
+      selectedCollection: collection,
+      fieldNames: [],
+      projection: null,
+    });
+    const fieldsResult = await window.api.sampleFields(db, collection);
+    set({ fieldNames: fieldsResult.ok ? fieldsResult.data : [] });
+  },
+
+  restoreFromHistory: async (entry: QueryHistoryEntry) => {
+    const { selectedDb, selectedCollection, queryHistory } = get();
+    const idx = queryHistory.findIndex((e) => e.id === entry.id);
+    if (entry.db !== selectedDb || entry.collection !== selectedCollection) {
+      await get().switchCollection(entry.db, entry.collection);
+    }
+    set({
+      filter: {},
+      pendingFilterText: entry.query,
+      pendingQueryMode: entry.queryMode,
+      queryMode: entry.queryMode,
+    });
+    await get().runQuery(entry.query, { skipHistory: true });
+    set({ historyIndex: idx >= 0 ? idx : null });
+  },
+
+  navigateHistory: async (direction: -1 | 1) => {
+    const { queryHistory, historyIndex } = get();
+    if (queryHistory.length === 0) return;
+    const current = historyIndex === null ? (direction === 1 ? -1 : 0) : historyIndex;
+    const target = Math.min(Math.max(current + direction, 0), queryHistory.length - 1);
+    if (target === historyIndex) return;
+    await get().restoreFromHistory(queryHistory[target]);
+  },
+
+  applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => {
+    const { filter } = get();
+    const newFilter = {
+      ...filter,
+      [column]: combineFilterValue(filter[column], value, action),
+    };
+    const query = JSON.stringify(newFilter, null, 2);
+
+    set({
+      filter: newFilter,
+      skip: 0,
+      pendingFilterText: query,
+      pendingQueryMode: 'filter',
+    });
+    get().fetchPage(0);
+    get().addToHistory({
+      id: crypto.randomUUID(),
+      queryMode: 'filter',
+      query,
+      db: get().selectedDb!,
+      collection: get().selectedCollection!,
+      timestamp: Date.now(),
+    });
+  },
+
+  clearPendingFilterText: () => {
+    set({ pendingFilterText: null, pendingQueryMode: null });
+  },
+
+  autoReconnect: async () => {
+    const lastUsed = await window.api.getLastUsed();
+    if (lastUsed) {
+      await get().connect(lastUsed);
+    }
+  },
+
+  fetchDistinct: async (field: string, filter?: Record<string, unknown>) => {
+    const { selectedDb, selectedCollection } = get();
+    if (!selectedDb || !selectedCollection) return null;
+    return window.api.distinct(selectedDb, selectedCollection, field, filter);
+  },
+
+  addGhostDatabase: (name: string) => {
+    const { ghostDatabases } = get();
+    if (ghostDatabases.includes(name)) return;
+    set({ ghostDatabases: [...ghostDatabases, name] });
+  },
+
+  removeGhostDatabase: (name: string) => {
+    const { ghostDatabases, selectedDb } = get();
+    const next = ghostDatabases.filter((n) => n !== name);
+    if (selectedDb === name) {
+      resultRequests.invalidate();
       set({
-        uri: '',
-        databases: [],
-        ghostDatabases: [],
-        collections: [],
+        ghostDatabases: next,
         expandedDb: null,
-        queryHistory: [],
-        collectionColumnWidths: {},
+        selectedDb: null,
+        selectedCollection: null,
+        collections: [],
+        projection: null,
       });
-      await window.api.disconnect();
-    },
+    } else {
+      set({ ghostDatabases: next });
+    }
+  },
 
-    // The connect reply can hydrate widths before the connected broadcast.
-    subscribeToConnectionState: () =>
-      window.api.onConnectionState((status) => {
-        const previous = get().status;
-        collectionQuery.connectionChanged(previous, status);
-        set({
-          status,
-          ...(status.status !== 'connected' ||
-          (previous.status === 'connected' && previous.connectionKey !== status.connectionKey)
-            ? { collectionColumnWidths: {} }
-            : {}),
-        });
-      }),
-
-    saveColumnWidth: async (input) => {
-      const { status } = get();
-      if (status.status !== 'connected' || status.connectionKey !== input.connectionKey) return;
-      const namespace = collectionColumnWidthsKey(input.db, input.collection);
-      set((state) => ({
-        collectionColumnWidths: {
-          ...state.collectionColumnWidths,
-          [namespace]: { ...state.collectionColumnWidths[namespace], [input.column]: input.width },
-        },
-      }));
-      try {
-        const result = await window.api.saveColumnWidth(input);
-        if (!result.ok) toast.error(`Column width was not saved: ${result.error}`);
-      } catch (err) {
-        toast.error(`Column width was not saved: ${(err as Error).message}`);
-      }
-    },
-
-    initMcpStatus: () => {
-      const unsubscribe = window.api.onMcpStatusUpdate((mcpStatus) => set({ mcpStatus }));
-      window.api.getMcpStatus().then((mcpStatus) => set({ mcpStatus }));
-      return unsubscribe;
-    },
-
-    toggleDb: async (db: string) => {
-      if (get().expandedDb === db) {
-        set({ expandedDb: null });
-        return;
-      }
-      await get().selectDb(db);
-    },
-
-    insertDoc: async (doc: Record<string, unknown>) => {
-      const { selectedDb, selectedCollection } = get();
-      if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await window.api.insertOne(selectedDb, selectedCollection, doc);
-      if (!result.ok) return result.error;
-      await get().refreshDocs();
-      return null;
-    },
-
-    updateDoc: async (id: unknown, doc: Record<string, unknown>) => {
-      const { selectedDb, selectedCollection } = get();
-      if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await window.api.updateOne(selectedDb, selectedCollection, id, doc);
-      if (!result.ok) return result.error;
-      await get().refreshDocs();
-      return null;
-    },
-
-    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions) => {
-      const { selectedDb, selectedCollection, filter } = get();
-      if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-      const result = await window.api.updateMany(selectedDb, selectedCollection, filter, update, options);
-      if (result.ok) await get().refreshDocs();
-      return result;
-    },
-
-    deleteResults: async () => {
-      const { selectedDb, selectedCollection, filter } = get();
-      if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
-      const result = await window.api.deleteMany(selectedDb, selectedCollection, filter);
-      if (result.ok) {
-        set({ skip: 0 });
-        await get().refreshDocs();
-      }
-      return result;
-    },
-
-    deleteDoc: async (id: unknown) => {
-      const { selectedDb, selectedCollection } = get();
-      if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await window.api.deleteOne(selectedDb, selectedCollection, id);
-      if (!result.ok) return result.error;
-      await get().refreshDocs();
-      return null;
-    },
-
-    loadSavedConnections: async () => {
-      const connections = await window.api.listConnections();
-      set({ savedConnections: connections });
-    },
-
-    saveConnection: async (name: string, uri: string) => {
-      await window.api.saveConnection({ name, uri });
-      const connections = await window.api.listConnections();
-      set({ savedConnections: connections });
-    },
-
-    deleteConnection: async (name: string) => {
-      await window.api.deleteConnection(name);
-      const connections = await window.api.listConnections();
-      set({ savedConnections: connections });
-    },
-
-    autoReconnect: async () => {
-      const lastUsed = await window.api.getLastUsed();
-      if (lastUsed) {
-        await get().connect(lastUsed);
-      }
-    },
-
-    addGhostDatabase: (name: string) => {
-      const { ghostDatabases } = get();
-      if (ghostDatabases.includes(name)) return;
-      set({ ghostDatabases: [...ghostDatabases, name] });
-    },
-
-    removeGhostDatabase: (name: string) => {
-      const { ghostDatabases, selectedDb } = get();
-      const next = ghostDatabases.filter((n) => n !== name);
-      if (selectedDb === name) {
-        collectionQuery.reset();
-        set({
-          ghostDatabases: next,
-          expandedDb: null,
-          selectedDb: null,
-          selectedCollection: null,
-          collections: [],
-          projection: null,
-        });
-      } else {
-        set({ ghostDatabases: next });
-      }
-    },
-
-    refreshDatabases: async () => {
-      const result = await window.api.listDatabases();
-      if (result.ok) set({ databases: result.data });
-    },
-  };
-});
+  refreshDatabases: async () => {
+    const result = await window.api.listDatabases();
+    if (result.ok) set({ databases: result.data });
+  },
+}));

@@ -73,10 +73,6 @@ Grab the latest build from **[Releases →](https://github.com/terebentina/mongo
 
 That’s it. Pick a database, pick a collection, and start querying.
 
-Choosing a different collection updates the selection and window title immediately and clears the previous rows and projection. If loading fails, the new collection stays selected with empty results and a visible error in the results panel. Delayed replies from earlier selections cannot replace its results or autocomplete fields.
-
-Replaying query history immediately restores the saved editor text, Filter or Aggregate mode, and history position. The most recent selection or replay stays in control while requests finish. Replay keeps the projection on the same collection and clears it when switching collections, without adding another history entry.
-
 ---
 
 ## 🤖 MCP Server
