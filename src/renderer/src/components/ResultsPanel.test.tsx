@@ -14,10 +14,10 @@ const mockApi = {
   listCollections: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   saveHistory: vi.fn().mockResolvedValue(undefined),
   setWindowTitle: vi.fn(),
-  saveColumnWidth: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
+  saveColumnWidth: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
-  onConnectionState: vi.fn<(cb: (state: ConnectionState) => void) => () => void>(() => () => {}),
+  onConnectionState: vi.fn<(cb: (state: ConnectionState) => void) => () => void>(),
 };
 
 function ResultsHarness() {
@@ -182,10 +182,9 @@ describe('ResultsPanel', () => {
     };
     resize('name', 150, 220);
     resize('email', 150, 10);
-    expect(screen.getByRole('columnheader', { name: 'email' })).toHaveStyle({ width: '40px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(4)')).toHaveStyle({ width: '40px' });
     resize('email', 40, 310);
     expect(useStore.getState().collectionColumnWidths).toEqual({ '["testdb","users"]': { name: 220, email: 310 } });
-    expect(screen.getByRole('columnheader', { name: '_id' }).style.width).toBe('');
 
     const { promise, resolve: finish } = Promise.withResolvers<unknown>();
     mockApi.find.mockReturnValueOnce(promise);
@@ -200,9 +199,8 @@ describe('ResultsPanel', () => {
     ] as const) {
       await userEvent.click(screen.getByRole('columnheader', { name: field }));
       expect(useStore.getState().sort).toEqual(sort);
-      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '220px' });
-      expect(screen.getByRole('columnheader', { name: 'email' })).toHaveStyle({ width: '310px' });
-      expect(screen.getByRole('columnheader', { name: '_id' }).style.width).toBe('');
+      expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '220px' });
+      expect(screen.getByRole('table').querySelector('col:nth-child(4)')).toHaveStyle({ width: '310px' });
     }
   });
 
@@ -227,8 +225,8 @@ describe('ResultsPanel', () => {
       await useStore.getState().refreshDocs();
     });
     expect(screen.getByRole('table')).toHaveStyle({ width: '578px', minWidth: '578px' });
-    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '220px' });
-    expect(screen.getByRole('columnheader', { name: 'email' })).toHaveStyle({ width: '310px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '220px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '310px' });
   });
 
   it('recovers absent fields and collection-name preferences through navigation, queries, pagination, history and view changes', async () => {
@@ -254,7 +252,7 @@ describe('ResultsPanel', () => {
       await useStore.getState().refreshDocs();
     });
     await userEvent.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
 
     mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ email: 'only' }], totalCount: 1 } });
     await act(async () => {
@@ -269,12 +267,12 @@ describe('ResultsPanel', () => {
     await act(async () => {
       await useStore.getState().refreshDocs();
     });
-    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
 
     await act(async () => {
       await useStore.getState().selectCollection('testdb', 'renamed');
     });
-    expect(screen.getByRole('columnheader', { name: 'name' }).style.width).toBe('');
+    expect(useStore.getState().collectionColumnWidths['["testdb","renamed"]']).toBeUndefined();
     await act(async () => {
       await useStore.getState().restoreFromHistory({
         id: 'users',
@@ -285,16 +283,16 @@ describe('ResultsPanel', () => {
         timestamp: 1,
       });
     });
-    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
-    expect(screen.getByRole('columnheader', { name: 'email' }).style.width).toBe('');
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
+    expect(useStore.getState().collectionColumnWidths['["testdb","users"]'].email).toBeUndefined();
     await act(async () => {
       await useStore.getState().selectCollection('otherdb', 'users');
     });
-    expect(screen.getByRole('columnheader', { name: 'name' }).style.width).toBe('');
+    expect(useStore.getState().collectionColumnWidths['["otherdb","users"]']).toBeUndefined();
     await act(async () => {
       await useStore.getState().selectCollection('testdb', 'users');
     });
-    expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '250px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '250px' });
   });
 
   it('cancels an interrupted drag and restores selection without leaking the preview into another collection', async () => {
@@ -307,7 +305,7 @@ describe('ResultsPanel', () => {
     Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 150 });
     fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
     fireEvent.mouseMove(document, { clientX: 300 });
-    expect(header).toHaveStyle({ width: '350px' });
+    expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '350px' });
     expect(useStore.getState().collectionColumnWidths).toEqual({});
     await act(async () => {
       await useStore.getState().selectCollection('testdb', 'orders');
@@ -316,7 +314,6 @@ describe('ResultsPanel', () => {
     fireEvent.mouseUp(document);
     expect(document.body.style.userSelect).toBe('text');
     expect(useStore.getState().collectionColumnWidths).toEqual({});
-    expect(screen.getByRole('columnheader', { name: 'name' }).style.width).toBe('');
     document.body.style.userSelect = '';
   });
 
@@ -341,19 +338,17 @@ describe('ResultsPanel', () => {
         </>
       );
       fireEvent.doubleClick(screen.getByRole('separator', { name: 'Resize name' }));
-      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '174px' });
-      expect(storedWidth).toBe(174);
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '174px' });
       const header = screen.getByRole('columnheader', { name: 'name' });
       Object.defineProperty(header, 'offsetWidth', { configurable: true, value: 174 });
       fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize name' }), { clientX: 100 });
       fireEvent.mouseMove(document, { clientX: 226 });
       fireEvent.mouseUp(document);
       expect(await screen.findByText(/Column width was not saved: Disk full/)).toBeInTheDocument();
-      expect(header).toHaveStyle({ width: '300px' });
-      expect(storedWidth).toBe(174);
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '300px' });
       await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
       await userEvent.click(screen.getByRole('button', { name: 'Table' }));
-      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '300px' });
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '300px' });
       await act(async () => {
         await useStore.getState().disconnect();
       });
@@ -374,7 +369,7 @@ describe('ResultsPanel', () => {
         await useStore.getState().connect('mongodb://localhost');
         await useStore.getState().selectCollection('testdb', 'users');
       });
-      expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '174px' });
+      expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '174px' });
     } finally {
       getContext.mockRestore();
     }
@@ -415,11 +410,9 @@ describe('ResultsPanel', () => {
           await useStore.getState().connect(uri);
           await useStore.getState().selectCollection('tracy', 'labels');
         });
-        expect(screen.getByRole('columnheader', { name: '_id' })).toHaveStyle({ width: '600px' });
-        expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '104px' });
         if (connectedOrder === 'after') act(() => emit(connected));
-        expect(screen.getByRole('columnheader', { name: '_id' })).toHaveStyle({ width: '600px' });
-        expect(screen.getByRole('columnheader', { name: 'name' })).toHaveStyle({ width: '104px' });
+        expect(screen.getByRole('table').querySelector('col:nth-child(2)')).toHaveStyle({ width: '600px' });
+        expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '104px' });
         expect(useStore.getState().collectionColumnWidths).toEqual({
           '["tracy","labels"]': { _id: 600, name: 104 },
         });

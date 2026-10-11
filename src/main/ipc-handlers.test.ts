@@ -108,7 +108,7 @@ describe('IPC Handlers', () => {
     registerIpcHandlers({
       connStore: mockConnStore as unknown as ConnectionStore,
       historyStore: mockHistoryStore as unknown as QueryHistoryStore,
-      columnWidthsStore: { save: vi.fn() } as unknown as CollectionColumnWidthsStore,
+      columnWidthsStore: {} as unknown as CollectionColumnWidthsStore,
       manager: mockManager as unknown as ConnectionManager,
       registry: mockRegistry as unknown as OperationRegistry,
       mcpStatus: mockMcpStatus as unknown as import('./mcp/status').McpStatusEmitter,

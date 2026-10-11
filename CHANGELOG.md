@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Features
 
-* **results:** remember explicitly resized collection column widths per connection, database, and collection across queries, navigation, reconnects, and application restarts.
+* **results:** remember explicitly resized collection column widths per connection, database, and collection across queries, navigation, reconnects, and application restarts. Column definitions are the single source of table sizing.
 
 ### Bug Fixes
 

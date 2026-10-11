@@ -281,8 +281,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
     filter?: Record<string, unknown>;
   } | null>(null);
   useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
+    const viewport = viewportRef.current!;
     const observer = new ResizeObserver(([entry]) => setViewportWidth(entry.contentRect.width));
     observer.observe(viewport);
     return () => observer.disconnect();
@@ -322,7 +321,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
           db,
           collection,
           column: col,
-          width: Math.max(40, Math.ceil(maxWidth) + 2),
+          width: Math.ceil(maxWidth) + 2,
         });
       }
     },
@@ -387,7 +386,6 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
                   key={col}
                   aria-label={col}
                   className={`group/header px-4 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
-                  style={Object.hasOwn(columnWidths, col) ? { width: columnWidths[col] } : undefined}
                   onClick={isAggregate ? undefined : () => setSort(col)}
                 >
                   <span className="flex items-center gap-1 min-w-0 w-full">

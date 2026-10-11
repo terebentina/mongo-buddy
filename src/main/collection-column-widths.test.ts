@@ -51,7 +51,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(cwd, { recursive: true, force: true }));
 
-async function save(chosen: SaveColumnWidthInput): Promise<Result<undefined>> {
+function save(chosen: SaveColumnWidthInput): Promise<Result<undefined>> {
   return transport.handlers['column-widths:save']({}, chosen);
 }
 

@@ -9,7 +9,7 @@ export class CollectionColumnWidthsStore {
     this.store = new ElectronStore<Record<string, ConnectionColumnWidths>>({
       name: 'collection-column-widths',
       accessPropertiesByDotNotation: false,
-      ...(cwd ? { cwd, projectVersion: '1.0.0' } : {}),
+      cwd,
     });
   }
 
