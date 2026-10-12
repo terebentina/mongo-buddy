@@ -2929,3 +2929,250 @@ describe('mutation refresh ownership', () => {
     }
   );
 });
+
+describe('independent Explain activity', () => {
+  beforeEach(async () => {
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: 'accepted' }], totalCount: 41 } });
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: ['_id', 'name'] });
+    await useStore.getState().selectCollection('testdb', 'users');
+    mockApi.find.mockClear();
+  });
+
+  it.each(['Explain first', 'rows first'] as const)(
+    'accepts both overlapping reads independently when %s completes',
+    async (completionOrder) => {
+      const rows = Promise.withResolvers<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+      const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+      mockApi.find.mockReturnValueOnce(rows.promise);
+      mockApi.explain.mockReturnValueOnce(explanation.promise);
+      const rowRead = useStore.getState().runQuery('{ active: true }');
+      const history = useStore.getState().queryHistory;
+      const explainRead = useStore.getState().runExplain('{ name: "unsent" }');
+      expect(useStore.getState()).toMatchObject({ loading: true, explainLoading: true });
+      const output = { queryPlanner: { namespace: 'testdb.users' } };
+      const rowResult = { ok: true as const, data: { docs: [{ _id: 'new rows' }], totalCount: 7 } };
+      if (completionOrder === 'Explain first') {
+        explanation.resolve({ ok: true, data: output });
+        await explainRead;
+        expect(useStore.getState()).toMatchObject({ loading: true, explainLoading: false, explainOutput: output });
+        rows.resolve(rowResult);
+        await rowRead;
+      } else {
+        rows.resolve(rowResult);
+        await rowRead;
+        expect(useStore.getState()).toMatchObject({ loading: false, explainLoading: true, explainOutput: null });
+        explanation.resolve({ ok: true, data: output });
+        await explainRead;
+      }
+      expect(useStore.getState()).toMatchObject({
+        loading: false,
+        explainLoading: false,
+        explainOutput: output,
+        fieldNames: ['_id', 'name'],
+        acceptedResults: { docs: [{ _id: 'new rows' }], totalCount: 7, appliedQuery: { filter: { active: true } } },
+      });
+      expect(useStore.getState().queryHistory).toBe(history);
+    }
+  );
+
+  it('keeps Explain pending while a newer row query and field discovery complete', async () => {
+    const fields = Promise.withResolvers<Result<string[]>>();
+    const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+    mockApi.sampleFields.mockReturnValueOnce(fields.promise);
+    const selection = useStore.getState().selectCollection('testdb', 'orders');
+    mockApi.explain.mockReturnValueOnce(explanation.promise);
+    const explainRead = useStore.getState().runExplain('{}');
+    await useStore.getState().runQuery('{ active: false }');
+    fields.resolve({ ok: true, data: ['orderNumber'] });
+    await selection;
+    expect(useStore.getState()).toMatchObject({
+      explainLoading: true,
+      loading: false,
+      fieldNames: ['orderNumber'],
+      acceptedResults: { appliedQuery: { filter: { active: false } } },
+    });
+    explanation.resolve({ ok: true, data: { namespace: 'testdb.orders' } });
+    expect(await explainRead).toEqual({ ok: true, data: { namespace: 'testdb.orders' } });
+    expect(useStore.getState().explainOutput).toEqual({ namespace: 'testdb.orders' });
+  });
+
+  it.each(['old success', 'old failure', 'old rejection'] as const)(
+    'only delivers the newest explanation and leaves its pending state intact after %s',
+    async (oldReply) => {
+      const old = Promise.withResolvers<Result<Record<string, unknown>>>();
+      const latest = Promise.withResolvers<Result<Record<string, unknown>>>();
+      mockApi.explain.mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
+      const accepted = useStore.getState().acceptedResults;
+      const history = useStore.getState().queryHistory;
+      const oldRead = useStore.getState().runExplain('{ old: true }');
+      const latestRead = useStore.getState().runExplain('{ latest: true }');
+      if (oldReply === 'old rejection') old.reject(new Error('obsolete transport error'));
+      else
+        old.resolve(oldReply === 'old success' ? { ok: true, data: { old: true } } : { ok: false, error: 'old error' });
+      expect(await oldRead).toBeNull();
+      expect(useStore.getState()).toMatchObject({ explainLoading: true, explainOutput: null, loading: false });
+      latest.resolve({ ok: true, data: { latest: true } });
+      expect(await latestRead).toEqual({ ok: true, data: { latest: true } });
+      expect(useStore.getState()).toMatchObject({ explainLoading: false, explainOutput: { latest: true } });
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(useStore.getState().queryHistory).toBe(history);
+    }
+  );
+
+  it.each(['success', 'failure'] as const)(
+    'retains the newest delivered diagnostic after an older %s arrives',
+    async (oldReply) => {
+      const old = Promise.withResolvers<Result<Record<string, unknown>>>();
+      mockApi.explain.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ ok: true, data: { newest: true } });
+      const oldRead = useStore.getState().runExplain('{ old: true }');
+      await useStore.getState().runExplain('{ newest: true }');
+      old.resolve(oldReply === 'success' ? { ok: true, data: { old: true } } : { ok: false, error: 'obsolete error' });
+      expect(await oldRead).toBeNull();
+      expect(useStore.getState()).toMatchObject({
+        explainLoading: false,
+        explainOutput: { newest: true },
+        loading: false,
+        error: null,
+      });
+    }
+  );
+
+  it('does not reopen an older success after the newest explanation fails', async () => {
+    const old = Promise.withResolvers<Result<Record<string, unknown>>>();
+    mockApi.explain.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ ok: false, error: 'newest failure' });
+    const oldRead = useStore.getState().runExplain('{}');
+    expect(await useStore.getState().runExplain('{ latest: true }')).toEqual({ ok: false, error: 'newest failure' });
+    old.resolve({ ok: true, data: { old: true } });
+    expect(await oldRead).toBeNull();
+    expect(useStore.getState()).toMatchObject({ explainLoading: false, explainOutput: null, error: null });
+  });
+
+  it.each(['returned error', 'transport rejection', 'invalid JSON5', 'invalid aggregate shape'] as const)(
+    'reports %s without clearing a pending row read or its error state',
+    async (failure) => {
+      const rows = Promise.withResolvers<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+      mockApi.find.mockReturnValueOnce(rows.promise);
+      const accepted = useStore.getState().acceptedResults;
+      const rowRead = useStore.getState().runQuery('{}');
+      useStore.setState({ error: 'row-owned error' });
+      if (failure === 'transport rejection')
+        mockApi.explain.mockRejectedValueOnce(new Error('Explain transport failed'));
+      else mockApi.explain.mockResolvedValueOnce({ ok: false, error: 'Explain rejected' });
+      if (failure === 'invalid aggregate shape') useStore.getState().setQueryMode('aggregate');
+      const result = await useStore.getState().runExplain(failure === 'invalid JSON5' ? '{' : '{}');
+      expect(result).toMatchObject({ ok: false, error: expect.any(String) });
+      expect(useStore.getState()).toMatchObject({
+        loading: true,
+        explainLoading: false,
+        explainOutput: null,
+        error: 'row-owned error',
+      });
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      if (failure.startsWith('invalid')) expect(mockApi.explain).not.toHaveBeenCalled();
+      rows.resolve({ ok: true, data: { docs: [{ _id: 'completed row' }], totalCount: 1 } });
+      await rowRead;
+      expect(useStore.getState().acceptedResults?.docs).toEqual([{ _id: 'completed row' }]);
+    }
+  );
+
+  it.each(['collection', 'database', 'disconnect', 'same-key reconnect', 'connection broadcast'] as const)(
+    'suppresses success and error delivery across %s without clearing navigation loading',
+    async (transition) => {
+      for (const failed of [false, true]) {
+        mockApi.find.mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } });
+        await useStore.getState().selectCollection('testdb', 'users');
+        useStore.setState({ status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost' } });
+        const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+        mockApi.explain.mockReturnValueOnce(explanation.promise);
+        const explainRead = useStore.getState().runExplain('{}');
+        const navigation = Promise.withResolvers<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+        const listing = Promise.withResolvers<Result<{ name: string; type: string }[]>>();
+        const connection = Promise.withResolvers<Result<ConnectedSession>>();
+        let pendingNavigation: Promise<unknown> | undefined;
+        if (transition === 'collection') {
+          mockApi.find.mockReturnValueOnce(navigation.promise);
+          pendingNavigation = useStore.getState().selectCollection('testdb', 'orders');
+        } else if (transition === 'database') {
+          mockApi.listCollections.mockReturnValueOnce(listing.promise);
+          pendingNavigation = useStore.getState().selectDb('otherdb');
+        } else if (transition === 'disconnect') {
+          await useStore.getState().disconnect();
+        } else if (transition === 'same-key reconnect') {
+          mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
+          mockApi.connect.mockReturnValueOnce(connection.promise);
+          pendingNavigation = useStore.getState().connect('mongodb://localhost');
+          await Promise.resolve();
+        } else {
+          useStore.getState().subscribeToConnectionState();
+          const broadcast = mockApi.onConnectionState.mock.calls.at(-1)![0];
+          broadcast({ status: 'connecting', uri: 'mongodb://localhost' });
+          broadcast({ status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost' });
+          mockApi.find.mockReturnValueOnce(navigation.promise);
+          pendingNavigation = useStore.getState().selectCollection('testdb', 'users');
+        }
+        explanation.resolve(
+          failed ? { ok: false, error: 'obsolete Explain error' } : { ok: true, data: { old: true } }
+        );
+        expect(await explainRead).toBeNull();
+        expect(useStore.getState()).toMatchObject({
+          explainLoading: false,
+          explainOutput: null,
+          loading: transition !== 'disconnect',
+          error: null,
+        });
+        navigation.resolve({ ok: true, data: { docs: [{ _id: 'new selection' }], totalCount: 1 } });
+        listing.resolve({ ok: true, data: [{ name: 'new collection', type: 'collection' }] });
+        connection.resolve({ ok: true, data: makeSession() });
+        await pendingNavigation;
+      }
+    }
+  );
+
+  it('clears an already delivered diagnostic on selection and same-key reconnect', async () => {
+    mockApi.explain.mockResolvedValue({ ok: true, data: { namespace: 'testdb.users' } });
+    await useStore.getState().runExplain('{}');
+    expect(useStore.getState().explainOutput).toEqual({ namespace: 'testdb.users' });
+    await useStore.getState().selectCollection('testdb', 'orders');
+    expect(useStore.getState().explainOutput).toBeNull();
+    await useStore.getState().runExplain('{}');
+    useStore.setState({ status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost' } });
+    mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
+    mockApi.connect.mockResolvedValue({ ok: true, data: makeSession() });
+    await useStore.getState().connect('mongodb://localhost');
+    expect(useStore.getState().explainOutput).toBeNull();
+  });
+
+  it('captures JSON5 text, QueryMode and target without adopting projection or changing history', async () => {
+    const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+    mockApi.explain.mockReturnValueOnce(explanation.promise);
+    await useStore.getState().applyProjection('{ name: 1 }');
+    const accepted = useStore.getState().acceptedResults;
+    const history = useStore.getState().queryHistory;
+    const historyIndex = useStore.getState().historyIndex;
+    useStore.getState().setQueryMode('aggregate');
+    const read = useStore.getState().runExplain('[{ $match: { active: true, }, }]');
+    useStore.getState().setQueryMode('filter');
+    expect(mockApi.explain).toHaveBeenCalledWith('testdb', 'users', 'aggregate', [{ $match: { active: true } }]);
+    explanation.resolve({ ok: true, data: { aggregatePlan: true } });
+    await read;
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(useStore.getState().queryHistory).toBe(history);
+    expect(useStore.getState().historyIndex).toBe(historyIndex);
+    expect(useStore.getState().projection).toEqual({ name: 1 });
+  });
+
+  it('does not supersede the accepted-filter refresh after a pending document mutation', async () => {
+    const write = Promise.withResolvers<Result<unknown>>();
+    const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+    mockApi.updateOne.mockReturnValueOnce(write.promise);
+    mockApi.explain.mockReturnValueOnce(explanation.promise);
+    const mutation = useStore.getState().updateDoc('accepted', { name: 'updated' });
+    const read = useStore.getState().runExplain('{ diagnosticOnly: true }');
+    write.resolve({ ok: true, data: undefined });
+    expect(await mutation).toBeNull();
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: {}, skip: 0, limit: 20 });
+    expect(useStore.getState().explainLoading).toBe(true);
+    explanation.resolve({ ok: true, data: { plan: 'independent' } });
+    await read;
+  });
+});

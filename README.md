@@ -85,6 +85,8 @@ Delete results and Update results are available in the editor's Filter mode and 
 
 Successful document and result-based mutations refresh the accepted filter with its projection, sort and page. Delete results proposes page one, which becomes the displayed page only when the refresh succeeds. Navigation, reconnects and newer query attempts suppress an older mutation's follow-up, including attempts that fail or contain invalid input. A failed refresh shows a query error and retains the previous rows and page; the write still succeeds. Aggregate results remain a snapshot after mutations, empty collection, imports and automatic refreshes, even when Filter is selected in the editor. Press **Run** explicitly to execute the complete pipeline again; automatic refresh never reruns it or substitutes a filter query.
 
+Explain diagnoses the editor text in its selected Filter or Aggregate mode without projection. Its **Explaining...** activity is independent of Run, paging, autocomplete field discovery and navigation: row reads can complete while Explain is pending, and Explain never replaces rows, count, AppliedQuery, projection or query history. Only the newest explanation for the current selection and connection opens the diagnostic dialog or reports an error. Changing the database or collection, disconnecting or reconnecting (even to the same server) discards earlier diagnostics and closes any displayed explanation.
+
 ---
 
 ## 🤖 MCP Server

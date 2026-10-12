@@ -42,6 +42,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   // Automatic reads supersede replies, but only explicit row intent supersedes pending writes.
   const rowIntents = createRequestFreshness();
   const selectionRequests = createRequestFreshness();
+  const explainRequests = createRequestFreshness();
   let workingFilter: { db: string; collection: string; filter: Record<string, unknown> } | null = null;
   let automaticReadIsCurrent: (() => boolean) | null = null;
 
@@ -56,6 +57,8 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     fieldNames: [],
     error: null,
     loading: false,
+    explainLoading: false,
+    explainOutput: null,
   } satisfies Partial<StoreState>;
 
   function reset(): void {
@@ -63,6 +66,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     selectionRequests.invalidate();
     rowIntents.invalidate();
     resultRequests.invalidate();
+    explainRequests.invalidate();
     set({
       ...emptyResults,
       selectedDb: null,
@@ -96,6 +100,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     const selectionIsCurrent = selectionRequests.start();
     rowIntents.invalidate();
     resultRequests.invalidate();
+    explainRequests.invalidate();
     set({ ...emptyResults, expandedDb: db, selectedDb: db, selectedCollection: collection, historyIndex: null });
     pushWindowTitle(db, collection);
     return selectionIsCurrent;
@@ -305,6 +310,8 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     projection: null,
     error: null,
     loading: false,
+    explainLoading: false,
+    explainOutput: null,
     queryMode: 'filter',
     fieldNames: [],
     pendingFilterText: null,
@@ -317,6 +324,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       const selectionIsCurrent = selectionRequests.start();
       rowIntents.invalidate();
       resultRequests.invalidate();
+      explainRequests.invalidate();
       set({
         ...emptyResults,
         loading: true,
@@ -363,36 +371,36 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       return executeQuery(selectedDb, selectedCollection, queryText, queryMode, requestIsCurrent, true);
     },
 
-    runExplain: async (queryText: string) => {
-      rowIntents.invalidate();
+    runExplain: async (queryText: string): Promise<Result<Record<string, unknown>> | null> => {
       const { selectedDb, selectedCollection, queryMode } = get();
       if (!selectedDb || !selectedCollection) return null;
 
-      const requestIsCurrent = resultRequests.start();
-      let parsed: unknown;
+      const explainIsCurrent = explainRequests.start();
+      const selectionIsCurrent = selectionRequests.capture();
+      const requestIsCurrent = (): boolean => explainIsCurrent() && selectionIsCurrent();
+      set({ explainLoading: true, explainOutput: null });
+      let result: Result<Record<string, unknown>>;
       try {
-        parsed = JSON5.parse(queryText);
+        const parsed: unknown = JSON5.parse(queryText);
+        if (queryMode === 'aggregate' && !Array.isArray(parsed)) {
+          result = { ok: false, error: 'Aggregate pipeline must be a JSON array' };
+        } else {
+          result = await window.api.explain(
+            selectedDb,
+            selectedCollection,
+            queryMode,
+            parsed as Record<string, unknown> | Record<string, unknown>[]
+          );
+        }
       } catch (e) {
-        set({ loading: false });
-        return { ok: false, error: e instanceof Error ? e.message : 'Invalid JSON' };
+        result = { ok: false, error: e instanceof Error ? e.message : 'Explain failed' };
       }
-
-      if (queryMode === 'aggregate' && !Array.isArray(parsed)) {
-        set({ loading: false });
-        return { ok: false, error: 'Aggregate pipeline must be a JSON array' };
-      }
-
-      set({ loading: true });
-      const result = await window.api.explain(
-        selectedDb,
-        selectedCollection,
-        queryMode,
-        parsed as Record<string, unknown> | Record<string, unknown>[]
-      );
       if (!requestIsCurrent()) return null;
-      set({ loading: false });
+      set({ explainLoading: false, explainOutput: result.ok ? result.data : null });
       return result;
     },
+
+    clearExplainOutput: () => set({ explainOutput: null }),
 
     applyProjection: async (projectionText: string) => {
       rowIntents.invalidate();

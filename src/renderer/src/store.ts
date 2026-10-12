@@ -35,6 +35,8 @@ export interface StoreState {
   projection: Record<string, unknown> | null;
   error: string | null;
   loading: boolean;
+  explainLoading: boolean;
+  explainOutput: Record<string, unknown> | null;
   savedConnections: SavedConnection[];
   queryMode: QueryMode;
   fieldNames: string[];
@@ -56,6 +58,7 @@ export interface StoreState {
   fetchPage: (skip: number) => Promise<void>;
   runQuery: (queryText: string) => Promise<string | null>;
   runExplain: (queryText: string) => Promise<Result<Record<string, unknown>> | null>;
+  clearExplainOutput: () => void;
   applyProjection: (projectionText: string) => Promise<string | null>;
   clearProjection: () => Promise<string | null>;
   loadDocument: (id: unknown) => Promise<Result<Record<string, unknown>>>;

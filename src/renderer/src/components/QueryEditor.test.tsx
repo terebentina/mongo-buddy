@@ -249,6 +249,74 @@ describe('rendered query acceptance', () => {
     expect(mockApi.find).not.toHaveBeenCalled();
   });
 
+  it('renders independent Explain and row loading, accepting rows while diagnostics remain pending', async () => {
+    const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+    const rows = Promise.withResolvers<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    mockApi.explain.mockReturnValueOnce(explanation.promise);
+    mockApi.find.mockReturnValueOnce(rows.promise);
+    renderQuery();
+    await userEvent.click(screen.getByRole('button', { name: 'Explain' }));
+    expect(screen.getByRole('button', { name: 'Explaining...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    setEditorText('{ name: "Bob" }');
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+    await act(async () => {
+      rows.resolve({ ok: true, data: { docs: [{ _id: 'new', name: 'Bob' }], totalCount: 1 } });
+      await rows.promise;
+    });
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Explaining...' })).toBeDisabled();
+    await act(async () => {
+      explanation.resolve({ ok: true, data: { queryPlanner: { namespace: 'testdb.users' } } });
+      await explanation.promise;
+    });
+    expect(await screen.findByRole('dialog')).toHaveTextContent('testdb.users');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+  });
+
+  it('keeps Explain available during a row read and does not release Run when diagnostics finish', async () => {
+    const rows = Promise.withResolvers<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    mockApi.find.mockReturnValueOnce(rows.promise);
+    mockApi.explain.mockResolvedValueOnce({ ok: true, data: { queryPlanner: { namespace: 'testdb.users' } } });
+    renderQuery();
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Explain' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('testdb.users');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled();
+    await act(async () => {
+      rows.resolve({ ok: true, data: { docs: [alice], totalCount: 61 } });
+      await rows.promise;
+    });
+    expect(screen.getByRole('button', { name: 'Run' })).toBeEnabled();
+  });
+
+  it('closes a delivered diagnostic and suppresses stale error toasts after collection selection', async () => {
+    mockApi.explain.mockResolvedValueOnce({ ok: true, data: { queryPlanner: { namespace: 'testdb.users' } } });
+    renderQuery();
+    await userEvent.click(screen.getByRole('button', { name: 'Explain' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    await act(async () => useStore.getState().selectCollection('testdb', 'orders'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    const explanation = Promise.withResolvers<Result<Record<string, unknown>>>();
+    mockApi.explain.mockReturnValueOnce(explanation.promise);
+    await userEvent.click(screen.getByRole('button', { name: 'Explain' }));
+    await act(async () => useStore.getState().selectCollection('testdb', 'users'));
+    await act(async () => {
+      explanation.resolve({ ok: false, error: 'Obsolete diagnostic error' });
+      await explanation.promise;
+    });
+    expect(screen.queryByText('Obsolete diagnostic error')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeEnabled();
+  });
+
   it('cell filtering ignores unsent editor text and composes from submitted conditions', async () => {
     renderQuery();
     setEditorText('{ unsent: true }');
