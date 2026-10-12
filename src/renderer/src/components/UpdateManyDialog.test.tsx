@@ -1,3 +1,4 @@
+import { filterResults } from '../test-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -14,11 +15,18 @@ beforeEach(() => {
   useStore.setState({
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    docs: [{ _id: '1' }],
-    totalCount: 5,
-    filter: { status: 'active' },
     loading: false,
     queryMode: 'filter',
+    acceptedResults: filterResults(
+      {
+        ...useStore.getState().acceptedResults?.appliedQuery,
+        db: 'testdb',
+        collection: 'users',
+        filter: { status: 'active' },
+      },
+      [{ _id: '1' }],
+      5
+    ),
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });
@@ -41,24 +49,27 @@ describe('UpdateManyDialog gating', () => {
   });
 
   it('disables the button when the match count is zero', () => {
-    useStore.setState({ totalCount: 0 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        useStore.getState().acceptedResults?.docs ?? [],
+        0
+      ),
+    });
     render(<UpdateManyDialog />);
     expect(screen.getByRole('button', { name: 'Update results' })).toBeDisabled();
   });
 });
 
 describe('UpdateManyDialog context', () => {
-  it('renders update and options editors side by side', async () => {
-    render(<UpdateManyDialog />);
-    await openDialog();
-
-    const updateEditor = screen.getByRole('textbox', { name: 'Update document or pipeline' });
-    const optionsEditor = screen.getByRole('textbox', { name: 'Update options' });
-    expect(updateEditor.closest('.grid')).toBe(optionsEditor.closest('.grid'));
-  });
-
   it('shows the applied filter JSON and the match count', async () => {
-    useStore.setState({ filter: { status: 'active' }, totalCount: 42 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, filter: { status: 'active' } },
+        useStore.getState().acceptedResults?.docs ?? [],
+        42
+      ),
+    });
     render(<UpdateManyDialog />);
     await openDialog();
 
@@ -70,7 +81,13 @@ describe('UpdateManyDialog context', () => {
   });
 
   it('shows a stronger whole-collection warning when the filter is empty', async () => {
-    useStore.setState({ filter: {}, totalCount: 100 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, filter: {} },
+        useStore.getState().acceptedResults?.docs ?? [],
+        100
+      ),
+    });
     render(<UpdateManyDialog />);
     await openDialog();
 

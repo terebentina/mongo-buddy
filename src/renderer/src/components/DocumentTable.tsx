@@ -238,19 +238,23 @@ function snapshotColumnWidths(
   return widths;
 }
 
+const EMPTY_DOCS: Record<string, unknown>[] = [];
+
 interface DocumentTableProps {
   onRowClick: (doc: Record<string, unknown>) => void;
 }
 
 export function DocumentTable({ onRowClick }: DocumentTableProps) {
-  const docs = useStore((s) => s.docs);
-  const sort = useStore((s) => s.sort);
+  const acceptedResults = useStore((s) => s.acceptedResults);
+  const appliedQuery = acceptedResults?.appliedQuery;
+  const docs = acceptedResults?.docs ?? EMPTY_DOCS;
+  const sort = appliedQuery?.queryMode === 'filter' ? appliedQuery.sort : null;
+  const projection = appliedQuery?.queryMode === 'filter' ? appliedQuery.projection : null;
+  const resultQueryMode = appliedQuery?.queryMode ?? 'filter';
   const setSort = useStore((s) => s.setSort);
   const queryMode = useStore((s) => s.queryMode);
-  const resultQueryMode = useStore((s) => s.resultQueryMode);
-  const projection = useStore((s) => s.projection);
   const applyFilterValue = useStore((s) => s.applyFilterValue);
-  const storeFilter = useStore((s) => s.filter);
+  const storeFilter = appliedQuery?.queryMode === 'filter' ? appliedQuery.filter : null;
   const status = useStore((s) => s.status);
   const db = useStore((s) => s.selectedDb);
   const collection = useStore((s) => s.selectedCollection);
@@ -259,8 +263,8 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
   const connectionKey = status.status === 'connected' ? status.connectionKey : null;
   const committedWidths =
     db && collection ? (preferences[collectionColumnWidthsKey(db, collection)] ?? EMPTY_WIDTHS) : EMPTY_WIDTHS;
-  const hasFilter = Object.keys(storeFilter).length > 0;
-  const isAggregate = queryMode === 'aggregate';
+  const hasFilter = storeFilter !== null && Object.keys(storeFilter).length > 0;
+  const isAggregate = resultQueryMode === 'aggregate';
   const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);
 
   const columns = useMemo(() => getColumns(docs, projection, resultQueryMode), [docs, projection, resultQueryMode]);
@@ -300,7 +304,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
       // Measure header (font-medium = weight 500)
       ctx.font = `500 ${style.fontSize} ${style.fontFamily}`;
       const headerTextWidth = ctx.measureText(col).width;
-      const sortIconWidth = queryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
+      const sortIconWidth = resultQueryMode === 'aggregate' ? 0 : 18; // 14px icon + 4px gap
       const menuIconWidth = 22; // 14px icon + 4px button padding + 4px gap (space reserved even when hidden)
       const headerPadding = 32; // px-4 (16px) * 2
       const headerWidth = headerTextWidth + sortIconWidth + menuIconWidth + headerPadding;
@@ -325,7 +329,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
         });
       }
     },
-    [docs, queryMode, connectionKey, db, collection, saveColumnWidth]
+    [docs, resultQueryMode, connectionKey, db, collection, saveColumnWidth]
   );
 
   const handleResizeStart = useCallback(
@@ -385,6 +389,9 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
                 <TableHead
                   key={col}
                   aria-label={col}
+                  aria-sort={
+                    isAggregate ? undefined : sortDir === 1 ? 'ascending' : sortDir === -1 ? 'descending' : 'none'
+                  }
                   className={`group/header px-4 relative select-none overflow-hidden border-r border-border last:border-r-0 ${isAggregate ? '' : 'cursor-pointer'}`}
                   onClick={isAggregate ? undefined : () => setSort(col)}
                 >
@@ -415,7 +422,11 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
                                 const selector = `thead th:nth-child(${columns.indexOf(col) + 2})`;
                                 const th = tableRef.current?.querySelector(selector);
                                 if (th)
-                                  setDistinctState({ column: col, anchor: th as HTMLElement, filter: storeFilter });
+                                  setDistinctState({
+                                    column: col,
+                                    anchor: th as HTMLElement,
+                                    filter: storeFilter ?? undefined,
+                                  });
                               }
                             : undefined
                         }

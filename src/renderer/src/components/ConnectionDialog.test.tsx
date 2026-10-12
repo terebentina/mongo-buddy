@@ -27,6 +27,7 @@ vi.mock('sonner', () => ({
 }));
 
 const mockApi = {
+  setWindowTitle: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn(),
   onConnectionState: vi.fn(() => () => {}),
@@ -50,14 +51,11 @@ beforeEach(() => {
     collections: [],
     selectedDb: null,
     selectedCollection: null,
-    docs: [],
-    totalCount: 0,
-    skip: 0,
     limit: 20,
-    filter: {},
     error: null,
     loading: false,
     savedConnections: [],
+    acceptedResults: null,
   });
   mockApi.listConnections.mockResolvedValue([]);
   (window as unknown as Record<string, unknown>).api = mockApi;

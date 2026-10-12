@@ -1,3 +1,4 @@
+import { filterResults } from '../test-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -20,14 +21,22 @@ beforeEach(() => {
   useStore.setState({
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    docs: [{ _id: '1' }],
-    totalCount: 5,
-    filter: { status: 'inactive' },
-    skip: 0,
     limit: 20,
-    sort: null,
     loading: false,
     queryMode: 'filter',
+    acceptedResults: filterResults(
+      {
+        ...useStore.getState().acceptedResults?.appliedQuery,
+        db: 'testdb',
+        collection: 'users',
+        filter: { status: 'inactive' },
+        sort: null,
+        skip: 0,
+        limit: 20,
+      },
+      [{ _id: '1' }],
+      5
+    ),
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });
@@ -60,7 +69,13 @@ describe('DeleteResultsDialog gate', () => {
   });
 
   it('disables the action when no documents match', () => {
-    useStore.setState({ totalCount: 0 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        useStore.getState().acceptedResults?.docs ?? [],
+        0
+      ),
+    });
 
     render(<DeleteResultsDialog />);
 
@@ -92,7 +107,13 @@ describe('DeleteResultsDialog context', () => {
 
 describe('DeleteResultsDialog whole-collection gate', () => {
   it('warns about all documents and requires the exact collection name', async () => {
-    useStore.setState({ filter: {}, totalCount: 100 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, filter: {} },
+        useStore.getState().acceptedResults?.docs ?? [],
+        100
+      ),
+    });
     render(<DeleteResultsDialog />);
     await openDialog();
 
@@ -114,7 +135,13 @@ describe('DeleteResultsDialog whole-collection gate', () => {
   });
 
   it('sends the empty applied filter after the collection name matches', async () => {
-    useStore.setState({ filter: {}, totalCount: 100 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, filter: {} },
+        useStore.getState().acceptedResults?.docs ?? [],
+        100
+      ),
+    });
     render(<DeleteResultsDialog />);
     await openDialog();
     await userEvent.type(screen.getByLabelText(/type users to confirm/i), 'users');

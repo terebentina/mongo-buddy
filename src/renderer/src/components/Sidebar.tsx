@@ -61,7 +61,7 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   const selectCollection = useStore((s) => s.selectCollection);
   const selectedCollection = useStore((s) => s.selectedCollection);
   const collections = useStore((s) => s.collections);
-  const refreshDocs = useStore((s) => s.refreshDocs);
+  const emptyCollection = useStore((s) => s.emptyCollection);
 
   const progress = exporting && coll.count ? Math.min((exp.progress.processed / coll.count) * 100, 100) : 0;
 
@@ -126,21 +126,13 @@ function CollectionRow({ dbName, coll, isSelected, onSelect }: CollectionRowProp
   };
 
   const handleEmpty = async (): Promise<void> => {
-    const result = await window.api.emptyCollection(dbName, coll.name);
+    const result = await emptyCollection(dbName, coll.name);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
     toast.success(`Emptied "${coll.name}" — ${result.data.toLocaleString()} documents deleted`);
     setEmptyDialogOpen(false);
-
-    const listResult = await window.api.listCollections(dbName);
-    if (listResult.ok) {
-      useStore.setState({ collections: listResult.data });
-    }
-    if (selectedCollection === coll.name) {
-      await refreshDocs();
-    }
   };
 
   return (
@@ -345,7 +337,6 @@ function DatabaseRow({
   const exp = useOperation<'export-database'>();
   const imp = useOperation<'import-collection'>();
 
-  const refreshDocs = useStore((s) => s.refreshDocs);
   const refreshDatabases = useStore((s) => s.refreshDatabases);
   const selectDb = useStore((s) => s.selectDb);
   const selectCollection = useStore((s) => s.selectCollection);
@@ -458,11 +449,29 @@ function DatabaseRow({
       toast('Import cancelled');
     }
 
-    onSelectDb();
-    await refreshDatabases();
-    if (storeSelectedDb === dbName && files.some((f) => f.suggestedName === storeSelectedCollection)) {
-      refreshDocs();
+    const snapshot = useStore.getState();
+    if (snapshot.acceptedResults?.appliedQuery.queryMode === 'aggregate') {
+      // Import must retain aggregate rows until the user explicitly runs the pipeline again.
+      if (snapshot.selectedDb === dbName) {
+        try {
+          const listResult = await window.api.listCollections(dbName);
+          const current = useStore.getState();
+          if (
+            listResult.ok &&
+            current.status === snapshot.status &&
+            current.selectedDb === snapshot.selectedDb &&
+            current.selectedCollection === snapshot.selectedCollection
+          ) {
+            useStore.setState({ collections: listResult.data });
+          }
+        } catch {
+          // Keep the accepted snapshot and existing sidebar metadata if transport fails.
+        }
+      }
+    } else {
+      onSelectDb();
     }
+    await refreshDatabases();
   };
 
   const handleCancelImport = async (e: React.MouseEvent): Promise<void> => {
