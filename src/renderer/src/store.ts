@@ -33,7 +33,6 @@ export interface StoreState {
   selectedDb: string | null;
   selectedCollection: string | null;
   acceptedResults: AcceptedResults | null;
-  limit: number;
   projection: Record<string, unknown> | null;
   error: string | null;
   loading: boolean;
@@ -68,7 +67,6 @@ export interface StoreState {
   loadDocument: (id: unknown) => Promise<Result<Record<string, unknown>>>;
   setQueryMode: (mode: QueryMode) => void;
   setSort: (field: string) => Promise<void>;
-  setLimit: (newLimit: number) => Promise<void>;
   insertDoc: (doc: Record<string, unknown>) => Promise<string | null>;
   updateDoc: (id: unknown, doc: Record<string, unknown>) => Promise<string | null>;
   updateManyDocs: (

@@ -47,7 +47,6 @@ beforeEach(async () => {
     collectionSorts: {},
     queryHistory: [],
     historyIndex: null,
-    limit: 20,
     projection: null,
     queryMode: 'filter',
     error: null,
@@ -61,7 +60,7 @@ beforeEach(async () => {
         projection: null,
         sort: null,
         skip: 0,
-        limit: 20,
+        limit: 100,
       },
       [],
       0
@@ -137,13 +136,12 @@ describe('ResultsPanel', () => {
   });
 
   it('replaces JSON with the next loaded page and returns to the table without changing the query', async () => {
-    const first = [{ _id: 'first' }];
+    const first = Array.from({ length: 100 }, (_, i) => ({ _id: `first-${i}` }));
     const second = [{ _id: 'second', when: { $date: '2026-09-27T00:00:00Z' } }];
     useStore.setState({
-      limit: 1,
-      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery, limit: 1 }, first, 2),
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, first, 101),
     });
-    mockApi.find.mockResolvedValue({ ok: true, data: { docs: second, totalCount: 2 } });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: second, totalCount: 101 } });
     render(<ResultsHarness />);
 
     await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
@@ -151,16 +149,15 @@ describe('ResultsPanel', () => {
 
     expect(screen.getByLabelText('JSON results').textContent).toBe(JSON.stringify(second, null, 2));
     expect(screen.getByRole('spinbutton')).toHaveValue(2);
-    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(1);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(100);
     await userEvent.click(screen.getByRole('button', { name: 'Table' }));
     expect(screen.getByRole('columnheader', { name: 'when' })).toBeInTheDocument();
     expect(screen.queryByLabelText('JSON results')).not.toBeInTheDocument();
   });
 
   it('shows every loaded aggregate document, including when the filter page limit is smaller', async () => {
-    const docs = [{ total: 1 }, { total: 2 }];
+    const docs = Array.from({ length: 101 }, (_, i) => ({ total: i }));
     useStore.setState({
-      limit: 1,
       queryMode: 'aggregate',
       acceptedResults: aggregateResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs),
     });
@@ -322,9 +319,9 @@ describe('ResultsPanel', () => {
   it('recovers absent fields and collection-name preferences through navigation, queries, pagination, history and view changes', async () => {
     const docs = [{ name: 'Alice', email: 'a@example.test' }];
     useStore.setState({
-      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 41),
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 201),
     });
-    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 41 } });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 201 } });
     mockApi.aggregate.mockResolvedValue({ ok: true, data: docs });
     render(<ResultsHarness />);
     const header = screen.getByRole('columnheader', { name: 'name' });
@@ -335,7 +332,6 @@ describe('ResultsPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: '50' } });
     await waitFor(() => expect(useStore.getState().loading).toBe(false));
     await act(async () => {
       await useStore.getState().runQuery('{ name: "Alice" }');

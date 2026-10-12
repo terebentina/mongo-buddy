@@ -21,7 +21,6 @@ beforeEach(() => {
   useStore.setState({
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    limit: 20,
     loading: false,
     queryMode: 'filter',
     acceptedResults: filterResults(
@@ -32,7 +31,7 @@ beforeEach(() => {
         filter: { status: 'inactive' },
         sort: null,
         skip: 0,
-        limit: 20,
+        limit: 100,
       },
       [{ _id: '1' }],
       5

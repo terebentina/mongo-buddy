@@ -50,12 +50,11 @@ beforeEach(() => {
     selectedCollection: 'users',
   });
   useStore.setState({
-    limit: 20,
     loading: false,
     queryMode: 'filter',
     projection: null,
     acceptedResults: filterResults(
-      { ...useStore.getState().acceptedResults?.appliedQuery, projection: null, skip: 0, limit: 20 },
+      { ...useStore.getState().acceptedResults?.appliedQuery, projection: null, skip: 0, limit: 100 },
       [],
       0
     ),

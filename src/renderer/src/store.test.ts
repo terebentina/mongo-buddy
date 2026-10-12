@@ -72,7 +72,6 @@ beforeEach(async () => {
     expandedDb: null,
     selectedDb: null,
     selectedCollection: null,
-    limit: 20,
     projection: null,
     error: null,
     loading: false,
@@ -209,7 +208,7 @@ describe('store', () => {
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter: {},
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
   });
 
@@ -238,7 +237,7 @@ describe('store', () => {
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'orders', {
       filter: {},
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
   });
 
@@ -311,7 +310,7 @@ describe('store', () => {
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter: { name: 'Alice' },
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
   });
 
@@ -477,7 +476,6 @@ describe('store', () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
-      limit: 20,
       acceptedResults: filterResults(
         {
           ...useStore.getState().acceptedResults?.appliedQuery,
@@ -486,7 +484,7 @@ describe('store', () => {
           filter: filter,
           sort: { name: 1 },
           skip: 20,
-          limit: 20,
+          limit: 100,
         },
         useStore.getState().acceptedResults?.docs ?? [],
         useStore.getState().acceptedResults?.totalCount ?? 0
@@ -502,7 +500,7 @@ describe('store', () => {
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter,
       skip: 0,
-      limit: 20,
+      limit: 100,
       sort: { name: 1 },
     });
     expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(0);
@@ -576,7 +574,6 @@ describe('projection', () => {
       selectedDb: 'testdb',
       selectedCollection: 'users',
       projection: null,
-      limit: 20,
       queryMode: 'filter',
       acceptedResults: filterResults(
         {
@@ -587,7 +584,7 @@ describe('projection', () => {
           projection: null,
           sort: { name: 1 },
           skip: 20,
-          limit: 20,
+          limit: 100,
         },
         [{ _id: 'old', name: 'Old' }],
         1
@@ -606,7 +603,7 @@ describe('projection', () => {
       projection: activeProjection,
       sort: { name: 1 },
       skip: 20,
-      limit: 20,
+      limit: 100,
     });
     expect(useStore.getState().projection).toEqual(activeProjection);
     expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ name: 'Alice' }]);
@@ -837,7 +834,7 @@ describe('projection', () => {
       filter: { active: true },
       sort: { name: 1 },
       skip: 20,
-      limit: 20,
+      limit: 100,
     });
   });
 
@@ -859,7 +856,7 @@ describe('projection', () => {
       filter: { active: true },
       sort: { name: 1 },
       skip: 20,
-      limit: 20,
+      limit: 100,
     });
   });
 
@@ -887,11 +884,11 @@ describe('projection', () => {
       filter: { active: false },
       projection: activeProjection,
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
   });
 
-  it('uses the projection for pagination, sorting, limit changes, refreshes, and filter value actions', async () => {
+  it('uses the projection for pagination, sorting, refreshes, and filter value actions', async () => {
     useStore.setState({
       projection: activeProjection,
       acceptedResults: filterResults(
@@ -903,11 +900,10 @@ describe('projection', () => {
 
     await useStore.getState().fetchPage(40);
     await useStore.getState().setSort('age');
-    await useStore.getState().setLimit(50);
     await useStore.getState().refreshDocs();
     useStore.getState().applyFilterValue('status', 'active', 'include');
 
-    expect(mockApi.find).toHaveBeenCalledTimes(5);
+    expect(mockApi.find).toHaveBeenCalledTimes(4);
     for (const call of mockApi.find.mock.calls) {
       expect(call[2]).toMatchObject({ projection: activeProjection });
     }
@@ -936,7 +932,7 @@ describe('projection', () => {
       filter: { active: false },
       projection: activeProjection,
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
     expect(useStore.getState().queryHistory[0]).not.toHaveProperty('projection');
   });
@@ -961,7 +957,7 @@ describe('projection', () => {
     await useStore.getState().restoreFromHistory(useStore.getState().queryHistory[0]);
 
     expect(useStore.getState().projection).toBeNull();
-    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'orders', { filter: {}, skip: 0, limit: 20 });
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'orders', { filter: {}, skip: 0, limit: 100 });
   });
 
   it('clears the projection after a database change, collection change, disconnect, and ghost database removal', async () => {
@@ -1237,7 +1233,7 @@ describe('restoreFromHistory', () => {
       filter: { name: 'Alice' },
       projection: { name: 1 },
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
     expect(state.acceptedResults?.docs ?? []).toEqual([{ name: 'Alice' }]);
     expect(state.acceptedResults?.totalCount ?? 0).toBe(1);
@@ -1257,7 +1253,7 @@ describe('restoreFromHistory', () => {
     expect(state.pendingFilterText).toBe('{"name":"Alice"}');
     expect(state.pendingQueryMode).toBe('filter');
     expect(mockApi.sampleFields).toHaveBeenCalledWith('testdb', 'users');
-    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: { name: 'Alice' }, skip: 0, limit: 20 });
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: { name: 'Alice' }, skip: 0, limit: 100 });
   });
 
   it('aggregate entry sets pendingQueryMode to aggregate and executes', async () => {
@@ -1388,7 +1384,7 @@ describe('filter value action', () => {
     expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
       filter,
       skip: 0,
-      limit: 20,
+      limit: 100,
     });
     expect(state.queryHistory[0]).toMatchObject({
       queryMode: 'filter',
@@ -2134,21 +2130,19 @@ describe('accepted query results', () => {
     }
   );
 
-  it.each(['page', 'sort', 'page size', 'projection Apply', 'projection Clear', 'refresh'] as const)(
+  it.each(['page', 'sort', 'projection Apply', 'projection Clear', 'refresh'] as const)(
     'retains rows and all metadata when a %s change is rejected',
     async (action) => {
       const accepted = useStore.getState().acceptedResults;
       mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Read rejected' });
       if (action === 'page') await useStore.getState().fetchPage(40);
       if (action === 'sort') await useStore.getState().setSort('age');
-      if (action === 'page size') await useStore.getState().setLimit(50);
       if (action === 'projection Apply') await useStore.getState().applyProjection('{ age: 1 }');
       if (action === 'projection Clear') await useStore.getState().clearProjection();
       if (action === 'refresh') await useStore.getState().refreshDocs();
       expect(useStore.getState()).toMatchObject({
         acceptedResults: accepted,
         projection: { name: 1 },
-        limit: 20,
         loading: false,
         error: 'Read rejected',
       });
@@ -2248,7 +2242,7 @@ describe('accepted query results', () => {
       projection: { name: 1 },
       sort: { name: 1 },
       skip: 40,
-      limit: 20,
+      limit: 100,
     });
   });
 
@@ -2265,7 +2259,6 @@ describe('accepted query results', () => {
     useStore.getState().setQueryMode('filter');
     await useStore.getState().fetchPage(20);
     await useStore.getState().setSort('total');
-    await useStore.getState().setLimit(10);
     expect((await useStore.getState().deleteResults()).ok).toBe(false);
     expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {})).ok).toBe(false);
     expect(mockApi.deleteMany).not.toHaveBeenCalled();
@@ -2412,7 +2405,7 @@ describe('mutation refresh ownership', () => {
       projection: { name: 1 },
       sort: { name: 1 },
       skip: 20,
-      limit: 20,
+      limit: 100,
     });
     expect(useStore.getState().acceptedResults).toEqual(
       filterResults(
@@ -2497,7 +2490,7 @@ describe('mutation refresh ownership', () => {
       projection: { name: 1 },
       sort: { name: 1 },
       skip: 20,
-      limit: 20,
+      limit: 100,
     });
     expect(useStore.getState().acceptedResults).toEqual(
       filterResults(
@@ -2562,7 +2555,6 @@ describe('mutation refresh ownership', () => {
       await useStore.getState().runQuery('{ rejected: true }');
       useStore.getState().setQueryMode('aggregate');
       await useStore.getState().clearProjection();
-      useStore.setState({ limit: 50 });
       useStore.getState().setQueryMode('filter');
       mockApi.find.mockClear();
       mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Bob' }], totalCount: 58 } });
@@ -2576,7 +2568,7 @@ describe('mutation refresh ownership', () => {
         projection: { name: 1 },
         sort: { name: 1 },
         skip: mutation.skip,
-        limit: 20,
+        limit: 100,
       });
       expect(useStore.getState().acceptedResults).toEqual(
         filterResults(
@@ -2585,7 +2577,7 @@ describe('mutation refresh ownership', () => {
           58
         )
       );
-      expect(useStore.getState()).toMatchObject({ limit: 50, projection: null, loading: false, error: null });
+      expect(useStore.getState()).toMatchObject({ projection: null, loading: false, error: null });
     }
   );
 
@@ -2611,7 +2603,7 @@ describe('mutation refresh ownership', () => {
       projection: { name: 1 },
       sort: { name: 1 },
       skip: 20,
-      limit: 20,
+      limit: 100,
     });
     expect(useStore.getState().acceptedResults).toEqual(
       filterResults(
@@ -2661,7 +2653,7 @@ describe('mutation refresh ownership', () => {
         acceptedResults: {
           docs: [{ name: 'Alice' }],
           totalCount: 61,
-          appliedQuery: { skip: 20, limit: 20, projection: { name: 1 }, sort: { name: 1 } },
+          appliedQuery: { skip: 20, limit: 100, projection: { name: 1 }, sort: { name: 1 } },
         },
       });
     }
@@ -3174,7 +3166,7 @@ describe('independent Explain activity', () => {
     const read = useStore.getState().runExplain('{ diagnosticOnly: true }');
     write.resolve({ ok: true, data: undefined });
     expect(await mutation).toBeNull();
-    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: {}, skip: 0, limit: 20 });
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: {}, skip: 0, limit: 100 });
     expect(useStore.getState().explainLoading).toBe(true);
     explanation.resolve({ ok: true, data: { plan: 'independent' } });
     await read;
@@ -3451,7 +3443,7 @@ describe('sort preference hydration races', () => {
           filter: {},
           sort: { name: -1 },
           skip: 0,
-          limit: 20,
+          limit: 100,
         });
         expect(mockApi.saveCollectionSort).not.toHaveBeenCalled();
       } finally {

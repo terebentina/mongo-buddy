@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { SlidersHorizontal } from 'lucide-react';
 import { useStore } from '../store';
+import { DOCUMENTS_PER_PAGE } from '../collection-query';
 import { Button } from './ui/button';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { DocumentTable } from './DocumentTable';
@@ -109,14 +110,12 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
   const appliedQuery = acceptedResults?.appliedQuery;
   const docs = acceptedResults?.docs ?? [];
   const totalCount = acceptedResults?.totalCount ?? 0;
-  const limitPreference = useStore((s) => s.limit);
   const skip = appliedQuery?.queryMode === 'filter' ? appliedQuery.skip : 0;
-  const limit = appliedQuery?.queryMode === 'filter' ? appliedQuery.limit : limitPreference;
+  const limit = DOCUMENTS_PER_PAGE;
   const canPage = appliedQuery?.queryMode === 'filter';
   const loading = useStore((s) => s.loading);
   const error = useStore((s) => s.error);
   const fetchPage = useStore((s) => s.fetchPage);
-  const setLimit = useStore((s) => s.setLimit);
   const currentPage = Math.floor(skip / limit) + 1;
   const totalPages = canPage ? Math.max(1, Math.ceil(totalCount / limit)) : 1;
   const [pageInput, setPageInput] = useState(String(currentPage));
@@ -199,19 +198,6 @@ export function ResultsPanel({ viewMode, onViewModeChange, onRowClick }: Results
             />
             of {totalPages}
           </span>
-          <select
-            className="h-7 px-1.5 text-sm border rounded bg-background text-foreground"
-            aria-label="Documents per page"
-            disabled={!canPage || loading}
-            value={limit}
-            onChange={(e) => setLimit(Number(e.target.value))}
-          >
-            {[10, 20, 50, 100].map((n) => (
-              <option key={n} value={n}>
-                {n} / page
-              </option>
-            ))}
-          </select>
           <Button
             variant="outline"
             size="sm"

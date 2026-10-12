@@ -52,7 +52,6 @@ beforeEach(() => {
     collections: [],
     selectedDb: null,
     selectedCollection: null,
-    limit: 20,
     error: null,
     loading: false,
     savedConnections: [],

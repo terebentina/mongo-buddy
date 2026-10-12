@@ -59,7 +59,6 @@ beforeEach(async () => {
     selectedDb: null,
     selectedCollection: null,
     collectionSorts: {},
-    limit: 20,
     error: null,
     loading: false,
     acceptedResults: null,
@@ -223,7 +222,7 @@ describe('Sidebar', () => {
     await waitFor(() => expect(useStore.getState().selectedCollection).toBe('users'));
     expect(mockApi.listCollections).toHaveBeenNthCalledWith(1, 'testdb');
     expect(mockApi.listCollections).toHaveBeenNthCalledWith(2, 'testdb');
-    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: {}, skip: 0, limit: 20 });
+    expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', { filter: {}, skip: 0, limit: 100 });
   });
 
   it('creates a collection in a placeholder database and clears the placeholder', async () => {

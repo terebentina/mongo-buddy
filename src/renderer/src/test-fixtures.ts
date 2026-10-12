@@ -15,7 +15,7 @@ export function filterResults(
       projection: query.projection ?? null,
       sort: query.sort ?? null,
       skip: query.skip ?? 0,
-      limit: query.limit ?? 20,
+      limit: query.limit ?? 100,
       queryMode: 'filter',
     },
     docs,

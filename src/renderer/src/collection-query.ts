@@ -13,6 +13,8 @@ import type { StoreState } from './store';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 import { createRequestFreshness } from './lib/request-freshness';
 
+export const DOCUMENTS_PER_PAGE = 100;
+
 export type AppliedQuery =
   | {
       queryMode: 'filter';
@@ -49,7 +51,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   let latestQuery: {
     appliedQuery: AppliedQuery;
     requestIsCurrent: () => boolean;
-    preferences: Partial<Pick<StoreState, 'projection' | 'limit'>>;
+    preferences: Partial<Pick<StoreState, 'projection'>>;
   } | null = null;
 
   function startAutomaticRead(): () => boolean {
@@ -236,7 +238,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   async function executeAppliedQuery(
     appliedQuery: AppliedQuery,
     requestIsCurrent: () => boolean,
-    preferences: Partial<Pick<StoreState, 'projection' | 'limit'>> = {}
+    preferences: Partial<Pick<StoreState, 'projection'>> = {}
   ): Promise<string | null> {
     latestQuery = { appliedQuery, requestIsCurrent, preferences };
     set({ loading: true, error: null });
@@ -292,7 +294,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     requestIsCurrent: () => boolean,
     recordHistory: boolean
   ): Promise<string | null> {
-    const { limit, projection } = get();
+    const { projection } = get();
     let parsed: unknown;
     try {
       parsed = JSON5.parse(queryText);
@@ -321,7 +323,16 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     const filter = parsed as Record<string, unknown>;
     workingFilter = { db, collection, filter };
     return executeAppliedQuery(
-      { db, collection, queryMode, filter, projection, sort: savedSort(db, collection), skip: 0, limit },
+      {
+        db,
+        collection,
+        queryMode,
+        filter,
+        projection,
+        sort: savedSort(db, collection),
+        skip: 0,
+        limit: DOCUMENTS_PER_PAGE,
+      },
       requestIsCurrent
     );
   }
@@ -330,7 +341,6 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     selectedDb: null,
     selectedCollection: null,
     acceptedResults: null,
-    limit: 20,
     projection: null,
     error: null,
     loading: false,
@@ -428,7 +438,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
 
     applyProjection: async (projectionText: string) => {
       rowIntents.invalidate();
-      const { selectedDb, selectedCollection, limit, queryMode } = get();
+      const { selectedDb, selectedCollection, queryMode } = get();
       if (!selectedDb || !selectedCollection) return 'No collection selected';
       if (queryMode === 'aggregate') return 'Projection is paused in Aggregate mode';
 
@@ -456,7 +466,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
           projection,
           sort: accepted ? accepted.sort : savedSort(selectedDb, selectedCollection),
           skip: accepted?.skip ?? 0,
-          limit: accepted?.limit ?? limit,
+          limit: DOCUMENTS_PER_PAGE,
         },
         requestIsCurrent,
         { projection }
@@ -515,16 +525,6 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
           sort: nextSort,
         });
       }
-    },
-
-    setLimit: async (limit: number) => {
-      rowIntents.invalidate();
-      const query = acceptedFilter();
-      if (!query) {
-        set({ limit });
-        return;
-      }
-      await executeAppliedQuery({ ...query, limit, skip: 0 }, resultRequests.start(), { limit });
     },
 
     insertDoc: async (doc: Record<string, unknown>) => {
@@ -611,7 +611,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
 
     applyFilterValue: (column: string, value: unknown, action: FilterValueAction) => {
       rowIntents.invalidate();
-      const { selectedDb, selectedCollection, projection, limit } = get();
+      const { selectedDb, selectedCollection, projection } = get();
       if (!selectedDb || !selectedCollection) return;
       const filter = submittedFilter(selectedDb, selectedCollection);
       const nextFilter = { ...filter, [column]: combineFilterValue(filter[column], value, action) };
@@ -628,7 +628,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
           projection,
           sort: accepted ? accepted.sort : savedSort(selectedDb, selectedCollection),
           skip: 0,
-          limit: accepted?.limit ?? limit,
+          limit: DOCUMENTS_PER_PAGE,
         },
         resultRequests.start()
       );

@@ -42,9 +42,9 @@ beforeEach(async () => {
   vi.resetAllMocks();
   (window as unknown as Record<string, unknown>).api = mockApi;
   await useStore.getState().disconnect();
-  useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', limit: 20, collectionSorts: {} });
+  useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', collectionSorts: {} });
   mockApi.saveCollectionSort.mockResolvedValue({ ok: true, data: undefined });
-  mockApi.find.mockResolvedValue({ ok: true, data: { docs: [alice], totalCount: 61 } });
+  mockApi.find.mockResolvedValue({ ok: true, data: { docs: [alice], totalCount: 301 } });
   mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
   await useStore.getState().runQuery('{ status: "active" }');
   mockApi.find.mockClear();
@@ -55,7 +55,7 @@ describe('rendered query acceptance', () => {
     'retains the %s target after rendered Run is rejected, then confirms that exact target',
     async (target) => {
       if (target === 'whole collection') await useStore.getState().runQuery('{}');
-      await useStore.getState().fetchPage(20);
+      await useStore.getState().fetchPage(100);
       const accepted = useStore.getState().acceptedResults;
       const reply = Promise.withResolvers<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
       mockApi.find.mockReturnValueOnce(reply.promise);
@@ -74,7 +74,7 @@ describe('rendered query acceptance', () => {
       expect(useStore.getState().acceptedResults).toBe(accepted);
       await userEvent.click(screen.getByRole('button', { name: 'Delete results' }));
       const dialog = screen.getByRole('dialog');
-      expect(dialog).toHaveTextContent('61 documents matched');
+      expect(dialog).toHaveTextContent('301 documents matched');
       expect(dialog).not.toHaveTextContent('rejected');
       if (target === 'whole collection') {
         const confirm = within(dialog).getByRole('button', { name: 'Delete all documents' });
@@ -82,11 +82,11 @@ describe('rendered query acceptance', () => {
         await userEvent.type(within(dialog).getByRole('textbox'), 'users');
         expect(confirm).toBeEnabled();
       } else expect(dialog).toHaveTextContent('"status": "active"');
-      mockApi.deleteMany.mockResolvedValue({ ok: true, data: 61 });
+      mockApi.deleteMany.mockResolvedValue({ ok: true, data: 301 });
       mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [], totalCount: 0 } });
       await userEvent.click(
         within(dialog).getByRole('button', {
-          name: target === 'whole collection' ? 'Delete all documents' : 'Delete 61 documents',
+          name: target === 'whole collection' ? 'Delete all documents' : 'Delete 301 documents',
         })
       );
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -107,14 +107,14 @@ describe('rendered query acceptance', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Rejected query');
     setEditorText('{ unsent: true }');
-    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ _id: 'next', name: 'Bob' }], totalCount: 61 } });
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ _id: 'next', name: 'Bob' }], totalCount: 301 } });
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByText('Bob')).toBeInTheDocument();
     expect(screen.getByRole('spinbutton', { name: 'Page' })).toHaveValue(2);
     expect(mockApi.find).toHaveBeenLastCalledWith('testdb', 'users', {
       filter: { status: 'active' },
-      skip: 20,
-      limit: 20,
+      skip: 100,
+      limit: 100,
     });
     await userEvent.click(screen.getByRole('button', { name: 'Update results' }));
     const dialog = screen.getByRole('dialog');
@@ -127,8 +127,8 @@ describe('rendered query acceptance', () => {
     act(() =>
       editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: '{ $set: { archived: true } }' } })
     );
-    mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 61, modifiedCount: 60 } });
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Update 61 documents' }));
+    mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 301, modifiedCount: 300 } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Update 301 documents' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(mockApi.updateMany).toHaveBeenCalledWith(
       'testdb',
@@ -139,11 +139,11 @@ describe('rendered query acceptance', () => {
     );
   });
 
-  it.each(['Next', 'page jump', 'sort', 'page size'] as const)(
+  it.each(['Next', 'page jump', 'sort'] as const)(
     'keeps page labels and accepted sort after a rejected %s change',
     async (action) => {
       await useStore.getState().setSort('name');
-      await useStore.getState().fetchPage(20);
+      await useStore.getState().fetchPage(100);
       const accepted = useStore.getState().acceptedResults;
       mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Read rejected' });
       renderQuery();
@@ -155,11 +155,8 @@ describe('rendered query acceptance', () => {
         await userEvent.tab();
       }
       if (action === 'sort') await userEvent.click(screen.getByRole('columnheader', { name: 'name' }));
-      if (action === 'page size')
-        await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Documents per page' }), '50');
       expect(await screen.findByRole('alert')).toHaveTextContent('Read rejected');
       expect(screen.getByRole('spinbutton', { name: 'Page' })).toHaveValue(2);
-      expect(screen.getByRole('combobox', { name: 'Documents per page' })).toHaveValue('20');
       expect(screen.getByRole('columnheader', { name: 'name' })).toHaveAttribute('aria-sort', 'ascending');
       expect(screen.getByText('Alice')).toBeInTheDocument();
       expect(useStore.getState().acceptedResults).toBe(accepted);
@@ -200,7 +197,6 @@ describe('rendered query acceptance', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Filter' }));
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     expect(screen.getByRole('spinbutton', { name: 'Page' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Documents per page' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Delete results' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Update results' })).toBeDisabled();
     expect(screen.getAllByRole('row')).toHaveLength(26);
@@ -220,7 +216,7 @@ describe('rendered query acceptance', () => {
         await useStore.getState().runQuery('{}');
       });
       const confirm = within(dialog).getByRole('button', {
-        name: action === 'delete' ? 'Delete 61 documents' : 'Update 61 documents',
+        name: action === 'delete' ? 'Delete 301 documents' : 'Update 301 documents',
       });
       expect(confirm).toBeDisabled();
       await userEvent.click(confirm);

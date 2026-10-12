@@ -59,7 +59,6 @@ beforeEach(async () => {
     collections: [],
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    limit: 20,
     error: null,
     loading: false,
     savedConnections: [],
