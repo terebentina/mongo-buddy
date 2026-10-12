@@ -1,6 +1,6 @@
 import ElectronStore from 'electron-store';
 import type { ConnectionColumnWidths, SaveColumnWidthInput } from '../shared/types';
-import { collectionColumnWidthsKey } from '../shared/collection-column-widths';
+import { collectionPreferencesKey } from '../shared/collection-preferences';
 
 export class CollectionColumnWidthsStore {
   private store: ElectronStore<Record<string, ConnectionColumnWidths>>;
@@ -19,7 +19,7 @@ export class CollectionColumnWidthsStore {
 
   save({ connectionKey, db, collection, column, width }: SaveColumnWidthInput): void {
     const namespaces = this.getAll(connectionKey);
-    const namespace = collectionColumnWidthsKey(db, collection);
+    const namespace = collectionPreferencesKey(db, collection);
     this.store.set(connectionKey, {
       ...namespaces,
       [namespace]: { ...namespaces[namespace], [column]: width },

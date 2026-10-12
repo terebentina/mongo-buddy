@@ -104,11 +104,22 @@ export interface SaveColumnWidthInput {
   width: number;
 }
 
+export type CollectionSort = Record<string, 1 | -1> | null;
+export type ConnectionSorts = Record<string, CollectionSort>;
+
+export interface SaveCollectionSortInput {
+  connectionKey: string;
+  db: string;
+  collection: string;
+  sort: CollectionSort;
+}
+
 export interface ConnectedSession {
   uri: string;
   databases: DbInfo[];
   queryHistory: QueryHistoryEntry[];
   collectionColumnWidths: ConnectionColumnWidths;
+  collectionSorts: ConnectionSorts;
   autoSelectedDb: string | null;
   collections: CollectionInfo[];
 }

@@ -14,11 +14,13 @@ import type {
   UpdateManyResult,
   ConnectionColumnWidths,
   SaveColumnWidthInput,
+  ConnectionSorts,
+  SaveCollectionSortInput,
 } from '../../shared/types';
 import type { FilterValueAction } from './lib/filter-value';
 import { createCollectionQuery, type AcceptedResults } from './collection-query';
 import { createRequestFreshness } from './lib/request-freshness';
-import { collectionColumnWidthsKey } from '../../shared/collection-column-widths';
+import { collectionPreferencesKey } from '../../shared/collection-preferences';
 import { toast } from 'sonner';
 
 export interface StoreState {
@@ -43,12 +45,14 @@ export interface StoreState {
   pendingFilterText: string | null;
   queryHistory: QueryHistoryEntry[];
   collectionColumnWidths: ConnectionColumnWidths;
+  collectionSorts: ConnectionSorts;
   historyIndex: number | null;
   pendingQueryMode: QueryMode | null;
   mcpStatus: McpStatus;
 
   connect: (uri: string) => Promise<void>;
   saveColumnWidth: (input: SaveColumnWidthInput) => Promise<void>;
+  saveCollectionSort: (input: SaveCollectionSortInput) => Promise<void>;
   disconnect: () => Promise<void>;
   subscribeToConnectionState: () => () => void;
   initMcpStatus: () => () => void;
@@ -105,6 +109,7 @@ export const useStore = create<StoreState>()((set, get) => {
     expandedDb: null,
     savedConnections: [],
     collectionColumnWidths: {},
+    collectionSorts: {},
     mcpStatus: { running: false, port: null },
 
     connect: async (uri: string) => {
@@ -115,6 +120,7 @@ export const useStore = create<StoreState>()((set, get) => {
         loading: true,
         error: null,
         collectionColumnWidths: {},
+        collectionSorts: {},
         collections: [],
         expandedDb: null,
         databases: [],
@@ -130,17 +136,20 @@ export const useStore = create<StoreState>()((set, get) => {
         set({ loading: false, error: result.error });
         return;
       }
-      const { databases, queryHistory, collectionColumnWidths, autoSelectedDb, collections } = result.data;
+      const { databases, queryHistory, collectionColumnWidths, collectionSorts, autoSelectedDb, collections } =
+        result.data;
       collectionQuery.hydrateHistory(queryHistory);
       set({
         uri: result.data.uri,
         databases,
         collectionColumnWidths,
+        collectionSorts: { ...collectionSorts, ...get().collectionSorts },
         // A connected broadcast may already have enabled a newer user selection.
         ...(get().selectedDb === null
           ? { loading: false, expandedDb: autoSelectedDb, selectedDb: autoSelectedDb, collections }
           : {}),
       });
+      await collectionQuery.restoreHydratedSort();
     },
 
     disconnect: async () => {
@@ -153,11 +162,12 @@ export const useStore = create<StoreState>()((set, get) => {
         collections: [],
         expandedDb: null,
         collectionColumnWidths: {},
+        collectionSorts: {},
       });
       await window.api.disconnect();
     },
 
-    // The connect reply can hydrate widths before the connected broadcast.
+    // The connect reply can hydrate preferences before the connected broadcast.
     subscribeToConnectionState: () =>
       window.api.onConnectionState((status) => {
         const previous = get().status;
@@ -166,7 +176,7 @@ export const useStore = create<StoreState>()((set, get) => {
           status,
           ...(status.status !== 'connected' ||
           (previous.status === 'connected' && previous.connectionKey !== status.connectionKey)
-            ? { collectionColumnWidths: {} }
+            ? { collectionColumnWidths: {}, collectionSorts: {} }
             : {}),
         });
       }),
@@ -174,7 +184,7 @@ export const useStore = create<StoreState>()((set, get) => {
     saveColumnWidth: async (input) => {
       const { status } = get();
       if (status.status !== 'connected' || status.connectionKey !== input.connectionKey) return;
-      const namespace = collectionColumnWidthsKey(input.db, input.collection);
+      const namespace = collectionPreferencesKey(input.db, input.collection);
       set((state) => ({
         collectionColumnWidths: {
           ...state.collectionColumnWidths,
@@ -186,6 +196,21 @@ export const useStore = create<StoreState>()((set, get) => {
         if (!result.ok) toast.error(`Column width was not saved: ${result.error}`);
       } catch (err) {
         toast.error(`Column width was not saved: ${(err as Error).message}`);
+      }
+    },
+
+    saveCollectionSort: async (input) => {
+      const { status } = get();
+      if (status.status !== 'connected' || status.connectionKey !== input.connectionKey) return;
+      const namespace = collectionPreferencesKey(input.db, input.collection);
+      set((state) => ({
+        collectionSorts: { ...state.collectionSorts, [namespace]: input.sort },
+      }));
+      try {
+        const result = await window.api.saveCollectionSort(input);
+        if (!result.ok) toast.error(`Sort order was not saved: ${result.error}`);
+      } catch (err) {
+        toast.error(`Sort order was not saved: ${(err as Error).message}`);
       }
     },
 

@@ -23,6 +23,18 @@ describe('preload createApi', () => {
     ipcRenderer = { invoke, on, off };
   });
 
+  it('saves and clears collection sort preferences through the dedicated channel', async () => {
+    const api = createApi(ipcRenderer);
+    const input = { connectionKey: 'localhost:27017', db: 'sales', collection: 'orders', sort: { name: 1 as const } };
+    invoke.mockResolvedValue({ ok: true, data: undefined });
+    expect(await api.saveCollectionSort(input)).toEqual({ ok: true, data: undefined });
+    expect(invoke).toHaveBeenLastCalledWith('collection-sorts:save', input);
+    const cleared = { ...input, sort: null };
+    invoke.mockResolvedValue({ ok: false, error: 'Not connected' });
+    expect(await api.saveCollectionSort(cleared)).toEqual({ ok: false, error: 'Not connected' });
+    expect(invoke).toHaveBeenLastCalledWith('collection-sorts:save', cleared);
+  });
+
   describe('mongo command channels', () => {
     it('listDatabases invokes mongo:listDatabases with empty object payload', async () => {
       invoke.mockResolvedValue({ ok: true, data: [] });

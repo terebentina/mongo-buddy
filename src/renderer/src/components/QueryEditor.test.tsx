@@ -18,6 +18,7 @@ const mockApi = {
   disconnect: vi.fn(),
   setWindowTitle: vi.fn(),
   saveHistory: vi.fn(),
+  saveCollectionSort: vi.fn(),
   sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
 };
 
@@ -41,7 +42,8 @@ beforeEach(async () => {
   vi.resetAllMocks();
   (window as unknown as Record<string, unknown>).api = mockApi;
   await useStore.getState().disconnect();
-  useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', limit: 20 });
+  useStore.setState({ selectedDb: 'testdb', selectedCollection: 'users', limit: 20, collectionSorts: {} });
+  mockApi.saveCollectionSort.mockResolvedValue({ ok: true, data: undefined });
   mockApi.find.mockResolvedValue({ ok: true, data: { docs: [alice], totalCount: 61 } });
   mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
   await useStore.getState().runQuery('{ status: "active" }');

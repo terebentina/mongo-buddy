@@ -8,6 +8,7 @@ import type {
   UpdateManyInput,
   UpdateManyOptions,
 } from '../../shared/types';
+import { collectionPreferencesKey } from '../../shared/collection-preferences';
 import type { StoreState } from './store';
 import { combineFilterValue, type FilterValueAction } from './lib/filter-value';
 import { createRequestFreshness } from './lib/request-freshness';
@@ -45,6 +46,11 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   const explainRequests = createRequestFreshness();
   let workingFilter: { db: string; collection: string; filter: Record<string, unknown> } | null = null;
   let automaticReadIsCurrent: (() => boolean) | null = null;
+  let latestQuery: {
+    appliedQuery: AppliedQuery;
+    requestIsCurrent: () => boolean;
+    preferences: Partial<Pick<StoreState, 'projection' | 'limit'>>;
+  } | null = null;
 
   function startAutomaticRead(): () => boolean {
     automaticReadIsCurrent = resultRequests.start();
@@ -63,6 +69,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
 
   function reset(): void {
     workingFilter = null;
+    latestQuery = null;
     selectionRequests.invalidate();
     rowIntents.invalidate();
     resultRequests.invalidate();
@@ -161,6 +168,10 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       : null;
   }
 
+  function savedSort(db: string, collection: string): Extract<AppliedQuery, { queryMode: 'filter' }>['sort'] {
+    return get().collectionSorts[collectionPreferencesKey(db, collection)] ?? null;
+  }
+
   function submittedFilter(db: string, collection: string): Record<string, unknown> {
     if (workingFilter?.db === db && workingFilter.collection === collection) return workingFilter.filter;
     return acceptedFilter()?.filter ?? {};
@@ -227,6 +238,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     requestIsCurrent: () => boolean,
     preferences: Partial<Pick<StoreState, 'projection' | 'limit'>> = {}
   ): Promise<string | null> {
+    latestQuery = { appliedQuery, requestIsCurrent, preferences };
     set({ loading: true, error: null });
     const { db, collection } = appliedQuery;
     let result;
@@ -243,12 +255,14 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
             });
     } catch (e) {
       if (!requestIsCurrent()) return null;
+      latestQuery = null;
       const error = e instanceof Error ? e.message : 'Query failed';
       set({ loading: false, error });
       return error;
     }
     if (!requestIsCurrent()) return null;
     if (!result.ok) {
+      latestQuery = null;
       set({ loading: false, error: result.error });
       return result.error;
     }
@@ -258,6 +272,16 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       : { appliedQuery, ...data };
     set({ acceptedResults, loading: false, error: null, ...preferences });
     return null;
+  }
+
+  async function restoreHydratedSort(): Promise<void> {
+    if (!latestQuery?.requestIsCurrent()) return;
+    const { appliedQuery, preferences } = latestQuery;
+    if (appliedQuery.queryMode !== 'filter' || appliedQuery.sort !== null) return;
+    const sort = savedSort(appliedQuery.db, appliedQuery.collection);
+    if (!sort) return;
+    // Navigation may start after the connected broadcast but before its preferences arrive.
+    await executeAppliedQuery({ ...appliedQuery, sort }, resultRequests.start(), preferences);
   }
 
   async function executeQuery(
@@ -297,7 +321,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     const filter = parsed as Record<string, unknown>;
     workingFilter = { db, collection, filter };
     return executeAppliedQuery(
-      { db, collection, queryMode, filter, projection, sort: null, skip: 0, limit },
+      { db, collection, queryMode, filter, projection, sort: savedSort(db, collection), skip: 0, limit },
       requestIsCurrent
     );
   }
@@ -430,7 +454,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
           queryMode: 'filter',
           filter: submittedFilter(selectedDb, selectedCollection),
           projection,
-          sort: accepted?.sort ?? null,
+          sort: accepted ? accepted.sort : savedSort(selectedDb, selectedCollection),
           skip: accepted?.skip ?? 0,
           limit: accepted?.limit ?? limit,
         },
@@ -474,9 +498,23 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       const query = acceptedFilter();
       if (!query) return;
       const { sort } = query;
+      const { status } = get();
       const nextSort =
-        !sort || !(field in sort) ? { [field]: 1 as const } : sort[field] === 1 ? { [field]: -1 as const } : null;
-      await executeAppliedQuery({ ...query, sort: nextSort, skip: 0 }, resultRequests.start());
+        !sort || !Object.hasOwn(sort, field)
+          ? { [field]: 1 as const }
+          : sort[field] === 1
+            ? { [field]: -1 as const }
+            : null;
+      const requestIsCurrent = resultRequests.start();
+      const error = await executeAppliedQuery({ ...query, sort: nextSort, skip: 0 }, requestIsCurrent);
+      if (error === null && requestIsCurrent() && status.status === 'connected') {
+        await get().saveCollectionSort({
+          connectionKey: status.connectionKey,
+          db: query.db,
+          collection: query.collection,
+          sort: nextSort,
+        });
+      }
     },
 
     setLimit: async (limit: number) => {
@@ -588,7 +626,7 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
           queryMode: 'filter',
           filter: nextFilter,
           projection,
-          sort: accepted?.sort ?? null,
+          sort: accepted ? accepted.sort : savedSort(selectedDb, selectedCollection),
           skip: 0,
           limit: accepted?.limit ?? limit,
         },
@@ -608,5 +646,5 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
     },
   } satisfies Partial<StoreState>;
 
-  return { state, reset, resetConnection, connectionChanged, hydrateHistory };
+  return { state, reset, resetConnection, connectionChanged, hydrateHistory, restoreHydratedSort };
 }

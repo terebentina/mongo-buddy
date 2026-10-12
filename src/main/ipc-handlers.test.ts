@@ -5,6 +5,7 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { ConnectionStore } from './connection-store';
 import { QueryHistoryStore } from './query-history-store';
 import type { CollectionColumnWidthsStore } from './collection-column-widths-store';
+import type { CollectionSortsStore } from './collection-sorts-store';
 import type { ActiveConnection, ConnectionManager, ConnectionState } from './connection-manager';
 import type { OperationRegistry } from './operation-registry';
 import type { OperationParams } from '../shared/types';
@@ -109,6 +110,7 @@ describe('IPC Handlers', () => {
       connStore: mockConnStore as unknown as ConnectionStore,
       historyStore: mockHistoryStore as unknown as QueryHistoryStore,
       columnWidthsStore: {} as unknown as CollectionColumnWidthsStore,
+      sortsStore: {} as unknown as CollectionSortsStore,
       manager: mockManager as unknown as ConnectionManager,
       registry: mockRegistry as unknown as OperationRegistry,
       mcpStatus: mockMcpStatus as unknown as import('./mcp/status').McpStatusEmitter,

@@ -8,7 +8,7 @@ import { Popover as BasePopover } from '@base-ui/react/popover';
 import { Maximize2, Copy, ArrowUp, ArrowDown, ArrowUpDown, ListFilter, EllipsisVertical } from 'lucide-react';
 import { Menu } from '@base-ui/react/menu';
 import type { CollectionColumnWidths, DistinctResult } from '../../../shared/types';
-import { collectionColumnWidthsKey } from '../../../shared/collection-column-widths';
+import { collectionPreferencesKey } from '../../../shared/collection-preferences';
 import { canEditProjectedDocument, formatCell, getDocumentFieldValue, isScalarCell } from './DocumentTable.helpers';
 import {
   buildColumnCopyText,
@@ -262,7 +262,7 @@ export function DocumentTable({ onRowClick }: DocumentTableProps) {
   const saveColumnWidth = useStore((s) => s.saveColumnWidth);
   const connectionKey = status.status === 'connected' ? status.connectionKey : null;
   const committedWidths =
-    db && collection ? (preferences[collectionColumnWidthsKey(db, collection)] ?? EMPTY_WIDTHS) : EMPTY_WIDTHS;
+    db && collection ? (preferences[collectionPreferencesKey(db, collection)] ?? EMPTY_WIDTHS) : EMPTY_WIDTHS;
   const hasFilter = storeFilter !== null && Object.keys(storeFilter).length > 0;
   const isAggregate = resultQueryMode === 'aggregate';
   const canEdit = resultQueryMode === 'aggregate' || canEditProjectedDocument(projection);

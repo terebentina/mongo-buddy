@@ -43,6 +43,7 @@ beforeEach(() => {
     connStore: {},
     historyStore: {},
     columnWidthsStore: store,
+    sortsStore: { getAll: () => ({}) },
     manager: { getActive: () => active, onStateChange: () => () => {} },
     registry: {},
     mcpStatus: { subscribe: () => () => {} },
@@ -126,6 +127,7 @@ describe('collection column preferences through the main boundary', () => {
       connectionStore: { setLastUsed: () => {} },
       historyStore: { getAll: () => history },
       columnWidthsStore: new CollectionColumnWidthsStore(cwd),
+      sortsStore: { getAll: () => ({}) },
       connectionKeyFromUri,
     });
     for (const uri of ['mongodb://alice:secret@db.example.test:27017', 'mongodb://bob:other@db.example.test:27017']) {

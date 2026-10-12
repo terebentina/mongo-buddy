@@ -25,6 +25,7 @@ const mockApi = {
   sampleFields: vi.fn(),
   saveHistory: vi.fn().mockResolvedValue(undefined),
   clearHistory: vi.fn().mockResolvedValue(undefined),
+  saveCollectionSort: vi.fn(),
   distinct: vi.fn(),
   getMcpStatus: vi.fn<() => Promise<McpStatus>>().mockResolvedValue({ running: false, port: null }),
   onMcpStatusUpdate: vi.fn<(cb: (s: McpStatus) => void) => () => void>(() => () => {}),
@@ -37,6 +38,7 @@ function makeSession(overrides: Partial<ConnectedSession> = {}): ConnectedSessio
     databases: [],
     queryHistory: [],
     collectionColumnWidths: {},
+    collectionSorts: {},
     autoSelectedDb: null,
     collections: [],
     ...overrides,
@@ -60,6 +62,7 @@ beforeEach(async () => {
   mockApi.onMcpStatusUpdate.mockImplementation(() => () => {});
   mockApi.getMcpStatus.mockResolvedValue({ running: false, port: null });
   mockApi.saveHistory.mockResolvedValue(undefined);
+  mockApi.saveCollectionSort.mockResolvedValue({ ok: true, data: undefined });
   useStore.setState({
     status: { status: 'disconnected' } as ConnectionState,
     uri: '',
@@ -79,6 +82,7 @@ beforeEach(async () => {
     pendingFilterText: null,
     queryHistory: [],
     collectionColumnWidths: {},
+    collectionSorts: {},
     historyIndex: null,
     pendingQueryMode: null,
     mcpStatus: { running: false, port: null },
@@ -2538,16 +2542,12 @@ describe('mutation refresh ownership', () => {
       expect(await inserting).toBeNull();
 
       expect(mockApi.find).toHaveBeenCalledTimes(1);
-      expect(mockApi.find).toHaveBeenCalledWith('testdb', 'users', {
-        filter: { newest: true },
-        projection: { name: 1 },
-        skip: 0,
-        limit: 20,
-      });
       if (outcome === 'success') {
-        expect(useStore.getState().acceptedResults).toEqual(
-          filterResults({ filter: { newest: true }, projection: { name: 1 } }, [{ name: 'Newest' }], 1)
-        );
+        expect(useStore.getState().acceptedResults).toMatchObject({
+          appliedQuery: { filter: { newest: true }, projection: { name: 1 }, skip: 0 },
+          docs: [{ name: 'Newest' }],
+          totalCount: 1,
+        });
       } else {
         expect(useStore.getState().acceptedResults).toBe(accepted);
       }
@@ -2791,9 +2791,11 @@ describe('mutation refresh ownership', () => {
     expect(useStore.getState()).toMatchObject({ acceptedResults: accepted, loading: true, error: null });
     read.resolve({ ok: true, data: { docs: [{ name: 'Newest' }], totalCount: 1 } });
     await running;
-    expect(useStore.getState().acceptedResults).toEqual(
-      filterResults({ filter: { newest: true }, projection: { name: 1 } }, [{ name: 'Newest' }], 1)
-    );
+    expect(useStore.getState().acceptedResults).toMatchObject({
+      appliedQuery: { filter: { newest: true }, projection: { name: 1 }, skip: 0 },
+      docs: [{ name: 'Newest' }],
+      totalCount: 1,
+    });
   });
 
   it.each(['success', 'failure'] as const)(
@@ -2842,9 +2844,11 @@ describe('mutation refresh ownership', () => {
 
     newRead.resolve({ ok: true, data: { docs: [{ name: 'Newest' }], totalCount: 2 } });
     await running;
-    expect(useStore.getState().acceptedResults).toEqual(
-      filterResults({ filter: { newest: true }, projection: { name: 1 } }, [{ name: 'Newest' }], 2)
-    );
+    expect(useStore.getState().acceptedResults).toMatchObject({
+      appliedQuery: { filter: { newest: true }, projection: { name: 1 }, skip: 0 },
+      docs: [{ name: 'Newest' }],
+      totalCount: 2,
+    });
   });
 
   it.each(['filter', 'aggregate'] as const)(
@@ -3174,5 +3178,329 @@ describe('independent Explain activity', () => {
     expect(useStore.getState().explainLoading).toBe(true);
     explanation.resolve({ ok: true, data: { plan: 'independent' } });
     await read;
+  });
+});
+
+describe('collection sort preferences', () => {
+  const namespace = '["testdb","users"]';
+  const connectionKey = 'localhost:27017';
+
+  beforeEach(() => {
+    useStore.setState({
+      status: { status: 'connected', uri: 'mongodb://localhost', connectionKey },
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      acceptedResults: filterResults({}, [{ _id: 'initial' }]),
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: 'accepted' }], totalCount: 1 } });
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+    mockApi.listCollections.mockResolvedValue({ ok: true, data: [] });
+  });
+
+  it.each([
+    { clicks: 1, sort: { name: 1 } },
+    { clicks: 2, sort: { name: -1 } },
+    { clicks: 3, sort: null },
+  ] as const)(
+    'retains a successful $clicks-click sort through navigation, new filters and history replay',
+    async ({ clicks, sort }) => {
+      for (let click = 0; click < clicks; click++) await useStore.getState().setSort('name');
+      expect(useStore.getState().collectionSorts).toEqual({ [namespace]: sort });
+      expect(mockApi.saveCollectionSort).toHaveBeenLastCalledWith({
+        connectionKey,
+        db: 'testdb',
+        collection: 'users',
+        sort,
+      });
+
+      await useStore.getState().selectCollection('testdb', 'orders');
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ collection: 'orders', sort: null });
+      await useStore.getState().selectCollection('testdb', 'users');
+      expect(useStore.getState().acceptedResults).toMatchObject({
+        appliedQuery: { collection: 'users', filter: {}, sort, skip: 0 },
+        docs: [{ _id: 'accepted' }],
+      });
+
+      await useStore.getState().runQuery('{ active: true }');
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ filter: { active: true }, sort });
+      await useStore.getState().selectCollection('otherdb', 'users');
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ db: 'otherdb', sort: null });
+      await useStore.getState().restoreFromHistory({
+        id: 'saved-query',
+        db: 'testdb',
+        collection: 'users',
+        queryMode: 'filter',
+        query: '{ active: false }',
+        timestamp: 1,
+      });
+      expect(useStore.getState().acceptedResults).toMatchObject({
+        appliedQuery: { db: 'testdb', collection: 'users', filter: { active: false }, sort, skip: 0 },
+        docs: [{ _id: 'accepted' }],
+      });
+      expect(useStore.getState().collectionSorts).toEqual({ [namespace]: sort });
+    }
+  );
+
+  it('keeps the accepted sort and saved preference when descending and clear queries fail', async () => {
+    await useStore.getState().setSort('name');
+    const ascending = useStore.getState().acceptedResults;
+    mockApi.saveCollectionSort.mockClear();
+    mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Descending rejected' });
+    await useStore.getState().setSort('name');
+    expect(useStore.getState().acceptedResults).toBe(ascending);
+    expect(useStore.getState().collectionSorts).toEqual({ [namespace]: { name: 1 } });
+    expect(mockApi.saveCollectionSort).not.toHaveBeenCalled();
+
+    await useStore.getState().setSort('name');
+    const descending = useStore.getState().acceptedResults;
+    mockApi.saveCollectionSort.mockClear();
+    mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Clear rejected' });
+    await useStore.getState().setSort('name');
+    expect(useStore.getState().acceptedResults).toBe(descending);
+    expect(useStore.getState().collectionSorts).toEqual({ [namespace]: { name: -1 } });
+    expect(mockApi.saveCollectionSort).not.toHaveBeenCalled();
+    await useStore.getState().selectCollection('testdb', 'orders');
+    await useStore.getState().selectCollection('testdb', 'users');
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ sort: { name: -1 } });
+  });
+
+  it('does not persist a late successful sort after a newer sort has been accepted', async () => {
+    await useStore.getState().setSort('name');
+    mockApi.saveCollectionSort.mockClear();
+    const late = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    mockApi.find.mockReturnValueOnce(late.promise);
+    const superseded = useStore.getState().setSort('name');
+    await useStore.getState().setSort('age');
+    const accepted = useStore.getState().acceptedResults;
+    late.resolve({ ok: true, data: { docs: [{ _id: 'stale-descending' }], totalCount: 1 } });
+    await superseded;
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(accepted?.appliedQuery).toMatchObject({ sort: { age: 1 } });
+    expect(useStore.getState().collectionSorts).toEqual({ [namespace]: { age: 1 } });
+    expect(mockApi.saveCollectionSort).toHaveBeenCalledTimes(1);
+    expect(mockApi.saveCollectionSort).toHaveBeenCalledWith({
+      connectionKey,
+      db: 'testdb',
+      collection: 'users',
+      sort: { age: 1 },
+    });
+  });
+
+  it('does not save a successful sort response superseded by collection navigation', async () => {
+    await useStore.getState().setSort('name');
+    mockApi.saveCollectionSort.mockClear();
+    const late = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+    mockApi.find.mockReturnValueOnce(late.promise);
+    const superseded = useStore.getState().setSort('name');
+    await useStore.getState().selectCollection('testdb', 'orders');
+    late.resolve({ ok: true, data: { docs: [{ _id: 'stale' }], totalCount: 1 } });
+    await superseded;
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ collection: 'orders', sort: null });
+    expect(mockApi.saveCollectionSort).not.toHaveBeenCalled();
+    await useStore.getState().selectCollection('testdb', 'users');
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ sort: { name: 1 } });
+  });
+
+  it.each(['before', 'after'] as const)(
+    'restores sort after reconnect with connected broadcast %s hydration and isolates another connection',
+    async (connectedOrder) => {
+      const uri = 'mongodb://localhost:27017';
+      const connected: ConnectionState = { status: 'connected', uri, connectionKey };
+      let emit: (state: ConnectionState) => void = () => {};
+      mockApi.onConnectionState.mockImplementation((callback) => {
+        emit = callback;
+        return () => {};
+      });
+      const unsubscribe = useStore.getState().subscribeToConnectionState();
+      try {
+        await useStore.getState().disconnect();
+        expect(useStore.getState().collectionSorts).toEqual({});
+        mockApi.connect.mockImplementation(async () => {
+          emit({ status: 'connecting', uri });
+          if (connectedOrder === 'before') emit(connected);
+          return {
+            ok: true,
+            data: makeSession({
+              uri,
+              collectionSorts: { [namespace]: { name: -1 } },
+              collectionColumnWidths: { [namespace]: { name: 240 } },
+            }),
+          };
+        });
+        await useStore.getState().connect(uri);
+        if (connectedOrder === 'after') emit(connected);
+        await useStore.getState().selectCollection('testdb', 'users');
+        expect(useStore.getState().acceptedResults).toMatchObject({
+          appliedQuery: { sort: { name: -1 } },
+          docs: [{ _id: 'accepted' }],
+        });
+        expect(useStore.getState().collectionSorts).toEqual({ [namespace]: { name: -1 } });
+        expect(useStore.getState().collectionColumnWidths).toEqual({ [namespace]: { name: 240 } });
+
+        await useStore.getState().disconnect();
+        const otherUri = 'mongodb://localhost:27018';
+        mockApi.connect.mockImplementation(async () => {
+          emit({ status: 'connected', uri: otherUri, connectionKey: 'localhost:27018' });
+          return { ok: true, data: makeSession({ uri: otherUri }) };
+        });
+        await useStore.getState().connect(otherUri);
+        await useStore.getState().selectCollection('testdb', 'users');
+        expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ sort: null });
+        expect(useStore.getState().collectionSorts).toEqual({});
+      } finally {
+        unsubscribe();
+      }
+    }
+  );
+
+  it('keeps saved filter sort out of aggregate execution and aggregate history replay', async () => {
+    await useStore.getState().setSort('name');
+    mockApi.saveCollectionSort.mockClear();
+    const pipeline = [{ $match: { active: true } }, { $sort: { age: -1 } }];
+    mockApi.aggregate.mockResolvedValue({ ok: true, data: [{ _id: 'aggregate' }] });
+    useStore.getState().setQueryMode('aggregate');
+    await useStore.getState().runQuery(JSON.stringify(pipeline));
+    expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ pipeline }, [{ _id: 'aggregate' }]));
+    await useStore.getState().restoreFromHistory({
+      id: 'aggregate-history',
+      db: 'testdb',
+      collection: 'users',
+      queryMode: 'aggregate',
+      query: JSON.stringify(pipeline),
+      timestamp: 1,
+    });
+    expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ pipeline }, [{ _id: 'aggregate' }]));
+    expect(mockApi.aggregate).toHaveBeenLastCalledWith('testdb', 'users', pipeline);
+    expect(mockApi.saveCollectionSort).not.toHaveBeenCalled();
+    expect(useStore.getState().collectionSorts).toEqual({ [namespace]: { name: 1 } });
+    useStore.getState().setQueryMode('filter');
+    await useStore.getState().runQuery('{}');
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ sort: { name: 1 } });
+  });
+});
+
+describe('sort preference hydration races', () => {
+  it('keeps dotted collection names distinct from similarly joined database and collection names', async () => {
+    mockApi.connect.mockResolvedValue({
+      ok: true,
+      data: makeSession({
+        collectionSorts: {
+          '["testdb","users.archive"]': { name: 1 },
+          '["testdb.users","archive"]': { age: -1 },
+        },
+      }),
+    });
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: 'accepted' }], totalCount: 1 } });
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+    await useStore.getState().connect('mongodb://localhost');
+    await useStore.getState().selectCollection('testdb', 'users.archive');
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({
+      db: 'testdb',
+      collection: 'users.archive',
+      sort: { name: 1 },
+    });
+    await useStore.getState().selectCollection('testdb.users', 'archive');
+    expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({
+      db: 'testdb.users',
+      collection: 'archive',
+      sort: { age: -1 },
+    });
+  });
+
+  it.each(['pending', 'accepted'] as const)(
+    'restores the hydrated sort when early navigation is already %s and rejects its older unsorted response',
+    async (selectionState) => {
+      const uri = 'mongodb://localhost:27017';
+      let emit: (state: ConnectionState) => void = () => {};
+      mockApi.onConnectionState.mockImplementation((callback) => {
+        emit = callback;
+        return () => {};
+      });
+      const unsubscribe = useStore.getState().subscribeToConnectionState();
+      const reply = deferred<Result<ConnectedSession>>();
+      const earlyRows = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
+      const unsortedRows = { ok: true as const, data: { docs: [{ _id: 'unsorted' }], totalCount: 1 } };
+      mockApi.connect.mockReturnValueOnce(reply.promise);
+      mockApi.find
+        .mockReturnValueOnce(earlyRows.promise)
+        .mockResolvedValue({ ok: true, data: { docs: [{ _id: 'sorted' }], totalCount: 1 } });
+      mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+      try {
+        const connecting = useStore.getState().connect(uri);
+        emit({ status: 'connected', uri, connectionKey: 'localhost:27017' });
+        const selecting = useStore.getState().selectCollection('testdb', 'users');
+        if (selectionState === 'accepted') {
+          earlyRows.resolve(unsortedRows);
+          await selecting;
+          expect(useStore.getState().acceptedResults?.docs).toEqual([{ _id: 'unsorted' }]);
+        }
+        reply.resolve({
+          ok: true,
+          data: makeSession({ uri, collectionSorts: { '["testdb","users"]': { name: -1 } } }),
+        });
+        await connecting;
+        expect(useStore.getState().acceptedResults).toMatchObject({
+          appliedQuery: { db: 'testdb', collection: 'users', sort: { name: -1 } },
+          docs: [{ _id: 'sorted' }],
+        });
+        const restored = useStore.getState().acceptedResults;
+        if (selectionState === 'pending') earlyRows.resolve(unsortedRows);
+        await selecting;
+        expect(useStore.getState().acceptedResults).toBe(restored);
+        expect(mockApi.find).toHaveBeenLastCalledWith('testdb', 'users', {
+          filter: {},
+          sort: { name: -1 },
+          skip: 0,
+          limit: 20,
+        });
+        expect(mockApi.saveCollectionSort).not.toHaveBeenCalled();
+      } finally {
+        unsubscribe();
+      }
+    }
+  );
+
+  it('retains a newer accepted sort when the persisted connect snapshot arrives late', async () => {
+    const uri = 'mongodb://localhost:27017';
+    const connectionKey = 'localhost:27017';
+    let emit: (state: ConnectionState) => void = () => {};
+    mockApi.onConnectionState.mockImplementation((callback) => {
+      emit = callback;
+      return () => {};
+    });
+    const unsubscribe = useStore.getState().subscribeToConnectionState();
+    const reply = deferred<Result<ConnectedSession>>();
+    mockApi.connect.mockReturnValueOnce(reply.promise);
+    mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: 'new-sort' }], totalCount: 1 } });
+    mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+    try {
+      const connecting = useStore.getState().connect(uri);
+      emit({ status: 'connected', uri, connectionKey });
+      await useStore.getState().selectCollection('testdb', 'users');
+      await useStore.getState().setSort('age');
+      const accepted = useStore.getState().acceptedResults;
+      reply.resolve({
+        ok: true,
+        data: makeSession({
+          uri,
+          collectionSorts: {
+            '["testdb","users"]': { name: -1 },
+            '["testdb","orders"]': { total: 1 },
+          },
+        }),
+      });
+      await connecting;
+      expect(useStore.getState().acceptedResults).toBe(accepted);
+      expect(useStore.getState().collectionSorts).toEqual({
+        '["testdb","users"]': { age: 1 },
+        '["testdb","orders"]': { total: 1 },
+      });
+      await useStore.getState().selectCollection('testdb', 'orders');
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ sort: { total: 1 } });
+      await useStore.getState().selectCollection('testdb', 'users');
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ sort: { age: 1 } });
+    } finally {
+      unsubscribe();
+    }
   });
 });

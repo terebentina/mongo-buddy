@@ -12,6 +12,7 @@ import type {
   SavedConnection,
   QueryHistoryEntry,
   SaveColumnWidthInput,
+  SaveCollectionSortInput,
   PickedFile,
   DistinctResult,
   IndexInfo,
@@ -136,6 +137,8 @@ export function createApi(ipc: IpcLike) {
     clearHistory: (): Promise<void> => ipc.invoke('history:clear') as Promise<void>,
     saveColumnWidth: (input: SaveColumnWidthInput): Promise<Result<undefined>> =>
       ipc.invoke('column-widths:save', input) as Promise<Result<undefined>>,
+    saveCollectionSort: (input: SaveCollectionSortInput): Promise<Result<undefined>> =>
+      ipc.invoke('collection-sorts:save', input) as Promise<Result<undefined>>,
     pickImportFile: (): Promise<Result<PickedFile[] | null>> =>
       ipc.invoke('mongo:pick-import-file') as Promise<Result<PickedFile[] | null>>,
     operationStart: (params: OperationParams): Promise<Result<OperationId>> =>

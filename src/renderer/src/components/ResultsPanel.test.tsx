@@ -16,6 +16,7 @@ const mockApi = {
   saveHistory: vi.fn().mockResolvedValue(undefined),
   setWindowTitle: vi.fn(),
   saveColumnWidth: vi.fn(),
+  saveCollectionSort: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
   onConnectionState: vi.fn<(cb: (state: ConnectionState) => void) => () => void>(),
@@ -36,12 +37,14 @@ beforeEach(async () => {
   mockApi.listCollections.mockResolvedValue({ ok: true, data: [] });
   mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
   mockApi.saveColumnWidth.mockResolvedValue({ ok: true, data: undefined });
+  mockApi.saveCollectionSort.mockResolvedValue({ ok: true, data: undefined });
   mockApi.onConnectionState.mockImplementation(() => () => {});
   useStore.setState({
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'key' },
     selectedDb: 'testdb',
     selectedCollection: 'users',
     collectionColumnWidths: {},
+    collectionSorts: {},
     queryHistory: [],
     historyIndex: null,
     limit: 20,
@@ -455,6 +458,7 @@ describe('ResultsPanel', () => {
           autoSelectedDb: 'testdb',
           collections: [],
           collectionColumnWidths: { '["testdb","users"]': { name: storedWidth } },
+          collectionSorts: {},
         },
       });
       mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
@@ -490,6 +494,7 @@ describe('ResultsPanel', () => {
             autoSelectedDb: 'tracy',
             collections: [],
             collectionColumnWidths: { '["tracy","labels"]': { _id: 600, name: 104 } },
+            collectionSorts: {},
           },
         };
       });

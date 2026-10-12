@@ -7,6 +7,7 @@ import type {
   ConnectionState,
   ConnectedSession,
   ConnectionColumnWidths,
+  ConnectionSorts,
 } from '../shared/types';
 import { byNameInsensitive } from '../shared/sort';
 
@@ -39,6 +40,7 @@ export interface ConnectionManagerDeps {
   connectionStore: ConnectionStorePort;
   historyStore: HistoryStorePort;
   columnWidthsStore: { getAll(key: ConnectionKey): ConnectionColumnWidths };
+  sortsStore: { getAll(key: ConnectionKey): ConnectionSorts };
   connectionKeyFromUri: (uri: string) => string;
 }
 
@@ -114,6 +116,7 @@ export function createConnectionManager(deps: ConnectionManagerDeps): Connection
       const connectionKey = deps.connectionKeyFromUri(uri);
       const queryHistory = deps.historyStore.getAll(connectionKey);
       const collectionColumnWidths = deps.columnWidthsStore.getAll(connectionKey);
+      const collectionSorts = deps.sortsStore.getAll(connectionKey);
 
       deps.connectionStore.setLastUsed(uri);
 
@@ -122,7 +125,7 @@ export function createConnectionManager(deps: ConnectionManagerDeps): Connection
 
       return {
         ok: true,
-        data: { uri, databases, queryHistory, collectionColumnWidths, autoSelectedDb, collections },
+        data: { uri, databases, queryHistory, collectionColumnWidths, collectionSorts, autoSelectedDb, collections },
       };
     } catch (err) {
       try {

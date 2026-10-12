@@ -4,6 +4,7 @@ import type { ConnectionStore } from './connection-store';
 import type { ActiveConnection, ConnectionManager } from './connection-manager';
 import type { QueryHistoryStore } from './query-history-store';
 import type { CollectionColumnWidthsStore } from './collection-column-widths-store';
+import type { CollectionSortsStore } from './collection-sorts-store';
 import type { OperationRegistry } from './operation-registry';
 import type { McpStatusEmitter } from './mcp/status';
 import type {
@@ -15,6 +16,7 @@ import type {
   OperationId,
   McpStatus,
   SaveColumnWidthInput,
+  SaveCollectionSortInput,
 } from '../shared/types';
 import { formatWindowTitle } from './window-title';
 
@@ -24,6 +26,7 @@ export interface IpcDeps {
   connStore: ConnectionStore;
   historyStore: QueryHistoryStore;
   columnWidthsStore: CollectionColumnWidthsStore;
+  sortsStore: CollectionSortsStore;
   manager: ConnectionManager;
   registry: OperationRegistry;
   mcpStatus: McpStatusEmitter;
@@ -31,7 +34,7 @@ export interface IpcDeps {
 }
 
 export function registerIpcHandlers(deps: IpcDeps): void {
-  const { connStore, historyStore, columnWidthsStore, manager, registry, mcpStatus, broadcast } = deps;
+  const { connStore, historyStore, columnWidthsStore, sortsStore, manager, registry, mcpStatus, broadcast } = deps;
 
   const wrap = <T>(fn: (...args: unknown[]) => Promise<Result<T>>) => {
     return async (_event: Electron.IpcMainInvokeEvent, ...args: unknown[]): Promise<Result<T>> => {
@@ -116,6 +119,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       const active = requireActive();
       if (active.key !== chosen.connectionKey) throw new Error('Connection changed; column width was not saved');
       columnWidthsStore.save(chosen);
+      return { ok: true, data: undefined };
+    })
+  );
+
+  ipcMain.handle(
+    'collection-sorts:save',
+    wrap(async (input: unknown) => {
+      const chosen = input as SaveCollectionSortInput;
+      const active = requireActive();
+      if (active.key !== chosen.connectionKey) throw new Error('Connection changed; collection sort was not saved');
+      sortsStore.save(chosen);
       return { ok: true, data: undefined };
     })
   );

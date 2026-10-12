@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Features
+
+* **results:** persist collection sort column, direction, and cleared sort across navigation, reconnects, and app restarts.
+
 ## [2.23.2](https://github.com/terebentina/mongo-buddy/compare/v2.23.1...v2.23.2) (2026-10-12)
 
 

@@ -16,6 +16,7 @@ const mockApi = {
   emptyCollection: vi.fn(),
   sampleFields: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   saveHistory: vi.fn(),
+  saveCollectionSort: vi.fn(),
   pickImportFile: vi.fn().mockResolvedValue({ ok: true, data: null }),
   operationStart: vi.fn().mockResolvedValue({ ok: true, data: 'op-1' }),
   operationCancel: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
@@ -40,6 +41,7 @@ beforeEach(async () => {
   await useStore.getState().disconnect();
   vi.resetAllMocks();
   mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+  mockApi.saveCollectionSort.mockResolvedValue({ ok: true, data: undefined });
   mockApi.pickImportFile.mockResolvedValue({ ok: true, data: null });
   mockApi.operationStart.mockResolvedValue({ ok: true, data: 'op-1' });
   mockApi.operationCancel.mockResolvedValue({ ok: true, data: undefined });
@@ -56,6 +58,7 @@ beforeEach(async () => {
     expandedDb: null,
     selectedDb: null,
     selectedCollection: null,
+    collectionSorts: {},
     limit: 20,
     error: null,
     loading: false,
