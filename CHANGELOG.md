@@ -2,12 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## Unreleased
+## [2.24.0](https://github.com/terebentina/mongo-buddy/compare/v2.23.2...v2.24.0) (2026-10-12)
+
 
 ### Features
 
-* **results:** persist collection sort column, direction, and cleared sort across navigation, reconnects, and app restarts.
-* **results:** remove the documents-per-page dropdown and always load filter results in pages of 100.
+* **results:** persist collection sort order ([c9254f0](https://github.com/terebentina/mongo-buddy/commit/c9254f0340337952a9bfd860bd60f2fc7cdc7ee4))
+
+
+### Bug Fixes
+
+* **results:** use a fixed page size of 100 documents ([d41fb2e](https://github.com/terebentina/mongo-buddy/commit/d41fb2ebe6594e3c587c1ab60369e1e808b9c2e4))
 
 ## [2.23.2](https://github.com/terebentina/mongo-buddy/compare/v2.23.1...v2.23.2) (2026-10-12)
 
