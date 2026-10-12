@@ -58,6 +58,14 @@ _Avoid_: confirm-by-name, type-to-delete.
 
 ### Query types
 
+**CollectionQuery**:
+The renderer-local query context for the selected database and collection, including query controls, accepted results and collection field names. **ResultViewMode** and **CollectionColumnWidths** are independent of it.
+_Avoid_: query session, results controller.
+
+**AppliedQuery**:
+The successful query context that produced the currently displayed results, including its database and collection, **QueryMode**, filter or pipeline, projection, sort and page position. A failed or superseded query does not replace it; changing the selected collection or connection clears it and its results.
+_Avoid_: current query (ambiguous with editor text), attempted query.
+
 **QueryMode**:
 The discriminator between the two query shapes the user can run against a collection: `'filter'` (a find filter document) or `'aggregate'` (an aggregation pipeline). Defined in `shared/types.ts` as `type QueryMode = 'filter' | 'aggregate'`. Used as the field name `queryMode` everywhere it appears: store state, `QueryHistoryEntry.queryMode`, `MongoService.explain` parameter, MCP tool input, IPC handler, preload API.
 _Avoid_: `mode`, `type` (as a field name on a query/history entry), `kind`. The single canonical name keeps the discriminator the same word at every layer.

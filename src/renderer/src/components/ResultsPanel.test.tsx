@@ -1,3 +1,4 @@
+import { filterResults, aggregateResults, type FilterAppliedQuery } from '../test-fixtures';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -25,36 +26,97 @@ function ResultsHarness() {
   return <ResultsPanel viewMode={viewMode} onViewModeChange={setViewMode} onRowClick={() => {}} />;
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
+beforeEach(async () => {
+  (window as unknown as Record<string, unknown>).api = mockApi;
+  await useStore.getState().disconnect();
+  vi.resetAllMocks();
   (window as unknown as Record<string, unknown>).api = mockApi;
   toast.dismiss();
+  mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
+  mockApi.listCollections.mockResolvedValue({ ok: true, data: [] });
+  mockApi.disconnect.mockResolvedValue({ ok: true, data: undefined });
   mockApi.saveColumnWidth.mockResolvedValue({ ok: true, data: undefined });
   mockApi.onConnectionState.mockImplementation(() => () => {});
   useStore.setState({
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'key' },
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    docs: [],
     collectionColumnWidths: {},
     queryHistory: [],
     historyIndex: null,
-    totalCount: 0,
-    skip: 0,
     limit: 20,
-    filter: {},
     projection: null,
     queryMode: 'filter',
-    resultQueryMode: 'filter',
-    sort: null,
+    error: null,
     loading: false,
+    acceptedResults: filterResults(
+      {
+        ...useStore.getState().acceptedResults?.appliedQuery,
+        db: 'testdb',
+        collection: 'users',
+        filter: {},
+        projection: null,
+        sort: null,
+        skip: 0,
+        limit: 20,
+      },
+      [],
+      0
+    ),
   });
 });
 
 describe('ResultsPanel', () => {
+  it.each(['Table', 'JSON'] as const)(
+    'clears old rows and shows the failed new collection error in %s view',
+    async (view) => {
+      useStore.setState({
+        projection: { name: 1 },
+        acceptedResults: filterResults(
+          { ...useStore.getState().acceptedResults?.appliedQuery, projection: { name: 1 } },
+          [{ name: 'USERS_BEFORE' }],
+          1
+        ),
+      });
+      render(<ResultsHarness />);
+      await userEvent.click(screen.getByRole('button', { name: view }));
+      const { promise, resolve: finish } = Promise.withResolvers<unknown>();
+      mockApi.find.mockReturnValueOnce(promise);
+      let selecting = Promise.resolve();
+      act(() => {
+        selecting = useStore.getState().selectCollection('testdb', 'orders');
+      });
+
+      expect(useStore.getState().selectedCollection).toBe('orders');
+      expect(useStore.getState().projection).toBeNull();
+      expect(useStore.getState().acceptedResults?.totalCount ?? 0).toBe(0);
+      expect(screen.getByRole('region', { name: 'Results' })).not.toHaveTextContent('USERS_BEFORE');
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      await act(async () => {
+        finish({ ok: false, error: 'Orders load rejected' });
+        await selecting;
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent('Orders load rejected');
+      expect(screen.getByRole('region', { name: 'Results' })).not.toHaveTextContent('USERS_BEFORE');
+      expect(useStore.getState().selectedCollection).toBe('orders');
+      expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([]);
+      if (view === 'JSON') expect(screen.getByLabelText('JSON results')).toHaveTextContent('[]');
+
+      mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'INVOICES_AFTER' }], totalCount: 1 } });
+      await act(async () => {
+        await useStore.getState().selectCollection('testdb', 'invoices');
+      });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Results' })).toHaveTextContent('INVOICES_AFTER');
+    }
+  );
+
   it('switches the loaded page to read-only EJSON without another request and keeps actions above the result', async () => {
     const docs = [{ _id: { $oid: '507f1f77bcf86cd799439011' }, name: 'Alice' }];
-    useStore.setState({ docs, totalCount: 21 });
+    useStore.setState({
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 21),
+    });
     render(<ResultsHarness />);
 
     const actions = screen.getByRole('group', { name: 'Result actions' });
@@ -74,7 +136,10 @@ describe('ResultsPanel', () => {
   it('replaces JSON with the next loaded page and returns to the table without changing the query', async () => {
     const first = [{ _id: 'first' }];
     const second = [{ _id: 'second', when: { $date: '2026-09-27T00:00:00Z' } }];
-    useStore.setState({ docs: first, totalCount: 2, limit: 1 });
+    useStore.setState({
+      limit: 1,
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery, limit: 1 }, first, 2),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: second, totalCount: 2 } });
     render(<ResultsHarness />);
 
@@ -83,7 +148,7 @@ describe('ResultsPanel', () => {
 
     expect(screen.getByLabelText('JSON results').textContent).toBe(JSON.stringify(second, null, 2));
     expect(screen.getByRole('spinbutton')).toHaveValue(2);
-    expect(useStore.getState().skip).toBe(1);
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(1);
     await userEvent.click(screen.getByRole('button', { name: 'Table' }));
     expect(screen.getByRole('columnheader', { name: 'when' })).toBeInTheDocument();
     expect(screen.queryByLabelText('JSON results')).not.toBeInTheDocument();
@@ -91,7 +156,11 @@ describe('ResultsPanel', () => {
 
   it('shows every loaded aggregate document, including when the filter page limit is smaller', async () => {
     const docs = [{ total: 1 }, { total: 2 }];
-    useStore.setState({ docs, totalCount: 2, limit: 1, queryMode: 'aggregate', resultQueryMode: 'aggregate' });
+    useStore.setState({
+      limit: 1,
+      queryMode: 'aggregate',
+      acceptedResults: aggregateResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs),
+    });
     render(<ResultsHarness />);
 
     await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
@@ -100,7 +169,13 @@ describe('ResultsPanel', () => {
   });
 
   it('applies and clears a projection from JSON view while updating the visible documents', async () => {
-    useStore.setState({ docs: [{ _id: '1', name: 'Alice', secret: true }], totalCount: 1 });
+    useStore.setState({
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        [{ _id: '1', name: 'Alice', secret: true }],
+        1
+      ),
+    });
     mockApi.find
       .mockResolvedValueOnce({ ok: true, data: { docs: [{ _id: '1', name: 'Alice' }], totalCount: 1 } })
       .mockResolvedValueOnce({ ok: false, error: 'Clear rejected' })
@@ -119,7 +194,7 @@ describe('ResultsPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Projection options' }));
     expect(screen.getByRole('textbox', { name: 'Projection JSON5' })).toHaveValue('{\n  "name": 1\n}');
     await userEvent.click(screen.getByRole('button', { name: 'Clear projection' }));
-    expect(screen.getByText('Clear rejected')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Clear rejected');
     expect(useStore.getState().projection).toEqual({ name: 1 });
     await userEvent.click(screen.getByRole('button', { name: 'Clear projection' }));
     expect(useStore.getState().projection).toBeNull();
@@ -138,7 +213,7 @@ describe('ResultsPanel', () => {
     const editor = screen.getByRole('textbox', { name: 'Projection JSON5' });
     fireEvent.change(editor, { target: { value: '{ name: 1, secret: 0 }' } });
     await userEvent.click(screen.getByRole('button', { name: 'Apply projection' }));
-    expect(screen.getByText('Invalid projection')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Invalid projection');
 
     fireEvent.change(editor, { target: { value: '{ name: 1 }' } });
     await userEvent.click(screen.getByRole('button', { name: 'Apply projection' }));
@@ -162,7 +237,16 @@ describe('ResultsPanel', () => {
   it('retains the actions and pagination during loading, without displaying stale JSON', async () => {
     render(<ResultsHarness />);
     await userEvent.click(screen.getByRole('button', { name: 'JSON' }));
-    act(() => useStore.setState({ docs: [{ name: 'stale' }], loading: true }));
+    act(() =>
+      useStore.setState({
+        loading: true,
+        acceptedResults: filterResults(
+          { ...useStore.getState().acceptedResults?.appliedQuery },
+          [{ name: 'stale' }],
+          undefined
+        ),
+      })
+    );
     expect(screen.queryByLabelText('JSON results')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Projection options' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
@@ -170,7 +254,9 @@ describe('ResultsPanel', () => {
 
   it('remembers independent completed resizes through sort cycles and loading remounts without freezing untouched columns', async () => {
     const docs = [{ _id: '1', name: 'Alice', email: 'alice@example.test' }];
-    useStore.setState({ docs, totalCount: 21 });
+    useStore.setState({
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 21),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 21 } });
     render(<ResultsHarness />);
     const resize = (column: string, from: number, to: number) => {
@@ -191,14 +277,16 @@ describe('ResultsPanel', () => {
     fireEvent.click(screen.getByRole('columnheader', { name: 'name' }));
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     await act(async () => finish({ ok: true, data: { docs, totalCount: 21 } }));
-    expect(useStore.getState().sort).toEqual({ name: 1 });
+    expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.sort).toEqual({
+      name: 1,
+    });
     for (const [field, sort] of [
       ['name', { name: -1 }],
       ['name', null],
       ['email', { email: 1 }],
     ] as const) {
       await userEvent.click(screen.getByRole('columnheader', { name: field }));
-      expect(useStore.getState().sort).toEqual(sort);
+      expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.sort).toEqual(sort);
       expect(screen.getByRole('table').querySelector('col:nth-child(3)')).toHaveStyle({ width: '220px' });
       expect(screen.getByRole('table').querySelector('col:nth-child(4)')).toHaveStyle({ width: '310px' });
     }
@@ -207,9 +295,8 @@ describe('ResultsPanel', () => {
   it('keeps empty results full-width without stretching restored saved columns', async () => {
     const docs = [{ name: 'Alice', email: 'alice@example.test' }];
     useStore.setState({
-      docs,
-      totalCount: 1,
       collectionColumnWidths: { '["testdb","users"]': { name: 220, email: 310 } },
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 1),
     });
     render(<ResultsHarness />);
     expect(screen.getByRole('table')).toHaveStyle({ width: '578px', minWidth: '578px' });
@@ -231,7 +318,9 @@ describe('ResultsPanel', () => {
 
   it('recovers absent fields and collection-name preferences through navigation, queries, pagination, history and view changes', async () => {
     const docs = [{ name: 'Alice', email: 'a@example.test' }];
-    useStore.setState({ docs, totalCount: 41 });
+    useStore.setState({
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 41),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 41 } });
     mockApi.aggregate.mockResolvedValue({ ok: true, data: docs });
     render(<ResultsHarness />);
@@ -297,7 +386,9 @@ describe('ResultsPanel', () => {
 
   it('cancels an interrupted drag and restores selection without leaking the preview into another collection', async () => {
     const docs = [{ name: 'Alice', email: 'a@example.test' }];
-    useStore.setState({ docs, totalCount: 1 });
+    useStore.setState({
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 1),
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs, totalCount: 1 } });
     render(<ResultsHarness />);
     document.body.style.userSelect = 'text';
@@ -319,7 +410,9 @@ describe('ResultsPanel', () => {
 
   it('fits a numeric width once and retains a newer in-memory choice with a visible save failure until reconnect', async () => {
     const docs = [{ name: 'Alice', email: 'a@example.test' }];
-    useStore.setState({ docs, totalCount: 1 });
+    useStore.setState({
+      acceptedResults: filterResults({ ...useStore.getState().acceptedResults?.appliedQuery }, docs, 1),
+    });
     const context = { font: '', measureText: () => ({ width: 100 }) };
     const getContext = vi
       .spyOn(HTMLCanvasElement.prototype, 'getContext')

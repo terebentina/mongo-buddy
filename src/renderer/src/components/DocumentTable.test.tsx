@@ -1,17 +1,24 @@
+import { filterResults, aggregateResults } from '../test-fixtures';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DocumentTable } from './DocumentTable';
 import { useStore } from '../store';
 
 const mockApi = {
   distinct: vi.fn(),
+  find: vi.fn().mockResolvedValue({ ok: true, data: { docs: [], totalCount: 0 } }),
+  disconnect: vi.fn(),
+  setWindowTitle: vi.fn(),
+  saveHistory: vi.fn(),
   saveColumnWidth: vi.fn().mockResolvedValue({ ok: true, data: undefined }),
 };
 
 const FILTER_VALUE_ACTION_LABEL = 'Include this value. Shift+click excludes it.';
 
-beforeEach(() => {
+beforeEach(async () => {
+  (window as unknown as Record<string, unknown>).api = mockApi;
+  await useStore.getState().disconnect();
   vi.clearAllMocks();
   useStore.setState({
     status: { status: 'connected', uri: 'mongodb://localhost', connectionKey: 'localhost:27017' },
@@ -20,14 +27,22 @@ beforeEach(() => {
     collections: [],
     selectedDb: 'testdb',
     selectedCollection: 'users',
-    docs: [],
     collectionColumnWidths: {},
-    filter: {},
     projection: null,
     queryMode: 'filter',
-    resultQueryMode: 'filter',
     error: null,
     loading: false,
+    acceptedResults: filterResults(
+      {
+        ...useStore.getState().acceptedResults?.appliedQuery,
+        db: 'testdb',
+        collection: 'users',
+        filter: {},
+        projection: null,
+      },
+      [],
+      undefined
+    ),
   });
   (window as unknown as Record<string, unknown>).api = mockApi;
 });
@@ -38,9 +53,11 @@ describe('DocumentTable', () => {
     (queryMode) => {
       const column = 'a_header_longer_than_its_values';
       useStore.setState({
-        docs: [{ [column]: 'x', next: 'y' }],
         queryMode,
-        resultQueryMode: queryMode,
+        acceptedResults:
+          queryMode === 'aggregate'
+            ? aggregateResults({}, [{ [column]: 'x', next: 'y' }])
+            : filterResults({}, [{ [column]: 'x', next: 'y' }]),
       });
       // jsdom has no text layout; supply deterministic canvas measurements.
       const headerTextWidth = 200;
@@ -71,10 +88,14 @@ describe('DocumentTable', () => {
 
   it('renders column headers from doc keys (union of first 20 docs)', () => {
     useStore.setState({
-      docs: [
-        { _id: '1', name: 'Alice', email: 'alice@test.com' },
-        { _id: '2', name: 'Bob', age: 30 },
-      ],
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        [
+          { _id: '1', name: 'Alice', email: 'alice@test.com' },
+          { _id: '2', name: 'Bob', age: 30 },
+        ],
+        undefined
+      ),
     });
 
     render(<DocumentTable onRowClick={() => {}} />);
@@ -85,12 +106,14 @@ describe('DocumentTable', () => {
     expect(screen.getByText('age')).toBeInTheDocument();
   });
 
-  it('renders dotted projection fields as separate columns', () => {
-    const applyFilterValue = vi.fn();
+  it('renders and filters dotted projection fields as separate columns', async () => {
     useStore.setState({
-      docs: [{ data: { id: 42, name: 'some name' } }],
       projection: { 'data.id': 1, 'data.name': 1, _id: 0 },
-      applyFilterValue,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: { 'data.id': 1, 'data.name': 1, _id: 0 } },
+        [{ data: { id: 42, name: 'some name' } }],
+        undefined
+      ),
     });
 
     render(<DocumentTable onRowClick={() => {}} />);
@@ -106,7 +129,9 @@ describe('DocumentTable', () => {
     fireEvent.click(
       within(screen.getByText('42').closest('td')!).getByRole('button', { name: FILTER_VALUE_ACTION_LABEL })
     );
-    expect(applyFilterValue).toHaveBeenCalledWith('data.id', 42, 'include');
+    await waitFor(() =>
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ filter: { 'data.id': 42 } })
+    );
   });
 
   it.each([
@@ -114,10 +139,12 @@ describe('DocumentTable', () => {
     ['an aggregate result', { 'data.id': 1 }, 'aggregate' as const],
   ])('keeps the parent document column for %s', (_name, projection, resultQueryMode) => {
     useStore.setState({
-      docs: [{ data: { id: 42, name: 'some name' } }],
       projection,
       queryMode: resultQueryMode,
-      resultQueryMode,
+      acceptedResults:
+        resultQueryMode === 'aggregate'
+          ? aggregateResults({}, [{ data: { id: 42, name: 'some name' } }])
+          : filterResults({ projection }, [{ data: { id: 42, name: 'some name' } }]),
     });
 
     render(<DocumentTable onRowClick={() => {}} />);
@@ -130,7 +157,14 @@ describe('DocumentTable', () => {
 
   it('does not open a row when the projection gives _id an unsupported value', async () => {
     const onRowClick = vi.fn();
-    useStore.setState({ docs: [{ _id: 'computed', name: 'Alice' }], projection: { _id: 0 } });
+    useStore.setState({
+      projection: { _id: 0 },
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: { _id: 0 } },
+        [{ _id: 'computed', name: 'Alice' }],
+        undefined
+      ),
+    });
 
     render(<DocumentTable onRowClick={onRowClick} />);
     await userEvent.click(screen.getByText('Alice'));
@@ -141,9 +175,12 @@ describe('DocumentTable', () => {
   it('keeps the Filter edit rule after Aggregate mode is selected', async () => {
     const onRowClick = vi.fn();
     useStore.setState({
-      docs: [{ _id: 'computed', name: 'Alice' }],
       projection: { _id: '$otherId' },
-      resultQueryMode: 'filter',
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery, projection: { _id: '$otherId' } },
+        [{ _id: 'computed', name: 'Alice' }],
+        undefined
+      ),
     });
     useStore.getState().setQueryMode('aggregate');
 
@@ -153,12 +190,14 @@ describe('DocumentTable', () => {
     expect(onRowClick).not.toHaveBeenCalled();
   });
 
-  it('applies both results-table cell actions and explains Shift+click', () => {
-    const applyFilterValue = vi.fn();
+  it('retains conflicting conditions after normal and Shift cell clicks', async () => {
     useStore.setState({
-      docs: [{ _id: '1', status: 'active' }],
       queryMode: 'filter',
-      applyFilterValue,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        [{ _id: '1', status: 'active' }],
+        undefined
+      ),
     });
 
     render(<DocumentTable onRowClick={() => {}} />);
@@ -170,23 +209,28 @@ describe('DocumentTable', () => {
     fireEvent.click(statusAction);
     fireEvent.click(statusAction, { shiftKey: true });
 
-    expect(applyFilterValue).toHaveBeenNthCalledWith(1, 'status', 'active', 'include');
-    expect(applyFilterValue).toHaveBeenNthCalledWith(2, 'status', 'active', 'exclude');
+    await waitFor(() =>
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({
+        filter: { status: { $in: ['active'], $ne: 'active' } },
+      })
+    );
   });
 
   it.each([
     ['normal click', false, 'include' as const],
     ['Shift+click', true, 'exclude' as const],
   ])('applies a distinct value after a %s', async (_name, shiftKey, action) => {
-    const applyFilterValue = vi.fn();
     mockApi.distinct.mockResolvedValue({
       ok: true,
       data: { values: ['active'], truncated: false },
     });
     useStore.setState({
-      docs: [{ _id: '1', status: 'active' }],
       queryMode: 'filter',
-      applyFilterValue,
+      acceptedResults: filterResults(
+        { ...useStore.getState().acceptedResults?.appliedQuery },
+        [{ _id: '1', status: 'active' }],
+        undefined
+      ),
     });
 
     render(<DocumentTable onRowClick={() => {}} />);
@@ -200,6 +244,10 @@ describe('DocumentTable', () => {
 
     fireEvent.click(distinctAction, { shiftKey });
 
-    expect(applyFilterValue).toHaveBeenCalledWith('status', 'active', action);
+    await waitFor(() =>
+      expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({
+        filter: { status: action === 'include' ? 'active' : { $ne: 'active' } },
+      })
+    );
   });
 });

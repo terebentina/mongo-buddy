@@ -73,6 +73,20 @@ Grab the latest build from **[Releases →](https://github.com/terebentina/mongo
 
 That’s it. Pick a database, pick a collection, and start querying.
 
+Choosing a different collection updates the selection and window title immediately and clears the previous rows and projection. If loading fails, the new collection stays selected with empty results and a visible error in the results panel. Delayed replies from earlier selections cannot replace its results or autocomplete fields.
+
+Replaying query history immediately restores the saved editor text, Filter or Aggregate mode, and history position. The most recent selection or replay stays in control while requests finish. Replay keeps the projection on the same collection and clears it when switching collections, without adding another history entry. Clearing a paused projection in Aggregate mode does not interrupt the running pipeline. Queries started before connection history finishes loading remain in history alongside older entries.
+
+Within the same collection, results and their AppliedQuery change together only when the latest request succeeds. A rejected Run, page jump, sort, page-size change or projection leaves the previous rows, count and query context intact and shows the error. Paging and bulk actions continue to use that successful filter, even if the editor contains a rejected or unsent query. Submitted attempts still appear in query history, and rapid filter value actions keep every submitted condition, including conflicts.
+
+Filter and Aggregate in the editor select what the next Run executes. The displayed results retain the mode and projection of the query that produced them. Aggregate output shows the complete returned array with filter pagination disabled, including after selecting Filter in the editor. Projection is a collection preference: Aggregate pauses it, and clearing that paused preference leaves retained filter rows and their projection metadata intact. Explicit projection Apply uses the collection's last submitted working filter; rejected or superseded Apply and Clear requests leave accepted results unchanged.
+
+Delete results and Update results are available in the editor's Filter mode and require successfully loaded filter results. Their confirmation shows the accepted collection, filter and query-time match count; deletion with an empty filter still requires typing the exact collection name. A newly accepted result invalidates an open bulk confirmation, so close and reopen it before proceeding. Table/JSON switching and saved collection column widths are independent of query acceptance.
+
+Successful document and result-based mutations refresh the accepted filter with its projection, sort and page. Delete results proposes page one, which becomes the displayed page only when the refresh succeeds. Navigation, reconnects and newer query attempts suppress an older mutation's follow-up, including attempts that fail or contain invalid input. A failed refresh shows a query error and retains the previous rows and page; the write still succeeds. Aggregate results remain a snapshot after mutations, empty collection, imports and automatic refreshes, even when Filter is selected in the editor. Press **Run** explicitly to execute the complete pipeline again; automatic refresh never reruns it or substitutes a filter query.
+
+Explain diagnoses the editor text in its selected Filter or Aggregate mode without projection. Its **Explaining...** activity is independent of Run, paging, autocomplete field discovery and navigation: row reads can complete while Explain is pending, and Explain never replaces rows, count, AppliedQuery, projection or query history. Only the newest explanation for the current selection and connection opens the diagnostic dialog or reports an error. Changing the database or collection, disconnecting or reconnecting (even to the same server) discards earlier diagnostics and closes any displayed explanation.
+
 ---
 
 ## 🤖 MCP Server

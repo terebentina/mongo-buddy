@@ -53,8 +53,10 @@ export function QueryEditor() {
   const runQuery = useStore((s) => s.runQuery);
   const runExplain = useStore((s) => s.runExplain);
   const loading = useStore((s) => s.loading);
-  const [explainOutput, setExplainOutput] = useState<Record<string, unknown> | null>(null);
-  const filter = useStore((s) => s.filter);
+  const explainLoading = useStore((s) => s.explainLoading);
+  const explainOutput = useStore((s) => s.explainOutput);
+  const clearExplainOutput = useStore((s) => s.clearExplainOutput);
+  const appliedQuery = useStore((s) => s.acceptedResults?.appliedQuery);
   const fieldNames = useStore((s) => s.fieldNames);
   const pendingFilterText = useStore((s) => s.pendingFilterText);
   const pendingQueryMode = useStore((s) => s.pendingQueryMode);
@@ -119,15 +121,13 @@ export function QueryEditor() {
   const handleExplain = useCallback(async () => {
     const text = getEditorText() || (queryMode === 'filter' ? '{}' : '[]');
     const result = await runExplain(text);
-    if (!result) return;
-    if (result.ok) {
-      setExplainOutput(result.data);
-    } else {
-      toast.error(result.error);
-    }
+    if (result && !result.ok) toast.error(result.error);
   }, [getEditorText, queryMode, runExplain]);
 
-  const hasActiveFilter = Object.keys(filter).length > 0 || queryMode === 'aggregate';
+  const hasActiveFilter =
+    (appliedQuery?.queryMode === 'filter' && Object.keys(appliedQuery.filter).length > 0) ||
+    appliedQuery?.queryMode === 'aggregate' ||
+    queryMode === 'aggregate';
 
   const handleClear = useCallback(async () => {
     if (viewRef.current) {
@@ -219,8 +219,8 @@ export function QueryEditor() {
         <Button size="sm" variant="outline" onClick={handleClear} disabled={!hasActiveFilter || loading}>
           Clear
         </Button>
-        <Button size="sm" variant="outline" onClick={handleExplain} disabled={loading}>
-          Explain
+        <Button size="sm" variant="outline" onClick={handleExplain} disabled={explainLoading}>
+          {explainLoading ? 'Explaining...' : 'Explain'}
         </Button>
         <Button size="sm" onClick={handleRun} disabled={loading}>
           Run
@@ -240,7 +240,7 @@ export function QueryEditor() {
       <ExplainDialog
         open={explainOutput !== null}
         onOpenChange={(o) => {
-          if (!o) setExplainOutput(null);
+          if (!o) clearExplainOutput();
         }}
         output={explainOutput}
       />

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Bug Fixes
+
+* **query:** keep Explain pending and diagnostic delivery independent of row queries, field discovery and navigation; retain rows and query history, accept only the newest relevant explanation, and discard diagnostics across selection changes and reconnects, including reconnecting to the same server ([#75](https://github.com/terebentina/mongo-buddy/issues/75)).
+* **query:** capture mutation targets and accepted filter context before writes, suppress stale refreshes after navigation, reconnects or newer query attempts, retain successful writes and page metadata when refresh fails, and preserve aggregate snapshots until explicit Run, including empty-collection and import follow-ups ([#74](https://github.com/terebentina/mongo-buddy/issues/74)).
+* **query:** accept AppliedQuery, rows and count together only after the latest successful reply; retain coherent results, page labels, sorting and projection after rejected queries, preserve rapid filter conditions, keep aggregate output complete, and bind bulk confirmations and writes to accepted filter results ([#73](https://github.com/terebentina/mongo-buddy/issues/73)).
+* **query:** update collection selection and title immediately, clear previous results on collection changes, show failed collection loads in the results panel, and keep history replay, results and autocomplete fields coherent across delayed replies and reconnects, including paused projection clearing and delayed history hydration ([#72](https://github.com/terebentina/mongo-buddy/issues/72)).
+
 ## [2.23.1](https://github.com/terebentina/mongo-buddy/compare/v2.23.0...v2.23.1) (2026-10-11)
 
 ## [2.23.0](https://github.com/terebentina/mongo-buddy/compare/v2.22.2...v2.23.0) (2026-10-11)
