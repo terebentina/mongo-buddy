@@ -2,11 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## Unreleased
+## [2.24.1](https://github.com/terebentina/mongo-buddy/compare/v2.24.0...v2.24.1) (2026-11-12)
+
 
 ### Bug Fixes
 
-* **sidebar:** refresh collection counts after deleting a document or deleting filter results.
+* allow write access to temporary local test instances ([39248c8](https://github.com/terebentina/mongo-buddy/commit/39248c828f4ff2bc53d33e73b593275adc8882de))
+* **sidebar:** refresh collection counts after document deletion ([e9d8ceb](https://github.com/terebentina/mongo-buddy/commit/e9d8ceb453c968ad85a724b5e4da4a6a48451298))
 
 ## [2.24.0](https://github.com/terebentina/mongo-buddy/compare/v2.23.2...v2.24.0) (2026-10-12)
 
