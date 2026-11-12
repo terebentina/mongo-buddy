@@ -76,7 +76,7 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
       {
         capabilities: { tools: {} },
         instructions:
-          'All MongoDB create, read, update, and delete interactions must be done exclusively through MongoBuddy MCP tools. Do not use direct database connections, drivers, shells, or other MCP servers for MongoDB CRUD. MongoBuddy MCP uses the active connection in the MongoBuddy app.',
+          "Use MongoBuddy MCP tools and the app's active connection for all MongoDB CRUD. Do not use direct connections, drivers, shells, or other MCP servers, except for temporary, disposable local test instances created with MongoMemoryServer.",
       }
     );
     registerMongoMcpTools({

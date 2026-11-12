@@ -105,7 +105,7 @@ http://localhost:27099/mcp
 
 The MCP server uses the **active connection in the app** — open a connection in MongoBuddy and your MCP client will see the same databases and collections. Close the app and the server goes with it.
 
-During initialization, the server instructs MCP clients to perform all MongoDB CRUD interactions exclusively through MongoBuddy MCP tools, using the app's active connection.
+During initialization, the server instructs MCP clients to use MongoBuddy MCP tools and the app's active connection for all MongoDB CRUD. Direct connections, drivers, shells, and other MCP servers are prohibited, except for temporary, disposable local test instances created with MongoMemoryServer.
 
 The HTTP server binds `0.0.0.0:27099` by default and has **no authentication**. Anyone who can reach it can run read tools on the active connection, propose writes (including approval-flood attempts), and run aggregation output stages without approval. Restrict access at your firewall/network boundary; do not expose this port to untrusted networks. MCP annotations and tool descriptions do not authorize writes.
 
