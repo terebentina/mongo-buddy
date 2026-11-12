@@ -558,14 +558,18 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       const { db, collection, filter } = accepted.data;
       return mutate(db, collection, (db, collection) => window.api.deleteMany(db, collection, filter), {
         firstPage: true,
+        collections: true,
       });
     },
 
     deleteDoc: async (id: unknown) => {
       const { selectedDb, selectedCollection } = get();
       if (!selectedDb || !selectedCollection) return 'No collection selected';
-      const result = await mutate(selectedDb, selectedCollection, (db, collection) =>
-        window.api.deleteOne(db, collection, id)
+      const result = await mutate(
+        selectedDb,
+        selectedCollection,
+        (db, collection) => window.api.deleteOne(db, collection, id),
+        { collections: true }
       );
       return result.ok ? null : result.error;
     },

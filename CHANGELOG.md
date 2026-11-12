@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Bug Fixes
+
+* **sidebar:** refresh collection counts after deleting a document or deleting filter results.
+
 ## [2.24.0](https://github.com/terebentina/mongo-buddy/compare/v2.23.2...v2.24.0) (2026-10-12)
 
 

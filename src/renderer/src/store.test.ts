@@ -471,11 +471,12 @@ describe('store', () => {
     expect(mockApi.updateMany).not.toHaveBeenCalled();
   });
 
-  it('uses the applied filter and refreshes page one after the delete results action succeeds', async () => {
+  it('uses the applied filter and refreshes page one and the sidebar count after deleting results', async () => {
     const filter = { status: 'inactive', attempts: { $gte: 3 } };
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
+      collections: [{ name: 'users', type: 'collection', count: 100 }],
       acceptedResults: filterResults(
         {
           ...useStore.getState().acceptedResults?.appliedQuery,
@@ -491,6 +492,10 @@ describe('store', () => {
       ),
     });
     mockApi.deleteMany.mockResolvedValue({ ok: true, data: 7 });
+    mockApi.listCollections.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'users', type: 'collection', count: 91 }],
+    });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: '21' }], totalCount: 1 } });
 
     const result = await useStore.getState().deleteResults();
@@ -505,12 +510,14 @@ describe('store', () => {
     });
     expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(0);
     expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([{ _id: '21' }]);
+    expect(useStore.getState().collections).toEqual([{ name: 'users', type: 'collection', count: 91 }]);
   });
 
-  it('does not refresh results when the delete results action fails', async () => {
+  it('retains results and the sidebar count when the delete results action fails', async () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
+      collections: [{ name: 'users', type: 'collection', count: 100 }],
       acceptedResults: filterResults(
         {
           ...useStore.getState().acceptedResults?.appliedQuery,
@@ -530,6 +537,8 @@ describe('store', () => {
     expect(result).toEqual({ ok: false, error: 'Delete failed' });
     expect(mockApi.find).not.toHaveBeenCalled();
     expect((useStore.getState().acceptedResults?.appliedQuery as FilterAppliedQuery | undefined)?.skip).toBe(20);
+    expect(mockApi.listCollections).not.toHaveBeenCalled();
+    expect(useStore.getState().collections).toEqual([{ name: 'users', type: 'collection', count: 100 }]);
   });
 
   it('skips the delete results API when no collection is selected', async () => {
@@ -541,10 +550,11 @@ describe('store', () => {
     expect(mockApi.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('deleteDoc() calls deleteOne and refreshes docs', async () => {
+  it('deleting a document refreshes rows and the sidebar count', async () => {
     useStore.setState({
       selectedDb: 'testdb',
       selectedCollection: 'users',
+      collections: [{ name: 'users', type: 'collection', count: 1 }],
       acceptedResults: filterResults(
         { ...useStore.getState().acceptedResults?.appliedQuery, db: 'testdb', collection: 'users' },
         [{ _id: '1', name: 'Alice' }],
@@ -552,6 +562,10 @@ describe('store', () => {
       ),
     });
     mockApi.deleteOne.mockResolvedValue({ ok: true, data: undefined });
+    mockApi.listCollections.mockResolvedValue({
+      ok: true,
+      data: [{ name: 'users', type: 'collection', count: 0 }],
+    });
     mockApi.find.mockResolvedValue({
       ok: true,
       data: { docs: [], totalCount: 0 },
@@ -563,6 +577,25 @@ describe('store', () => {
     expect(mockApi.deleteOne).toHaveBeenCalledWith('testdb', 'users', '1');
     expect(useStore.getState().acceptedResults?.docs ?? []).toEqual([]);
     expect(useStore.getState().acceptedResults?.totalCount ?? 0).toBe(0);
+    expect(useStore.getState().collections).toEqual([{ name: 'users', type: 'collection', count: 0 }]);
+  });
+
+  it('retains rows and the sidebar count when deleting a document fails', async () => {
+    const accepted = filterResults({}, [{ _id: '1', name: 'Alice' }], 1);
+    useStore.setState({
+      selectedDb: 'testdb',
+      selectedCollection: 'users',
+      collections: [{ name: 'users', type: 'collection', count: 1 }],
+      acceptedResults: accepted,
+    });
+    mockApi.deleteOne.mockResolvedValue({ ok: false, error: 'Delete failed' });
+
+    expect(await useStore.getState().deleteDoc('1')).toBe('Delete failed');
+
+    expect(useStore.getState().acceptedResults).toBe(accepted);
+    expect(useStore.getState().collections).toEqual([{ name: 'users', type: 'collection', count: 1 }]);
+    expect(mockApi.find).not.toHaveBeenCalled();
+    expect(mockApi.listCollections).not.toHaveBeenCalled();
   });
 });
 
@@ -2380,6 +2413,56 @@ describe('mutation refresh ownership', () => {
     await useStore.getState().fetchPage(20);
     mockApi.find.mockClear();
     for (const mutation of mutations) mutation.api.mockResolvedValue(mutation.reply);
+  });
+
+  describe.each([mutations[2], mutations[4]])('$name sidebar refresh', (mutation) => {
+    it.each(['rejection', 'transport failure'])(
+      'keeps the previous count and refreshes rows after a metadata %s',
+      async (failure) => {
+        useStore.setState({ collections: [{ name: 'users', type: 'collection', count: 100 }] });
+        if (failure === 'rejection') {
+          mockApi.listCollections.mockResolvedValueOnce({ ok: false, error: 'Metadata unavailable' });
+        } else {
+          mockApi.listCollections.mockRejectedValueOnce(new Error('Metadata unavailable'));
+        }
+        mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Remaining' }], totalCount: 58 } });
+
+        expect(await mutation.run()).toEqual(mutation.outcome);
+
+        expect(useStore.getState().collections).toEqual([{ name: 'users', type: 'collection', count: 100 }]);
+        expect(useStore.getState().acceptedResults).toEqual(
+          filterResults(
+            { filter: { active: true }, projection: { name: 1 }, sort: { name: 1 }, skip: mutation.skip },
+            [{ name: 'Remaining' }],
+            58
+          )
+        );
+        expect(useStore.getState().error).toBeNull();
+      }
+    );
+
+    it('cannot replace sidebar counts after navigating to another database', async () => {
+      const listing = deferred<Result<{ name: string; type: string; count: number }[]>>();
+      const requested = deferred<void>();
+      mockApi.listCollections.mockImplementationOnce(() => {
+        requested.resolve();
+        return listing.promise;
+      });
+      const deleting = mutation.run();
+      await requested.promise;
+      mockApi.listCollections.mockResolvedValueOnce({
+        ok: true,
+        data: [{ name: 'users', type: 'collection', count: 200 }],
+      });
+      await useStore.getState().selectDb('otherdb');
+
+      listing.resolve({ ok: true, data: [{ name: 'users', type: 'collection', count: 97 }] });
+      expect(await deleting).toEqual(mutation.outcome);
+
+      expect(useStore.getState().selectedDb).toBe('otherdb');
+      expect(useStore.getState().collections).toEqual([{ name: 'users', type: 'collection', count: 200 }]);
+      expect(mockApi.find).not.toHaveBeenCalled();
+    });
   });
 
   it('overlapping document writes each refresh their changes even after the first refresh commits', async () => {
