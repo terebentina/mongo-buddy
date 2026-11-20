@@ -9,9 +9,8 @@ export interface ExportOneSuccess {
 }
 
 /**
- * Export one collection's data file AND its indexes sidecar. The pairing is
- * one concept: the data file is the primary artifact, the sidecar is best-effort
- * metadata that, if it fails, downgrades to a warning rather than an error.
+ * Export one collection's data file AND its indexes sidecar. Non-cancellation
+ * sidecar failures become warnings, but cancellation stops the whole export.
  */
 export async function exportOneCollection(
   ctx: OperationCtx,
@@ -20,42 +19,42 @@ export async function exportOneCollection(
   collName: string,
   savePath: string
 ): Promise<Result<ExportOneSuccess>> {
-  const sink = ctx.fs.writeGzipSink(savePath);
-
-  const dataRes = await ctx.mongo.exportCollection(
-    active,
-    dbName,
-    collName,
-    sink.writable,
-    (count) => ctx.onProgress({ processed: count }),
-    ctx.signal
-  );
-
-  if (!dataRes.ok) {
-    await sink.destroy();
-    return { ok: false, error: dataRes.error };
-  }
-
+  if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
+  const sink = ctx.fs.writeGzipSink(savePath, ctx.signal);
+  let exported: number;
   try {
+    const dataRes = await ctx.mongo.exportCollection(
+      active,
+      dbName,
+      collName,
+      sink.writable,
+      (count) => ctx.onProgress({ processed: count }),
+      ctx.signal
+    );
+    if (!dataRes.ok) throw new Error(dataRes.error);
+    ctx.signal.throwIfAborted();
     await sink.finalize();
+    ctx.signal.throwIfAborted();
+    exported = dataRes.data;
   } catch (err) {
     await sink.destroy();
-    return { ok: false, error: (err as Error).message };
+    return { ok: false, error: ctx.signal.aborted ? 'Export cancelled' : (err as Error).message };
   }
-
-  const exported = dataRes.data;
 
   let sidecarWarning: string | undefined;
   try {
-    const indexesRes = await ctx.mongo.getExportableIndexes(active, dbName, collName);
+    const indexesRes = await ctx.mongo.getExportableIndexes(active, dbName, collName, ctx.signal);
+    ctx.signal.throwIfAborted();
     if (!indexesRes.ok) {
       sidecarWarning = `Exported data but failed to read indexes: ${indexesRes.error}`;
     } else {
       const sidecarPath = ctx.fs.indexesSidecarPath(savePath);
       const json = JSON.stringify(EJSON.serialize(indexesRes.data));
-      await ctx.fs.writeIndexesSidecar(sidecarPath, json);
+      await ctx.fs.writeIndexesSidecar(sidecarPath, json, ctx.signal);
+      ctx.signal.throwIfAborted();
     }
   } catch (err) {
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
     sidecarWarning = `Exported data but failed to write indexes sidecar: ${(err as Error).message}`;
   }
 

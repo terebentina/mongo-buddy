@@ -1,16 +1,21 @@
 import { MongoBulkWriteError } from 'mongodb';
 import { BSON } from 'bson';
-import type { Readable, Writable } from 'stream';
+import { finished, type Readable, type Writable } from 'stream';
+import { once } from 'events';
 import type { ActiveConnection } from './connection-manager';
 import type { Result, CollectionInfo, ImportOptions } from '../shared/types';
-import type { IndexDescription } from 'mongodb';
+import type { Abortable, IndexDescription, ListIndexesOptions } from 'mongodb';
 import { pickIndexesToCreate, sanitizeForExport, type IndexSpec } from './index-spec';
 import { listCollectionsImpl } from './commands/list-collections';
 
 export class MongoService {
-  async listCollections(active: ActiveConnection, dbName: string): Promise<Result<CollectionInfo[]>> {
+  async listCollections(
+    active: ActiveConnection,
+    dbName: string,
+    signal?: AbortSignal
+  ): Promise<Result<CollectionInfo[]>> {
     try {
-      const data = await listCollectionsImpl(active, dbName);
+      const data = await listCollectionsImpl(active, dbName, { signal, includeCounts: false });
       return { ok: true, data };
     } catch (err) {
       return { ok: false, error: (err as Error).message };
@@ -25,36 +30,66 @@ export class MongoService {
     onProgress: (count: number) => void,
     signal: AbortSignal
   ): Promise<Result<number>> {
+    // A failed sink must cancel pending MongoDB I/O as well as a blocked drain.
+    const readController = new AbortController();
+    const readSignal = AbortSignal.any([signal, readController.signal]);
+    let endingOutput = false;
+    const { promise: outputDone, resolve: resolveOutput } = Promise.withResolvers<Error | undefined>();
+    const stopWatchingOutput = finished(output, { readable: false }, (error) => {
+      const failure = error ?? (endingOutput ? undefined : new Error('Export output finished prematurely'));
+      if (failure) readController.abort(failure);
+      resolveOutput(failure);
+    });
+    const abortOutput = (): void => {
+      const reason = readSignal.reason;
+      output.destroy(reason instanceof Error ? reason : new Error('Export cancelled'));
+    };
+    readSignal.addEventListener('abort', abortOutput, { once: true });
+
     try {
+      readSignal.throwIfAborted();
       const collection = active.client.db(dbName).collection(collName);
-      const cursor = collection.find({});
+      const cursor = collection.find({}, { signal: readSignal });
       let count = 0;
       let lastProgressTime = 0;
 
-      for await (const doc of cursor) {
-        if (signal.aborted) {
-          await cursor.close();
-          return { ok: false, error: 'Export cancelled' };
-        }
+      try {
+        for await (const doc of cursor) {
+          readSignal.throwIfAborted();
+          if (!output.write(BSON.serialize(doc))) {
+            await once(output, 'drain', { signal: readSignal });
+          }
 
-        const buffer = BSON.serialize(doc);
-        const canContinue = output.write(buffer);
-        if (!canContinue) {
-          await new Promise<void>((resolve) => output.once('drain', resolve));
+          count++;
+          const now = Date.now();
+          if (now - lastProgressTime >= 200) {
+            lastProgressTime = now;
+            onProgress(count);
+          }
         }
-
-        count++;
-        const now = Date.now();
-        if (now - lastProgressTime >= 200) {
-          lastProgressTime = now;
-          onProgress(count);
-        }
+      } finally {
+        await cursor.close();
       }
 
+      readSignal.throwIfAborted();
+      endingOutput = true;
+      output.end();
+      const outputError = await outputDone;
+      if (outputError) throw outputError;
+      readSignal.throwIfAborted();
       onProgress(count);
+      readSignal.throwIfAborted();
       return { ok: true, data: count };
     } catch (err) {
-      return { ok: false, error: (err as Error).message };
+      const error = signal.aborted
+        ? new Error('Export cancelled')
+        : ((readController.signal.aborted ? readController.signal.reason : err) as Error);
+      output.destroy(error);
+      await outputDone;
+      return { ok: false, error: error.message };
+    } finally {
+      readSignal.removeEventListener('abort', abortOutput);
+      stopWatchingOutput();
     }
   }
 
@@ -181,12 +216,27 @@ export class MongoService {
     }
   }
 
-  async getExportableIndexes(active: ActiveConnection, dbName: string, collName: string): Promise<Result<IndexSpec[]>> {
+  async getExportableIndexes(
+    active: ActiveConnection,
+    dbName: string,
+    collName: string,
+    signal?: AbortSignal
+  ): Promise<Result<IndexSpec[]>> {
     try {
+      signal?.throwIfAborted();
       const collection = active.client.db(dbName).collection(collName);
-      const rawIndexes = await collection.indexes();
-      const data = sanitizeForExport(rawIndexes as Record<string, unknown>[]);
-      return { ok: true, data };
+      // Driver 7.4 forwards these options to both AbstractCursor and the
+      // listIndexes command, but its ListIndexesOptions omits Abortable.
+      const options: ListIndexesOptions & Abortable = { signal };
+      const cursor = collection.listIndexes(options);
+      try {
+        const rawIndexes = await cursor.toArray();
+        signal?.throwIfAborted();
+        const data = sanitizeForExport(rawIndexes as Record<string, unknown>[]);
+        return { ok: true, data };
+      } finally {
+        await cursor.close();
+      }
     } catch (err) {
       return { ok: false, error: (err as Error).message };
     }

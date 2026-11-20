@@ -26,7 +26,10 @@ function setup(): {
     active,
     mockDb,
     setCollections: (entries) => {
-      mockDb.listCollections.mockReturnValue({ toArray: vi.fn().mockResolvedValue(entries) });
+      mockDb.listCollections.mockReturnValue({
+        toArray: vi.fn().mockResolvedValue(entries),
+        close: vi.fn().mockResolvedValue(undefined),
+      });
     },
     setCount: (name, value) => counts.set(name, value),
   };

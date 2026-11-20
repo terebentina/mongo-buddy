@@ -46,7 +46,7 @@ type ImportCall = {
 
 function makeFsPort(
   overrides: {
-    writeIndexesSidecar?: (filePath: string, json: string) => Promise<void>;
+    writeIndexesSidecar?: (filePath: string, json: string, signal?: AbortSignal) => Promise<void>;
     readIndexesSidecar?: (filePath: string) => Promise<string | null>;
   } = {}
 ) {
@@ -97,9 +97,9 @@ function makeFsPort(
       }
       return dataFilePath.slice(0, -'.bson.gz'.length) + '.indexes.json';
     },
-    writeIndexesSidecar: vi.fn(async (filePath: string, json: string): Promise<void> => {
+    writeIndexesSidecar: vi.fn(async (filePath: string, json: string, signal?: AbortSignal): Promise<void> => {
       if (overrides.writeIndexesSidecar) {
-        await overrides.writeIndexesSidecar(filePath, json);
+        await overrides.writeIndexesSidecar(filePath, json, signal);
         return;
       }
       sidecarWrites.push({ filePath, json });
@@ -129,8 +129,8 @@ function makeMongoPort(
   overrides: {
     exportCollection?: (call: ExportCall) => Promise<Result<number>>;
     importCollection?: (call: ImportCall) => Promise<Result<{ inserted: number; skipped: number }>>;
-    listCollections?: (db: string) => Promise<Result<CollectionInfo[]>>;
-    getExportableIndexes?: (db: string, coll: string) => Promise<Result<IndexSpec[]>>;
+    listCollections?: (db: string, signal?: AbortSignal) => Promise<Result<CollectionInfo[]>>;
+    getExportableIndexes?: (db: string, coll: string, signal?: AbortSignal) => Promise<Result<IndexSpec[]>>;
     applyImportedIndexes?: (
       db: string,
       coll: string,
@@ -183,14 +183,18 @@ function makeMongoPort(
         })();
       }
     ),
-    listCollections: vi.fn((_active: ActiveConnection, db: string): Promise<Result<CollectionInfo[]>> => {
-      if (overrides.listCollections) return overrides.listCollections(db);
-      return Promise.resolve({ ok: true, data: [] });
-    }),
-    getExportableIndexes: vi.fn((_active: ActiveConnection, db: string, coll: string): Promise<Result<IndexSpec[]>> => {
-      if (overrides.getExportableIndexes) return overrides.getExportableIndexes(db, coll);
-      return Promise.resolve({ ok: true, data: [] });
-    }),
+    listCollections: vi.fn(
+      (_active: ActiveConnection, db: string, signal?: AbortSignal): Promise<Result<CollectionInfo[]>> => {
+        if (overrides.listCollections) return overrides.listCollections(db, signal);
+        return Promise.resolve({ ok: true, data: [] });
+      }
+    ),
+    getExportableIndexes: vi.fn(
+      (_active: ActiveConnection, db: string, coll: string, signal?: AbortSignal): Promise<Result<IndexSpec[]>> => {
+        if (overrides.getExportableIndexes) return overrides.getExportableIndexes(db, coll, signal);
+        return Promise.resolve({ ok: true, data: [] });
+      }
+    ),
     applyImportedIndexes: vi.fn(
       (
         _active: ActiveConnection,
@@ -312,7 +316,7 @@ describe('OperationRegistry', () => {
       expect(fs._sidecarWrites[0].filePath).toBe('/tmp/users.indexes.json');
       const parsed = JSON.parse(fs._sidecarWrites[0].json);
       expect(parsed).toEqual([{ key: { email: 1 }, name: 'email_1', unique: true }]);
-      expect(mongo.getExportableIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'mydb', 'users');
+      expect(mongo.getExportableIndexes).toHaveBeenCalledWith(TEST_ACTIVE, 'mydb', 'users', expect.any(AbortSignal));
     });
 
     it('skips sidecar write when user cancelled the save dialog', async () => {

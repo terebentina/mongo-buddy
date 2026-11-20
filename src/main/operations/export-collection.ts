@@ -10,7 +10,9 @@ export const exportCollectionOp: OperationDef<'export-collection'> = {
     collection: z.string(),
   }),
   async run(active, params, ctx) {
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
     const savePath = await ctx.dialog.pickSaveFile(params.collection);
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
     if (savePath === null) {
       return {
         ok: true,

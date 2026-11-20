@@ -10,7 +10,9 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
     collections: z.array(z.string()),
   }),
   async run(active, params, ctx) {
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
     const folder = await ctx.dialog.pickFolder();
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
     if (folder === null) {
       return {
         ok: true,
@@ -18,7 +20,8 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
       };
     }
 
-    const listRes = await ctx.mongo.listCollections(active, params.db);
+    const listRes = await ctx.mongo.listCollections(active, params.db, ctx.signal);
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
     if (!listRes.ok) {
       return { ok: false, error: listRes.error };
     }
@@ -32,7 +35,7 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
     const sidecarErrorCollections: string[] = [];
 
     for (let i = 0; i < collections.length; i++) {
-      if (ctx.signal.aborted) break;
+      if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
       const coll = collections[i];
       const filePath = ctx.fs.joinExportFilename(folder, coll.name);
 
@@ -57,6 +60,7 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
       };
 
       const oneRes = await exportOneCollection(loopCtx, active, params.db, coll.name, filePath);
+      if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
       if (!oneRes.ok) {
         return { ok: false, error: oneRes.error };
       }
@@ -65,6 +69,8 @@ export const exportDatabaseOp: OperationDef<'export-database'> = {
         sidecarErrorCollections.push(coll.name);
       }
     }
+
+    if (ctx.signal.aborted) return { ok: false, error: 'Export cancelled' };
 
     const warning =
       sidecarErrorCollections.length > 0 ? `sidecar errors for: ${sidecarErrorCollections.join(', ')}` : undefined;

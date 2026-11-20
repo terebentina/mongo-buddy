@@ -52,7 +52,10 @@ describe('MongoService', () => {
       dropIndex: vi.fn().mockResolvedValue(undefined),
     };
     mockDb = {
-      listCollections: vi.fn().mockReturnValue({ toArray: vi.fn().mockResolvedValue([]) }),
+      listCollections: vi.fn().mockReturnValue({
+        toArray: vi.fn().mockResolvedValue([]),
+        close: vi.fn().mockResolvedValue(undefined),
+      }),
       collection: vi.fn().mockReturnValue(mockCollection),
       admin: vi.fn(),
       dropCollection: vi.fn().mockResolvedValue(undefined),
@@ -85,6 +88,7 @@ describe('MongoService', () => {
           { name: 'users', type: 'collection' },
           { name: 'orders', type: 'collection' },
         ]),
+        close: vi.fn().mockResolvedValue(undefined),
       });
       const result = await service.listCollections(active, 'testdb');
       expect(mockClient.db).toHaveBeenCalledWith('testdb');
@@ -105,6 +109,7 @@ describe('MongoService', () => {
           { name: 'log2', type: 'collection' },
           { name: 'events_10', type: 'collection' },
         ]),
+        close: vi.fn().mockResolvedValue(undefined),
       });
       const result = await service.listCollections(active, 'testdb');
       expect(result.ok && result.data.map((c) => c.name)).toEqual(['Events_2', 'events_10', 'log2', 'log10']);

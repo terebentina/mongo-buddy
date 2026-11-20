@@ -75,9 +75,9 @@ describe('exportDatabaseOp', () => {
     expect(res.error).toBe('no perms');
   });
 
-  it('cancelled mid-loop: returns ok:true with partial exported count and folder (registry maps to cancelled)', async () => {
+  it('cancellation stops before indexes or later collections and does not report partial success', async () => {
     const ac = new AbortController();
-    // Cancel as soon as the first collection finishes.
+    // Cancel while the first collection's data is being exported.
     const { ctx } = makeCtx({
       listResult: { ok: true, data: colls(['a', 'b', 'c']) },
       signal: ac.signal,
@@ -102,10 +102,9 @@ describe('exportDatabaseOp', () => {
       { kind: 'export-database', db: 'd', collections: ['a', 'b', 'c'] },
       ctx
     );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.data.data.exported).toBe(2);
-    expect(res.data.data.folder).toBe('/tmp/dbf');
+    expect(res).toEqual({ ok: false, error: 'Export cancelled' });
+    expect(ctx.mongo.getExportableIndexes).not.toHaveBeenCalled();
+    expect(ctx.fs.writeIndexesSidecar).not.toHaveBeenCalled();
     expect(ctx.mongo.exportCollection).toHaveBeenCalledTimes(1);
   });
 });

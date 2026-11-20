@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+### Bug Fixes
+
+* **export:** propagate gzip/file failures and premature closure instead of leaving exports stalled; close streams before removing partial data files.
+* **export:** interrupt pending database reads, writes, finalization, and metadata work on cancellation; stop subsequent collections without reporting partial success.
+* **export:** remove interrupted index sidecars on cancellation so completed data files remain importable.
+
 ## [2.24.1](https://github.com/terebentina/mongo-buddy/compare/v2.24.0...v2.24.1) (2026-11-12)
 
 
