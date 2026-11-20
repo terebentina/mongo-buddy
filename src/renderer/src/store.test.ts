@@ -437,7 +437,8 @@ describe('store', () => {
       data: { docs: [{ _id: '1', status: 'active', archived: true }], totalCount: 3 },
     });
 
-    const result = await useStore.getState().updateManyDocs({ $set: { archived: true } }, {});
+    const expectedResults = useStore.getState().acceptedResults!;
+    const result = await useStore.getState().updateManyDocs({ $set: { archived: true } }, {}, expectedResults);
 
     expect(result).toEqual({ ok: true, data: { matchedCount: 3, modifiedCount: 2 } });
     expect(mockApi.find).toHaveBeenCalled();
@@ -456,7 +457,8 @@ describe('store', () => {
     });
     mockApi.updateMany.mockResolvedValue({ ok: false, error: 'Modifiers operate on fields' });
 
-    const result = await useStore.getState().updateManyDocs({ archived: true }, {});
+    const expectedResults = useStore.getState().acceptedResults!;
+    const result = await useStore.getState().updateManyDocs({ archived: true }, {}, expectedResults);
 
     expect(result).toEqual({ ok: false, error: 'Modifiers operate on fields' });
     expect(mockApi.find).not.toHaveBeenCalled();
@@ -465,7 +467,7 @@ describe('store', () => {
   it('updateManyDocs() returns an error Result and skips the API when no collection selected', async () => {
     useStore.setState({ selectedDb: null, selectedCollection: null });
 
-    const result = await useStore.getState().updateManyDocs({ $set: { a: 1 } }, {});
+    const result = await useStore.getState().updateManyDocs({ $set: { a: 1 } }, {}, filterResults());
 
     expect(result.ok).toBe(false);
     expect(mockApi.updateMany).not.toHaveBeenCalled();
@@ -498,7 +500,8 @@ describe('store', () => {
     });
     mockApi.find.mockResolvedValue({ ok: true, data: { docs: [{ _id: '21' }], totalCount: 1 } });
 
-    const result = await useStore.getState().deleteResults();
+    const expectedResults = useStore.getState().acceptedResults!;
+    const result = await useStore.getState().deleteResults(expectedResults);
 
     expect(result).toEqual({ ok: true, data: 7 });
     expect(mockApi.deleteMany).toHaveBeenCalledWith('testdb', 'users', filter);
@@ -532,7 +535,8 @@ describe('store', () => {
     });
     mockApi.deleteMany.mockResolvedValue({ ok: false, error: 'Delete failed' });
 
-    const result = await useStore.getState().deleteResults();
+    const expectedResults = useStore.getState().acceptedResults!;
+    const result = await useStore.getState().deleteResults(expectedResults);
 
     expect(result).toEqual({ ok: false, error: 'Delete failed' });
     expect(mockApi.find).not.toHaveBeenCalled();
@@ -544,7 +548,7 @@ describe('store', () => {
   it('skips the delete results API when no collection is selected', async () => {
     useStore.setState({ selectedDb: null, selectedCollection: null });
 
-    const result = await useStore.getState().deleteResults();
+    const result = await useStore.getState().deleteResults(filterResults());
 
     expect(result).toEqual({ ok: false, error: 'No collection selected' });
     expect(mockApi.deleteMany).not.toHaveBeenCalled();
@@ -1501,11 +1505,7 @@ describe('initMcpStatus', () => {
 
 describe('selectConnected', () => {
   it('is false for every other status', () => {
-    const states: ConnectionState[] = [
-      { status: 'disconnected' },
-      { status: 'connecting', uri: 'u' },
-      { status: 'error', uri: 'u', error: 'e' },
-    ];
+    const states: ConnectionState[] = [{ status: 'disconnected' }, { status: 'connecting', uri: 'u' }];
     for (const s of states) {
       expect(selectConnected({ status: s } as unknown as ReturnType<typeof useStore.getState>)).toBe(false);
     }
@@ -2046,7 +2046,6 @@ describe('collection selection ownership', () => {
   it.each<ConnectionState>([
     { status: 'disconnected' },
     { status: 'connecting', uri: 'mongodb://localhost' },
-    { status: 'error', uri: 'mongodb://localhost', error: 'Lost connection' },
     { status: 'connected', uri: 'mongodb://elsewhere', connectionKey: 'elsewhere:27017' },
   ])('invalidates collection work on the ConnectionState transition to $status $uri', async (next) => {
     let emit!: (state: ConnectionState) => void;
@@ -2148,7 +2147,8 @@ describe('accepted query results', () => {
         )
       );
       mockApi.updateMany.mockResolvedValue({ ok: true, data: { matchedCount: 61, modifiedCount: 61 } });
-      await useStore.getState().updateManyDocs({ $set: { checked: true } }, {});
+      const updateResults = useStore.getState().acceptedResults!;
+      await useStore.getState().updateManyDocs({ $set: { checked: true } }, {}, updateResults);
       expect(mockApi.updateMany).toHaveBeenCalledWith(
         'testdb',
         'users',
@@ -2157,7 +2157,8 @@ describe('accepted query results', () => {
         {}
       );
       mockApi.deleteMany.mockResolvedValue({ ok: true, data: 61 });
-      await useStore.getState().deleteResults();
+      const deleteResults = useStore.getState().acceptedResults!;
+      await useStore.getState().deleteResults(deleteResults);
       expect(mockApi.deleteMany).toHaveBeenCalledWith('testdb', 'users', { active: true });
       expect(useStore.getState().acceptedResults?.appliedQuery).toMatchObject({ skip: 0, filter: { active: true } });
     }
@@ -2280,31 +2281,49 @@ describe('accepted query results', () => {
   });
 
   it('requires accepted filter results for writes after a failed first query or an accepted aggregate', async () => {
+    const staleResults = useStore.getState().acceptedResults!;
     mockApi.sampleFields.mockResolvedValue({ ok: true, data: [] });
     mockApi.find.mockResolvedValueOnce({ ok: false, error: 'First query failed' });
     await useStore.getState().selectCollection('testdb', 'orders');
     expect(useStore.getState().acceptedResults).toBeNull();
-    expect((await useStore.getState().deleteResults()).ok).toBe(false);
-    expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {})).ok).toBe(false);
+    expect((await useStore.getState().deleteResults(staleResults)).ok).toBe(false);
+    expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {}, staleResults)).ok).toBe(false);
     useStore.getState().setQueryMode('aggregate');
     mockApi.aggregate.mockResolvedValue({ ok: true, data: [{ total: 42 }] });
     await useStore.getState().runQuery('[]');
     useStore.getState().setQueryMode('filter');
     await useStore.getState().fetchPage(20);
     await useStore.getState().setSort('total');
-    expect((await useStore.getState().deleteResults()).ok).toBe(false);
-    expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {})).ok).toBe(false);
+    const aggregate = useStore.getState().acceptedResults!;
+    expect((await useStore.getState().deleteResults(aggregate)).ok).toBe(false);
+    expect((await useStore.getState().updateManyDocs({ $set: { value: 1 } }, {}, aggregate)).ok).toBe(false);
     expect(mockApi.deleteMany).not.toHaveBeenCalled();
     expect(mockApi.updateMany).not.toHaveBeenCalled();
     expect(mockApi.find).toHaveBeenCalledTimes(1);
     expect(useStore.getState().acceptedResults).toEqual(aggregateResults({ collection: 'orders' }, [{ total: 42 }]));
   });
 
+  it('rejects both bulk writes when a successful query has replaced their accepted snapshot', async () => {
+    const staleResults = useStore.getState().acceptedResults!;
+    mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'Fresh results' }], totalCount: 1 } });
+
+    expect(await useStore.getState().runQuery('{ active: true }')).toBeNull();
+    const currentResults = useStore.getState().acceptedResults;
+    expect(currentResults).not.toBe(staleResults);
+    expect(currentResults?.docs).toEqual([{ name: 'Fresh results' }]);
+
+    expect((await useStore.getState().deleteResults(staleResults)).ok).toBe(false);
+    expect((await useStore.getState().updateManyDocs({ $set: { archived: true } }, {}, staleResults)).ok).toBe(false);
+    expect(mockApi.deleteMany).not.toHaveBeenCalled();
+    expect(mockApi.updateMany).not.toHaveBeenCalled();
+    expect(useStore.getState().acceptedResults).toBe(currentResults);
+  });
+
   it('retains the accepted page if deletion succeeds but the following page-one read fails', async () => {
-    const accepted = useStore.getState().acceptedResults;
     mockApi.deleteMany.mockResolvedValueOnce({ ok: true, data: 61 });
     mockApi.find.mockResolvedValueOnce({ ok: false, error: 'Refresh failed' });
-    expect(await useStore.getState().deleteResults()).toEqual({ ok: true, data: 61 });
+    const accepted = useStore.getState().acceptedResults!;
+    expect(await useStore.getState().deleteResults(accepted)).toEqual({ ok: true, data: 61 });
     expect(useStore.getState().acceptedResults).toBe(accepted);
     expect(useStore.getState().error).toBe('Refresh failed');
   });
@@ -2314,7 +2333,8 @@ describe('accepted query results', () => {
     const read = deferred<Result<{ docs: Record<string, unknown>[]; totalCount: number }>>();
     mockApi.deleteMany.mockReturnValueOnce(write.promise);
     mockApi.find.mockReturnValueOnce(read.promise);
-    const deleting = useStore.getState().deleteResults();
+    const expectedResults = useStore.getState().acceptedResults!;
+    const deleting = useStore.getState().deleteResults(expectedResults);
     const running = useStore.getState().runQuery('{ latest: true }');
     write.resolve({ ok: true, data: 61 });
     await deleting;
@@ -2329,7 +2349,8 @@ describe('accepted query results', () => {
   it('late mutation completion leaves a newer result snapshot and its page untouched', async () => {
     const write = deferred<Result<number>>();
     mockApi.deleteMany.mockReturnValueOnce(write.promise);
-    const deleting = useStore.getState().deleteResults();
+    const expectedResults = useStore.getState().acceptedResults!;
+    const deleting = useStore.getState().deleteResults(expectedResults);
     mockApi.find.mockResolvedValueOnce({ ok: true, data: { docs: [{ name: 'new query' }], totalCount: 1 } });
     await useStore.getState().runQuery('{ new: true }');
     const newer = useStore.getState().acceptedResults;
@@ -2373,7 +2394,10 @@ describe('mutation refresh ownership', () => {
     {
       name: 'update results',
       api: mockApi.updateMany,
-      run: () => useStore.getState().updateManyDocs({ $set: { checked: true } }, {}),
+      run: () => {
+        const expectedResults = useStore.getState().acceptedResults!;
+        return useStore.getState().updateManyDocs({ $set: { checked: true } }, {}, expectedResults);
+      },
       reply: { ok: true, data: { matchedCount: 61, modifiedCount: 3 } },
       outcome: { ok: true, data: { matchedCount: 61, modifiedCount: 3 } },
       args: ['testdb', 'users', { active: true }, { $set: { checked: true } }, {}],
@@ -2382,7 +2406,10 @@ describe('mutation refresh ownership', () => {
     {
       name: 'delete results',
       api: mockApi.deleteMany,
-      run: () => useStore.getState().deleteResults(),
+      run: () => {
+        const expectedResults = useStore.getState().acceptedResults!;
+        return useStore.getState().deleteResults(expectedResults);
+      },
       reply: { ok: true, data: 3 },
       outcome: { ok: true, data: 3 },
       args: ['testdb', 'users', { active: true }],
@@ -2743,7 +2770,6 @@ describe('mutation refresh ownership', () => {
   );
 
   it('deletion proposes page one without changing the displayed page until the read succeeds', async () => {
-    const accepted = useStore.getState().acceptedResults;
     const read = deferred<ReadResult>();
     const requested = deferred<void>();
     mockApi.find.mockImplementationOnce(() => {
@@ -2751,7 +2777,8 @@ describe('mutation refresh ownership', () => {
       return read.promise;
     });
 
-    const deleting = useStore.getState().deleteResults();
+    const accepted = useStore.getState().acceptedResults!;
+    const deleting = useStore.getState().deleteResults(accepted);
     await requested.promise;
 
     expect(useStore.getState().acceptedResults).toBe(accepted);
@@ -2899,7 +2926,6 @@ describe('mutation refresh ownership', () => {
   );
 
   it('a late deletion refresh does not clear a newer read busy state or replace its accepted result', async () => {
-    const accepted = useStore.getState().acceptedResults;
     const oldRead = deferred<ReadResult>();
     const newRead = deferred<ReadResult>();
     const requested = deferred<void>();
@@ -2909,7 +2935,8 @@ describe('mutation refresh ownership', () => {
         return oldRead.promise;
       })
       .mockReturnValueOnce(newRead.promise);
-    const deleting = useStore.getState().deleteResults();
+    const accepted = useStore.getState().acceptedResults!;
+    const deleting = useStore.getState().deleteResults(accepted);
     await requested.promise;
     const running = useStore.getState().runQuery('{ newest: true }');
 

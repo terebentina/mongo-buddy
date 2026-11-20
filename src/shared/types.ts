@@ -90,8 +90,7 @@ export interface DropCollectionsResult {
 export type ConnectionState =
   | { status: 'disconnected' }
   | { status: 'connecting'; uri: string }
-  | { status: 'connected'; uri: string; connectionKey: string }
-  | { status: 'error'; uri: string; error: string };
+  | { status: 'connected'; uri: string; connectionKey: string };
 
 export type CollectionColumnWidths = Record<string, number>;
 export type ConnectionColumnWidths = Record<string, CollectionColumnWidths>;

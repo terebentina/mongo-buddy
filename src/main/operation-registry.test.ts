@@ -3,19 +3,13 @@ import { Writable, Readable } from 'stream';
 import type { MongoClient } from 'mongodb';
 import { z } from 'zod';
 import { createOperationRegistry } from './operation-registry';
-import type { MongoServicePort, OperationRegistry } from './operation-registry';
+import type { OperationRegistry } from './operation-registry';
 import { OPERATIONS } from './operations';
 import { exportCollectionOp } from './operations/export-collection';
 import type { AnyOperationDef } from './operations/types';
 import type { IndexSpec } from './index-spec';
-import { MongoService } from './mongo-service';
 import type { ActiveConnection } from './connection-manager';
 import type { OperationRecord, OperationParams, Result, ImportOptions, CollectionInfo } from '../shared/types';
-
-// Compile-time check: existing MongoService structurally satisfies MongoServicePort
-// (no wrapper needed). If this breaks, the port interface drifted from the service.
-const _portCheck: MongoServicePort = new MongoService();
-void _portCheck;
 
 const TEST_ACTIVE: ActiveConnection = {
   client: {} as unknown as MongoClient,
@@ -46,7 +40,7 @@ type ImportCall = {
 
 function makeFsPort(
   overrides: {
-    writeIndexesSidecar?: (filePath: string, json: string, signal?: AbortSignal) => Promise<void>;
+    writeIndexesSidecar?: (filePath: string, json: string, signal: AbortSignal) => Promise<void>;
     readIndexesSidecar?: (filePath: string) => Promise<string | null>;
   } = {}
 ) {
@@ -97,7 +91,7 @@ function makeFsPort(
       }
       return dataFilePath.slice(0, -'.bson.gz'.length) + '.indexes.json';
     },
-    writeIndexesSidecar: vi.fn(async (filePath: string, json: string, signal?: AbortSignal): Promise<void> => {
+    writeIndexesSidecar: vi.fn(async (filePath: string, json: string, signal: AbortSignal): Promise<void> => {
       if (overrides.writeIndexesSidecar) {
         await overrides.writeIndexesSidecar(filePath, json, signal);
         return;
@@ -129,8 +123,8 @@ function makeMongoPort(
   overrides: {
     exportCollection?: (call: ExportCall) => Promise<Result<number>>;
     importCollection?: (call: ImportCall) => Promise<Result<{ inserted: number; skipped: number }>>;
-    listCollections?: (db: string, signal?: AbortSignal) => Promise<Result<CollectionInfo[]>>;
-    getExportableIndexes?: (db: string, coll: string, signal?: AbortSignal) => Promise<Result<IndexSpec[]>>;
+    listCollections?: (db: string, signal: AbortSignal) => Promise<Result<CollectionInfo[]>>;
+    getExportableIndexes?: (db: string, coll: string, signal: AbortSignal) => Promise<Result<IndexSpec[]>>;
     applyImportedIndexes?: (
       db: string,
       coll: string,
@@ -184,13 +178,13 @@ function makeMongoPort(
       }
     ),
     listCollections: vi.fn(
-      (_active: ActiveConnection, db: string, signal?: AbortSignal): Promise<Result<CollectionInfo[]>> => {
+      (_active: ActiveConnection, db: string, signal: AbortSignal): Promise<Result<CollectionInfo[]>> => {
         if (overrides.listCollections) return overrides.listCollections(db, signal);
         return Promise.resolve({ ok: true, data: [] });
       }
     ),
     getExportableIndexes: vi.fn(
-      (_active: ActiveConnection, db: string, coll: string, signal?: AbortSignal): Promise<Result<IndexSpec[]>> => {
+      (_active: ActiveConnection, db: string, coll: string, signal: AbortSignal): Promise<Result<IndexSpec[]>> => {
         if (overrides.getExportableIndexes) return overrides.getExportableIndexes(db, coll, signal);
         return Promise.resolve({ ok: true, data: [] });
       }

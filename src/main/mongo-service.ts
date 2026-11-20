@@ -12,7 +12,7 @@ export class MongoService {
   async listCollections(
     active: ActiveConnection,
     dbName: string,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<Result<CollectionInfo[]>> {
     try {
       const data = await listCollectionsImpl(active, dbName, { signal, includeCounts: false });
@@ -220,10 +220,10 @@ export class MongoService {
     active: ActiveConnection,
     dbName: string,
     collName: string,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<Result<IndexSpec[]>> {
     try {
-      signal?.throwIfAborted();
+      signal.throwIfAborted();
       const collection = active.client.db(dbName).collection(collName);
       // Driver 7.4 forwards these options to both AbstractCursor and the
       // listIndexes command, but its ListIndexesOptions omits Abortable.
@@ -231,7 +231,7 @@ export class MongoService {
       const cursor = collection.listIndexes(options);
       try {
         const rawIndexes = await cursor.toArray();
-        signal?.throwIfAborted();
+        signal.throwIfAborted();
         const data = sanitizeForExport(rawIndexes as Record<string, unknown>[]);
         return { ok: true, data };
       } finally {

@@ -72,9 +72,9 @@ export interface StoreState {
   updateManyDocs: (
     update: UpdateManyInput,
     options: UpdateManyOptions,
-    expectedResults?: AcceptedResults
+    expectedResults: AcceptedResults
   ) => Promise<Result<UpdateManyResult>>;
-  deleteResults: (expectedResults?: AcceptedResults) => Promise<Result<number>>;
+  deleteResults: (expectedResults: AcceptedResults) => Promise<Result<number>>;
   deleteDoc: (id: unknown) => Promise<string | null>;
   emptyCollection: (db: string, collection: string) => Promise<Result<number>>;
   refreshDocs: () => Promise<void>;
@@ -261,17 +261,8 @@ export const useStore = create<StoreState>()((set, get) => {
       const next = ghostDatabases.filter((n) => n !== name);
       if (selectedDb === name) {
         collectionQuery.reset();
-        set({
-          ghostDatabases: next,
-          expandedDb: null,
-          selectedDb: null,
-          selectedCollection: null,
-          collections: [],
-          projection: null,
-        });
-      } else {
-        set({ ghostDatabases: next });
       }
+      set({ ghostDatabases: next });
     },
 
     refreshDatabases: async () => {

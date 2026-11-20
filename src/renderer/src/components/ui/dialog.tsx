@@ -86,13 +86,4 @@ function DialogDescription({
   return <BaseDialog.Description ref={ref} className={cn('text-sm text-muted-foreground', className)} {...props} />;
 }
 
-export {
-  Dialog,
-  DialogPortal,
-  DialogOverlay,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-};
+export { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription };

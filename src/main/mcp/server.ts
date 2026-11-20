@@ -1,4 +1,5 @@
 import { createServer as createHttpServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { z } from 'zod';
@@ -36,11 +37,7 @@ async function listen(httpServer: Server, port: number): Promise<{ port: number;
     };
     const onListening = (): void => {
       httpServer.removeListener('error', onError);
-      const info = httpServer.address();
-      if (!info || typeof info === 'string') {
-        resolve(null);
-        return;
-      }
+      const info = httpServer.address() as AddressInfo;
       resolve({ port: info.port, address: info.address });
     };
     httpServer.once('error', onError);
@@ -89,7 +86,6 @@ export async function startMcpServer(options: StartMcpServerOptions): Promise<Mc
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
 
     const cleanup = (): void => {
-      void transport.close().catch(() => undefined);
       void mcpServer.close().catch(() => undefined);
     };
     res.on('close', cleanup);

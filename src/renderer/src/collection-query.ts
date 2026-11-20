@@ -180,12 +180,12 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
   }
 
   function acceptedMutationFilter(
-    expectedResults?: AcceptedResults
+    expectedResults: AcceptedResults
   ): Result<Extract<AppliedQuery, { queryMode: 'filter' }>> {
     const { selectedDb, selectedCollection, acceptedResults, queryMode, loading } = get();
     if (!selectedDb || !selectedCollection) return { ok: false, error: 'No collection selected' };
     const query = acceptedFilter();
-    if (!query || queryMode !== 'filter' || loading || (expectedResults && expectedResults !== acceptedResults)) {
+    if (!query || queryMode !== 'filter' || loading || expectedResults !== acceptedResults) {
       return { ok: false, error: 'No current accepted filter results' };
     }
     return { ok: true, data: query };
@@ -545,14 +545,14 @@ export function createCollectionQuery(set: StoreApi<StoreState>['setState'], get
       return result.ok ? null : result.error;
     },
 
-    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions, expectedResults?: AcceptedResults) => {
+    updateManyDocs: async (update: UpdateManyInput, options: UpdateManyOptions, expectedResults: AcceptedResults) => {
       const accepted = acceptedMutationFilter(expectedResults);
       if (!accepted.ok) return accepted;
       const { db, collection, filter } = accepted.data;
       return mutate(db, collection, (db, collection) => window.api.updateMany(db, collection, filter, update, options));
     },
 
-    deleteResults: async (expectedResults?: AcceptedResults) => {
+    deleteResults: async (expectedResults: AcceptedResults) => {
       const accepted = acceptedMutationFilter(expectedResults);
       if (!accepted.ok) return accepted;
       const { db, collection, filter } = accepted.data;

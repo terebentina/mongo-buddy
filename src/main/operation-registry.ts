@@ -33,12 +33,12 @@ export interface MongoServicePort {
     onProgress: (count: number) => void,
     signal: AbortSignal
   ): Promise<Result<{ inserted: number; skipped: number }>>;
-  listCollections(active: ActiveConnection, dbName: string, signal?: AbortSignal): Promise<Result<CollectionInfo[]>>;
+  listCollections(active: ActiveConnection, dbName: string, signal: AbortSignal): Promise<Result<CollectionInfo[]>>;
   getExportableIndexes(
     active: ActiveConnection,
     dbName: string,
     collName: string,
-    signal?: AbortSignal
+    signal: AbortSignal
   ): Promise<Result<IndexSpec[]>>;
   applyImportedIndexes(
     active: ActiveConnection,
@@ -63,11 +63,11 @@ export interface GunzipSource {
 }
 
 export interface FilesystemSinkPort {
-  writeGzipSink(filePath: string, signal?: AbortSignal): GzipSink;
+  writeGzipSink(filePath: string, signal: AbortSignal): GzipSink;
   readGunzipSource(filePath: string): GunzipSource;
   joinExportFilename(dir: string, base: string): string;
   indexesSidecarPath(dataFilePath: string): string;
-  writeIndexesSidecar(filePath: string, json: string, signal?: AbortSignal): Promise<void>;
+  writeIndexesSidecar(filePath: string, json: string, signal: AbortSignal): Promise<void>;
   readIndexesSidecar(filePath: string): Promise<string | null>;
 }
 

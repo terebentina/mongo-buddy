@@ -90,7 +90,7 @@ describe('MongoService', () => {
         ]),
         close: vi.fn().mockResolvedValue(undefined),
       });
-      const result = await service.listCollections(active, 'testdb');
+      const result = await service.listCollections(active, 'testdb', new AbortController().signal);
       expect(mockClient.db).toHaveBeenCalledWith('testdb');
       expect(result).toEqual({
         ok: true,
@@ -111,7 +111,7 @@ describe('MongoService', () => {
         ]),
         close: vi.fn().mockResolvedValue(undefined),
       });
-      const result = await service.listCollections(active, 'testdb');
+      const result = await service.listCollections(active, 'testdb', new AbortController().signal);
       expect(result.ok && result.data.map((c) => c.name)).toEqual(['Events_2', 'events_10', 'log2', 'log10']);
     });
   });

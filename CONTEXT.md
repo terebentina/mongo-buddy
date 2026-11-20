@@ -15,7 +15,7 @@ A persisted entry in the user's connection list — a URI plus optional metadata
 _Avoid_: bookmark, profile.
 
 **ConnectionState**:
-The status snapshot broadcast from the main process to the renderer. Discriminated union over `disconnected | connecting | connected | error`.
+The status snapshot broadcast from the main process to the renderer. Discriminated union over `disconnected | connecting | connected`; failed connection attempts return to `disconnected`, with errors reported separately.
 _Avoid_: status (too generic), connection info.
 
 **ConnectedSession**:

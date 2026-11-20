@@ -10,7 +10,7 @@ const SIDECAR_SUFFIX = '.indexes.json';
 
 export function createFsSinkAdapter(): FilesystemSinkPort {
   return {
-    writeGzipSink(filePath: string, signal?: AbortSignal): GzipSink {
+    writeGzipSink(filePath: string, signal: AbortSignal): GzipSink {
       const gzip = createGzip();
       let file: WriteStream;
       try {
@@ -34,20 +34,20 @@ export function createFsSinkAdapter(): FilesystemSinkPort {
         finished(gzip, { cleanup: true }).catch(fail),
         finished(file, { cleanup: true }).catch(fail),
       ]).then(() => {
-        signal?.removeEventListener('abort', abort);
+        signal.removeEventListener('abort', abort);
       });
       gzip.pipe(file);
-      signal?.addEventListener('abort', abort, { once: true });
-      if (signal?.aborted) abort();
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) abort();
 
       return {
         writable: gzip,
         async finalize(): Promise<void> {
-          signal?.throwIfAborted();
+          signal.throwIfAborted();
           if (!gzip.writableEnded && !gzip.destroyed) gzip.end();
           await completion;
           if (failure) throw failure;
-          signal?.throwIfAborted();
+          signal.throwIfAborted();
         },
         async destroy(): Promise<void> {
           gzip.destroy();
@@ -83,14 +83,14 @@ export function createFsSinkAdapter(): FilesystemSinkPort {
       return dataFilePath.slice(0, -DATA_SUFFIX.length) + SIDECAR_SUFFIX;
     },
 
-    async writeIndexesSidecar(filePath: string, json: string, signal?: AbortSignal): Promise<void> {
-      signal?.throwIfAborted();
+    async writeIndexesSidecar(filePath: string, json: string, signal: AbortSignal): Promise<void> {
+      signal.throwIfAborted();
       try {
         await writeFile(filePath, json, { encoding: 'utf8', signal });
       } catch (err) {
         // An aborted write may have created or truncated the sidecar. Wait for
         // the write to settle before removing metadata that would block import.
-        if (signal?.aborted) await unlink(filePath).catch(() => {});
+        if (signal.aborted) await unlink(filePath).catch(() => {});
         throw err;
       }
     },
