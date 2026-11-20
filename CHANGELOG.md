@@ -2,16 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## Unreleased
+## [2.24.2](https://github.com/terebentina/mongo-buddy/compare/v2.24.1...v2.24.2) (2026-11-20)
+
 
 ### Bug Fixes
 
-* **export:** propagate gzip/file failures and premature closure instead of leaving exports stalled; close streams before removing partial data files.
-* **export:** interrupt pending database reads, writes, finalization, and metadata work on cancellation; stop subsequent collections without reporting partial success.
-* **export:** remove interrupted index sidecars on cancellation so completed data files remain importable.
-* **connection:** remove the unused error notification state; failed connections continue to report errors separately.
-* **cleanup:** remove unused private UI modes/exports, redundant reset/assertion/teardown code, and an unreachable TCP-address fallback.
-* **operations:** require cancellation signals for export ports and accepted-results snapshots for bulk-write actions.
+* **export:** handle stream failures and cancellation safely ([5be6cf9](https://github.com/terebentina/mongo-buddy/commit/5be6cf92deb144a3f4c7022141c64fb9c3c504e5))
 
 ## [2.24.1](https://github.com/terebentina/mongo-buddy/compare/v2.24.0...v2.24.1) (2026-11-12)
 
